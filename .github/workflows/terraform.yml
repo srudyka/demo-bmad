@@ -1,0 +1,73 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "modules/**/*.tf"
+      - "modules/**/*.tf.json"
+      - "envs/**/*.tf"
+      - "envs/**/*.tf.json"
+      - "README.md"
+      - "modules/**/README.md"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "modules/**/*.tf"
+      - "modules/**/*.tf.json"
+      - "envs/**/*.tf"
+      - "envs/**/*.tf.json"
+      - "README.md"
+      - "modules/**/README.md"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Guard against committed state and secrets
+        run: |
+          set -euo pipefail
+          if find . -name '*.tfstate' -o -name '*.tfstate.*' -o -name '*.tfvars' -o -name '*.tfvars.json' | grep -q .; then
+            echo "Terraform state or tfvars files must not be committed."
+            exit 1
+          fi
+
+      - name: Terraform policy guard
+        run: |
+          set -euo pipefail
+          policy_hits="$(grep -RInE --include='*.tf' --include='*.tf.json' 'Principal[[:space:]]*=[[:space:]]*"?\*"|resources[[:space:]]*=[[:space:]]*\[[[:space:]]*"\*"[[:space:]]*\]|0\.0\.0\.0/0|container_image[[:space:]]*=[^#]*:latest' modules envs || true)"
+          if [ -n "$policy_hits" ]; then
+            echo "Terraform policy guard found broad access, public ingress, or mutable latest image usage:"
+            echo "$policy_hits"
+            exit 1
+          fi
+
+      - name: Initialize module
+        run: terraform -chdir=modules/ecs-scheduled-job init -backend=false
+
+      - name: Validate module
+        run: terraform -chdir=modules/ecs-scheduled-job validate
+
+      - name: Initialize example
+        run: terraform -chdir=envs/example init -backend=false
+
+      - name: Validate example
+        run: terraform -chdir=envs/example validate
