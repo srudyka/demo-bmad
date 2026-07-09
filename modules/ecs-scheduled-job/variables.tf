@@ -108,11 +108,6 @@ variable "environment_variables" {
   description = "Non-secret environment variables for the container."
   type        = map(string)
   default     = {}
-
-  validation {
-    condition     = length(setintersection(keys(var.environment_variables), keys(var.secrets))) == 0
-    error_message = "environment_variables and secrets must not define the same container environment variable name."
-  }
 }
 
 variable "secrets" {

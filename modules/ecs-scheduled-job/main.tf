@@ -232,6 +232,11 @@ resource "aws_ecs_task_definition" "this" {
       condition     = contains(local.fargate_memory_by_cpu[tostring(var.cpu)], var.memory)
       error_message = "memory must be a valid Fargate memory value for the selected cpu."
     }
+
+    precondition {
+      condition     = length(setintersection(keys(var.environment_variables), keys(var.secrets))) == 0
+      error_message = "environment_variables and secrets must not define the same container environment variable name."
+    }
   }
 }
 
