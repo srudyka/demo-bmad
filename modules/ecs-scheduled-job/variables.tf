@@ -155,7 +155,7 @@ variable "ephemeral_storage_gib" {
   default     = null
 
   validation {
-    condition     = var.ephemeral_storage_gib == null || (var.ephemeral_storage_gib >= 21 && var.ephemeral_storage_gib <= 200)
+    condition     = var.ephemeral_storage_gib == null ? true : var.ephemeral_storage_gib >= 21 && var.ephemeral_storage_gib <= 200
     error_message = "ephemeral_storage_gib must be null or between 21 and 200."
   }
 }
