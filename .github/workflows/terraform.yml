@@ -1,0 +1,58 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - ".gitignore"
+      - ".github/workflows/terraform.yml"
+      - "**/*.tf"
+      - "**/*.tfvars.example"
+      - "modules/**"
+      - "docs/runbooks/**"
+      - "README.md"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Format and Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Initialize module
+        run: terraform -chdir=modules/ecs-scheduled-job init -backend=false
+
+      - name: Validate module
+        run: terraform -chdir=modules/ecs-scheduled-job validate
+
+      - name: Initialize basic example
+        run: terraform -chdir=modules/ecs-scheduled-job/examples/basic init -backend=false
+
+      - name: Validate basic example
+        run: terraform -chdir=modules/ecs-scheduled-job/examples/basic validate
+
+  checkov:
+    name: Checkov IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
+          quiet: true
+          skip_path: .terraform
