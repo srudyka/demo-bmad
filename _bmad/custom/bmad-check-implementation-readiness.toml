@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "For AWS Terraform readiness checks, verify PRD, architecture, stories, and validation gates include file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md requirements.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]

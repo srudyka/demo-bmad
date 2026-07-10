@@ -1,0 +1,12 @@
+[agent]
+activation_steps_append = [
+  "Load and apply file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md before implementing or reviewing AWS Terraform infrastructure.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]
+
+principles = [
+  "For AWS Terraform work, converge on the repository implementation standard and call out any intentional deviation before coding.",
+]

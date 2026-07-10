@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "When the work touches AWS Terraform infrastructure, compare the intended implementation to file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md before editing.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]
