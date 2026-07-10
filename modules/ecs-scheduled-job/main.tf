@@ -382,6 +382,7 @@ resource "aws_scheduler_schedule" "this" {
   name                         = local.name
   group_name                   = local.schedule_group_name
   description                  = "Runs ECS Fargate scheduled job ${local.name}"
+  kms_key_arn                  = var.scheduler_kms_key_arn
   schedule_expression          = var.schedule_expression
   schedule_expression_timezone = var.schedule_timezone
   state                        = var.schedule_enabled ? "ENABLED" : "DISABLED"

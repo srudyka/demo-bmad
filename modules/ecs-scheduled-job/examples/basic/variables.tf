@@ -23,6 +23,11 @@ variable "container_image" {
   type        = string
 }
 
+variable "scheduler_kms_key_arn" {
+  description = "Customer managed KMS key ARN used by EventBridge Scheduler to encrypt schedule data."
+  type        = string
+}
+
 variable "alarm_actions" {
   description = "Optional alarm action ARNs, such as SNS topic ARNs."
   type        = list(string)

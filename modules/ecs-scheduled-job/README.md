@@ -31,8 +31,9 @@ module "daily_report" {
 
   ecr_repository_arns = var.ecr_repository_arns
 
-  schedule_expression = "cron(0 6 * * ? *)"
-  alarm_actions       = [aws_sns_topic.platform_alerts.arn]
+  scheduler_kms_key_arn = var.scheduler_kms_key_arn
+  schedule_expression   = "cron(0 6 * * ? *)"
+  alarm_actions         = [aws_sns_topic.platform_alerts.arn]
 }
 ```
 
@@ -45,6 +46,8 @@ Use `container_secrets` for sensitive values. Each entry must reference an SSM P
 If `execution_role_arn` and `task_role_arn` are omitted, the module creates both roles. If your organization manages ECS roles centrally, set both ARNs together and ensure the supplied execution role can write logs, pull the configured image, and read configured secret references. The scheduler role may also be supplied with `scheduler_role_arn`; when supplied, it must allow `ecs:RunTask`, `iam:PassRole` for the task roles, and `sqs:SendMessage` to the module DLQ.
 
 Private ECR pulls require `ecr_repository_arns` when the module creates the execution role. The module scopes repository read actions to those ARNs; `ecr:GetAuthorizationToken` uses `Resource = "*"` because AWS does not support resource-level permissions for that action. `container_image` must use a digest, semantic release tag, or commit SHA tag; floating channel tags are rejected.
+
+`scheduler_kms_key_arn` is required so EventBridge Scheduler encrypts schedule data with a customer managed KMS key. Keep the key ARN in the calling account or environment configuration rather than committing account-specific values to this module.
 
 `platform_version` defaults to the pinned Fargate platform version `1.4.0`. Set `create_schedule_group = true` when the module should create a non-default Scheduler group; otherwise `schedule_group_name` must already exist.
 

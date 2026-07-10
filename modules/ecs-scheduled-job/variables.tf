@@ -210,7 +210,7 @@ variable "ephemeral_storage_gib" {
   default     = null
 
   validation {
-    condition     = var.ephemeral_storage_gib == null || (var.ephemeral_storage_gib >= 21 && var.ephemeral_storage_gib <= 200)
+    condition     = var.ephemeral_storage_gib == null ? true : var.ephemeral_storage_gib >= 21 && var.ephemeral_storage_gib <= 200
     error_message = "ephemeral_storage_gib must be null or between 21 and 200."
   }
 }
@@ -264,6 +264,16 @@ variable "schedule_group_name" {
   }
 }
 
+variable "scheduler_kms_key_arn" {
+  description = "Customer managed KMS key ARN used by EventBridge Scheduler to encrypt schedule data."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/.+", var.scheduler_kms_key_arn))
+    error_message = "scheduler_kms_key_arn must be a valid customer managed KMS key ARN."
+  }
+}
+
 variable "create_schedule_group" {
   description = "Whether to create schedule_group_name. Leave false when using the default or a centrally managed Scheduler group."
   type        = bool
@@ -293,7 +303,7 @@ variable "maximum_window_in_minutes" {
   default     = null
 
   validation {
-    condition     = var.maximum_window_in_minutes == null || (var.maximum_window_in_minutes >= 1 && var.maximum_window_in_minutes <= 1440)
+    condition     = var.maximum_window_in_minutes == null ? true : var.maximum_window_in_minutes >= 1 && var.maximum_window_in_minutes <= 1440
     error_message = "maximum_window_in_minutes must be null or between 1 and 1440."
   }
 }

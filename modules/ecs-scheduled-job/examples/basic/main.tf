@@ -19,9 +19,10 @@ module "example_report_job" {
   container_image   = var.container_image
   container_command = ["sh", "-c", "echo ecs scheduled job example"]
 
-  schedule_expression = "rate(1 day)"
-  log_retention_days  = 30
-  alarm_actions       = var.alarm_actions
+  scheduler_kms_key_arn = var.scheduler_kms_key_arn
+  schedule_expression   = "rate(1 day)"
+  log_retention_days    = 30
+  alarm_actions         = var.alarm_actions
 
   tags = {
     Example = "basic"
