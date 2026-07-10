@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "When creating AWS Terraform stories, include relevant acceptance criteria from file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md so implementation agents converge on the same contract.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]

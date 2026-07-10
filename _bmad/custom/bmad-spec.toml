@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "When distilling or validating AWS Terraform specs, preserve the implementation contract in file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md as explicit capabilities or acceptance constraints.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]

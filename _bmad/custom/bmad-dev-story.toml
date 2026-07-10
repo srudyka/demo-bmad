@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "When implementing AWS Terraform stories, treat file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md as acceptance criteria unless the story explicitly overrides it.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]

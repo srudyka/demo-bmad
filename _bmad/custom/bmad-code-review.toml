@@ -1,0 +1,8 @@
+[workflow]
+activation_steps_append = [
+  "For AWS Terraform reviews, audit the diff against file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md and classify deviations by operational risk.",
+]
+
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/standards/aws-terraform-implementation.md",
+]
