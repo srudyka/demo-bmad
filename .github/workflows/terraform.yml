@@ -1,0 +1,73 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "modules/**"
+      - "envs/**"
+      - "README.md"
+  push:
+    branches:
+      - main
+      - "bmad-demo-*"
+    paths:
+      - ".github/workflows/terraform.yml"
+      - "modules/**"
+      - "envs/**"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform fmt and validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root:
+          - modules/ecs-scheduled-job
+          - modules/ecs-scheduled-job/examples/basic
+          - envs/example
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform -chdir=${{ matrix.root }} init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=${{ matrix.root }} validate
+
+  security:
+    name: Terraform security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Trivy runs IaC checks without AWS credentials or Terraform state.
+      - name: Trivy IaC scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
