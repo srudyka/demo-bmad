@@ -1,0 +1,46 @@
+[project]
+name = "ecs-scheduled-jobs-platform-runtime"
+version = "0.0.0"
+description = "Typed runtime package boundaries for the ECS scheduled jobs platform"
+requires-python = ">=3.14,<3.15"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "checkov",
+  "mypy",
+  "pytest",
+  "ruff",
+]
+
+[tool.uv]
+package = false
+required-version = "==0.11.28"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "runtime"]
+pythonpath = [
+  "runtime/evidence_normalizer/src",
+  "runtime/occurrence_materializer/src",
+  "runtime/process_manager/src",
+  "runtime/log_ingestor/src",
+  "runtime/deadline_scanner/src",
+  "runtime/alert_router/src",
+  "runtime/command_handler/src",
+]
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+mypy_path = [
+  "runtime/evidence_normalizer/src",
+  "runtime/occurrence_materializer/src",
+  "runtime/process_manager/src",
+  "runtime/log_ingestor/src",
+  "runtime/deadline_scanner/src",
+  "runtime/alert_router/src",
+  "runtime/command_handler/src",
+]

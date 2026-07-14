@@ -1,0 +1,105 @@
+# generated: 2026-07-14T17:04:01-0500
+# last_updated: 2026-07-14T17:27:13-0500
+# project: demo-bmad
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/srudyka/slower/demo-bmad/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-14T17:04:01-0500
+last_updated: 2026-07-14T17:27:13-0500
+project: demo-bmad
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/srudyka/slower/demo-bmad/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-bootstrap-the-greenfield-platform-repository: in-progress
+  1-2-publish-canonical-compatibility-contracts: backlog
+  1-3-deploy-cell-registration-and-discovery-foundations: backlog
+  1-4-register-a-platform-owned-canary-job: backlog
+  1-5-authenticate-and-normalize-platform-evidence: backlog
+  1-6-materialize-future-expected-occurrences: backlog
+  1-7-record-deterministic-occurrence-state: backlog
+  1-8-launch-exactly-one-canary-task-per-occurrence: backlog
+  1-9-correlate-ecs-state-and-completion-evidence: backlog
+  1-10-detect-missed-and-overdue-occurrences: backlog
+  1-11-deliver-occurrence-alerts-reliably: backlog
+  1-12-monitor-cell-health-with-the-canary: backlog
+  1-13-authorize-operator-access-and-commands: backlog
+  1-14-recover-cell-state-safely: backlog
+  1-15-garbage-collect-unreferenced-platform-versions: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-declare-and-reserve-a-scheduled-job: backlog
+  2-2-create-least-privilege-job-iam-roles: backlog
+  2-3-enforce-private-task-networking: backlog
+  2-4-provision-the-fargate-task-and-structured-logs: backlog
+  2-5-publish-phase-one-job-resources-and-config: backlog
+  2-6-validate-and-acknowledge-job-configuration: backlog
+  2-7-activate-the-non-production-schedule-safely: backlog
+  2-8-connect-completion-evidence-and-alert-metadata: backlog
+  2-9-expose-job-operations-and-optional-views: backlog
+  2-10-perform-a-controlled-non-production-rerun: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-expand-credential-free-pull-request-validation: backlog
+  3-2-bind-trusted-deployment-targets-and-oidc-roles: backlog
+  3-3-generate-a-trusted-and-reviewable-terraform-plan: backlog
+  3-4-enforce-production-policies-and-govern-exceptions: backlog
+  3-5-approve-and-apply-the-exact-production-plan: backlog
+  3-6-record-deployment-and-rollback-evidence: backlog
+  3-7-publish-immutable-platform-releases: backlog
+  3-8-migrate-compatible-platform-versions: backlog
+  3-9-deprecate-and-retire-platform-versions: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-publish-the-scheduled-job-adoption-guide: backlog
+  4-2-complete-an-actionable-job-runbook: backlog
+  4-3-automate-the-production-readiness-gate: backlog
+  4-4-qualify-schedule-delivery-and-expectations: backlog
+  4-5-qualify-ecs-launch-and-runtime-failures: backlog
+  4-6-qualify-completion-deadlines-and-alert-durability: backlog
+  4-7-prove-security-and-delivery-boundaries: backlog
+  4-8-rehearse-job-and-cell-recovery: backlog
+  4-9-automate-pilot-measurement-and-evidence-packaging: backlog
+  4-10-publish-pilot-launch-checklist-and-decision-record: backlog
+  epic-4-retrospective: optional
