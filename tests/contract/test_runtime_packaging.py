@@ -46,7 +46,9 @@ class RuntimePackagingTest(unittest.TestCase):
             with self.subTest(package=package_name):
                 self.assertTrue((source_package / "__init__.py").is_file())
                 self.assertTrue((source_package / "py.typed").is_file())
-                self.assertTrue((package_root / "tests" / "test_package.py").is_file())
+                self.assertTrue(
+                    (package_root / "tests" / f"test_{package_name}.py").is_file()
+                )
 
     def test_runtime_sources_contain_no_deployment_specific_defaults(self) -> None:
         source_files = tuple((REPOSITORY_ROOT / "runtime").glob("**/*.py"))

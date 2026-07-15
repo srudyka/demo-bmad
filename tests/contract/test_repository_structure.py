@@ -36,9 +36,7 @@ class RepositoryStructureTest(unittest.TestCase):
     def test_runtime_and_operator_boundaries_exist(self) -> None:
         for package_name in RUNTIME_PACKAGES:
             with self.subTest(package=package_name):
-                self.assertTrue(
-                    (REPOSITORY_ROOT / "runtime" / package_name).is_dir()
-                )
+                self.assertTrue((REPOSITORY_ROOT / "runtime" / package_name).is_dir())
 
         for path in (
             "contracts/README.md",

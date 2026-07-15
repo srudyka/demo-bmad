@@ -30,7 +30,12 @@ override.tf.json
 # !example_override.tf
 
 # Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
+*.tfplan
+*.tfplan.*
+tfplan
+tfplan.*
+planout
+planout.*
 
 # Ignore CLI configuration files
 .terraformrc
@@ -40,5 +45,30 @@ terraform.rc
 # *.dot
 
 # Optional: ignore plan files saved before destroying Terraform configuration
-# Uncomment the line below if you want to ignore planout files.
-# planout
+# Saved plans are always local, sensitive artifacts in this repository.
+
+# Python environments and generated caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment, credential, key, and generated-secret material
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials
+credentials.*
+secrets.generated.*
+secret.generated.*
+*.local.tf
+
+# Provider and Python dependency locks are intentionally committed:
+# .terraform.lock.hcl
+# uv.lock

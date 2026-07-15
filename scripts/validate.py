@@ -1,0 +1,247 @@
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+AMBIENT_CONTROL_PREFIXES = (
+    "CHECKOV_",
+    "MYPY_",
+    "PYTEST_",
+    "RUFF_",
+    "TF_CLI_ARGS",
+    "TF_VAR_",
+)
+AMBIENT_CONTROL_NAMES = frozenset({"PYTHONPATH", "VIRTUAL_ENV"})
+GENERATED_DIRECTORY_NAMES = frozenset(
+    {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".terraform",
+        ".venv",
+        "__pycache__",
+    }
+)
+GENERATED_FILE = re.compile(
+    r"(?:\.py[co]$|\.tfstate(?:\.|$)|\.tfplan(?:\.|$)|(?:^|\.)(?:tfplan|planout)(?:\.|$))"
+)
+
+
+class ValidationFailure(RuntimeError):
+    """Raised when a named validation stage fails."""
+
+
+def sanitized_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
+    environment = dict(os.environ if source is None else source)
+    sanitized = {
+        key: value
+        for key, value in environment.items()
+        if not key.startswith("AWS_")
+        and key not in AMBIENT_CONTROL_NAMES
+        and not key.startswith(AMBIENT_CONTROL_PREFIXES)
+    }
+    sanitized.update(
+        {
+            "AWS_CONFIG_FILE": os.devnull,
+            "AWS_EC2_METADATA_DISABLED": "true",
+            "AWS_SHARED_CREDENTIALS_FILE": os.devnull,
+        }
+    )
+    return sanitized
+
+
+def terraform_roots() -> tuple[Path, ...]:
+    roots: set[Path] = set()
+    for terraform_file in REPOSITORY_ROOT.rglob("*.tf"):
+        relative = terraform_file.relative_to(REPOSITORY_ROOT)
+        if ".git" in relative.parts or ".terraform" in relative.parts:
+            continue
+        roots.add(relative.parent)
+    if not roots:
+        raise ValidationFailure("terraform discovery found no roots")
+    return tuple(sorted(roots, key=Path.as_posix))
+
+
+def checkout_artifacts() -> frozenset[str]:
+    artifacts: set[str] = set()
+    for path in REPOSITORY_ROOT.rglob("*"):
+        relative = path.relative_to(REPOSITORY_ROOT)
+        if ".git" in relative.parts:
+            continue
+        if any(part in GENERATED_DIRECTORY_NAMES for part in relative.parts) or (
+            path.is_file() and GENERATED_FILE.search(relative.name)
+        ):
+            artifacts.add(relative.as_posix())
+    return frozenset(artifacts)
+
+
+def run_stage(
+    label: str,
+    command: Sequence[str],
+    *,
+    cwd: Path = REPOSITORY_ROOT,
+    environment: Mapping[str, str] | None = None,
+) -> None:
+    print(f"\n==> {label}", flush=True)
+    try:
+        result = subprocess.run(
+            tuple(command),
+            cwd=cwd,
+            env=dict(environment)
+            if environment is not None
+            else sanitized_environment(),
+            check=False,
+        )
+    except OSError as error:
+        raise ValidationFailure(f"{label} could not start: {error}") from error
+    if result.returncode != 0:
+        raise ValidationFailure(f"{label} failed with exit code {result.returncode}")
+
+
+def provider_seed(roots: Sequence[Path]) -> str:
+    versions: dict[Path, str] = {}
+    pattern = re.compile(
+        r'provider\s+"registry\.terraform\.io/hashicorp/aws"\s*\{'
+        r'.*?^\s*version\s+=\s+"([^"]+)"$',
+        re.MULTILINE | re.DOTALL,
+    )
+    for root in roots:
+        lock_path = REPOSITORY_ROOT / root / ".terraform.lock.hcl"
+        try:
+            contents = lock_path.read_text(encoding="utf-8")
+        except OSError as error:
+            raise ValidationFailure(
+                f"terraform:{root}: cannot read provider lock: {error}"
+            ) from error
+        match = pattern.search(contents)
+        if match is None:
+            raise ValidationFailure(
+                f"terraform:{root}: lock has no hashicorp/aws version"
+            )
+        versions[root] = match.group(1)
+    unique_versions = set(versions.values())
+    if len(unique_versions) != 1:
+        detail = ", ".join(f"{root}={version}" for root, version in versions.items())
+        raise ValidationFailure(
+            f"terraform locks disagree on hashicorp/aws provider versions: {detail}"
+        )
+    return unique_versions.pop()
+
+
+def print_toolchain(roots: Sequence[Path]) -> None:
+    print("Toolchain:")
+    print(f"  Python {sys.version.split()[0]}")
+    print(f"  AWS provider {provider_seed(roots)} (resolved lock seed)")
+    for label, command in (
+        ("Terraform", ("terraform", "version")),
+        ("uv", ("uv", "--version")),
+        ("Ruff", ("ruff", "--version")),
+        ("mypy", ("mypy", "--version")),
+        ("pytest", ("pytest", "--version")),
+        ("Checkov", ("checkov", "--version")),
+    ):
+        run_stage(f"toolchain:{label}", command)
+
+
+def validate_terraform(roots: Sequence[Path]) -> None:
+    base_environment = sanitized_environment()
+    with tempfile.TemporaryDirectory(prefix="ecs-jobs-terraform-") as temporary:
+        temporary_root = Path(temporary)
+        plugin_cache = temporary_root / "plugin-cache"
+        plugin_cache.mkdir()
+        for root in roots:
+            data_dir = temporary_root / root.as_posix().replace("/", "-")
+            environment = base_environment | {
+                "TF_DATA_DIR": str(data_dir),
+                "TF_PLUGIN_CACHE_DIR": str(plugin_cache),
+            }
+            label = f"terraform:{root}"
+            run_stage(
+                f"{label}:init",
+                (
+                    "terraform",
+                    "init",
+                    "-backend=false",
+                    "-input=false",
+                    "-lockfile=readonly",
+                    "-no-color",
+                ),
+                cwd=REPOSITORY_ROOT / root,
+                environment=environment,
+            )
+            run_stage(
+                f"{label}:validate",
+                ("terraform", "validate", "-no-color"),
+                cwd=REPOSITORY_ROOT / root,
+                environment=environment,
+            )
+
+
+def main() -> int:
+    print("AWS credentials are not passed to validation subprocesses.")
+    artifacts_before = checkout_artifacts()
+    validation_root = Path(
+        os.environ.get("VALIDATION_TEMP_ROOT", tempfile.gettempdir())
+    )
+    mypy_cache = validation_root / "mypy-cache"
+    stages: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("terraform:format", ("terraform", "fmt", "-check", "-recursive", ".")),
+        (
+            "python:format",
+            ("ruff", "format", "--check", "--no-cache", "runtime", "scripts", "tests"),
+        ),
+        ("python:lint", ("ruff", "check", "--no-cache", "runtime", "scripts", "tests")),
+        ("python:type", ("mypy", "--cache-dir", str(mypy_cache), "runtime", "scripts")),
+        (
+            "tests:contract-runtime-integration-hygiene",
+            ("pytest", "tests", "runtime", "-q", "-p", "no:cacheprovider"),
+        ),
+        (
+            "security:terraform",
+            (
+                "checkov",
+                "-d",
+                "modules",
+                "--framework",
+                "terraform",
+                "--quiet",
+                "--compact",
+            ),
+        ),
+        (
+            "repository:hygiene",
+            (sys.executable, "scripts/check_repository.py"),
+        ),
+    )
+    try:
+        roots = terraform_roots()
+        print_toolchain(roots)
+        for label, command in stages[:1]:
+            run_stage(label, command)
+        validate_terraform(roots)
+        for label, command in stages[1:]:
+            run_stage(label, command)
+        new_artifacts = checkout_artifacts() - artifacts_before
+        if new_artifacts:
+            raise ValidationFailure(
+                "checkout cleanliness found generated artifacts: "
+                + ", ".join(sorted(new_artifacts))
+            )
+    except ValidationFailure as error:
+        print(f"validation failed: {error}", file=sys.stderr)
+        return 1
+    print(
+        "\nValidation passed: no AWS plan, state, credential, or deployment artifact created."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

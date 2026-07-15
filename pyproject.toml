@@ -7,10 +7,10 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "checkov",
-  "mypy",
-  "pytest",
-  "ruff",
+  "checkov==3.3.8",
+  "mypy==2.3.0",
+  "pytest==9.1.1",
+  "ruff==0.15.21",
 ]
 
 [tool.uv]
@@ -18,8 +18,10 @@ package = false
 required-version = "==0.11.28"
 
 [tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
 testpaths = ["tests", "runtime"]
 pythonpath = [
+  ".",
   "runtime/evidence_normalizer/src",
   "runtime/occurrence_materializer/src",
   "runtime/process_manager/src",

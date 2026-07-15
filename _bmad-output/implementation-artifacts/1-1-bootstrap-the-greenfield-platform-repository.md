@@ -4,7 +4,7 @@ baseline_commit: 86a74a60e20403902674fff57bb44f72b383551b
 
 # Story 1.1: Bootstrap the Greenfield Platform Repository
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -70,43 +70,43 @@ So that every later platform story starts from the same reviewable structure and
   - [x] Make `terraform init -backend=false -lockfile=readonly` and `terraform validate` succeed independently for each module and example after initial lock generation, without AWS credentials or backend access.
   - [x] Ensure every declared variable and output has a description; add validation only where the skeleton exposes meaningful inputs. Do not invent deployment-specific placeholder inputs merely to populate files.
 
-- [ ] 3. Seed reproducible, typed Python runtime packaging (AC: 3, 8)
-  - [ ] Add a root `pyproject.toml` that requires Python 3.14 and defines deterministic test, lint, type-check, and security-tool groups; pin every direct tool/runtime dependency exactly.
-  - [ ] Use a checked-in reproducible dependency lock and a documented locked install/run mode. If `uv` is selected, commit `uv.lock`, pin the validated `uv` version, and use `uv lock --check` plus `uv run --locked`; do not present `uv` as a PyPA requirement.
-  - [ ] Give every runtime component an independently discoverable package/test boundary using `src/` layout, typed public interfaces, and `py.typed` where applicable. Skeleton tests must prove import and discovery without claiming runtime behavior.
-  - [ ] Keep runtime configuration empty and injectable: no account IDs, Regions, Environments, repository IDs, ARNs, credentials, secrets, or deployment-specific defaults.
+- [x] 3. Seed reproducible, typed Python runtime packaging (AC: 3, 8)
+  - [x] Add a root `pyproject.toml` that requires Python 3.14 and defines deterministic test, lint, type-check, and security-tool groups; pin every direct tool/runtime dependency exactly.
+  - [x] Use a checked-in reproducible dependency lock and a documented locked install/run mode. If `uv` is selected, commit `uv.lock`, pin the validated `uv` version, and use `uv lock --check` plus `uv run --locked`; do not present `uv` as a PyPA requirement.
+  - [x] Give every runtime component an independently discoverable package/test boundary using `src/` layout, typed public interfaces, and `py.typed` where applicable. Skeleton tests must prove import and discovery without claiming runtime behavior.
+  - [x] Keep runtime configuration empty and injectable: no account IDs, Regions, Environments, repository IDs, ARNs, credentials, secrets, or deployment-specific defaults.
 
-- [ ] 4. Implement one local validation entry point (AC: 2, 3, 4, 6, 8)
-  - [ ] Add a small documented wrapper such as `scripts/validate.sh` using `set -euo pipefail`; keep complex hygiene or policy logic in a typed, tested language rather than growing a large Bash program.
-  - [ ] Have the entry point run Terraform formatting, independent backend-free init/validate for all modules and examples, Python formatting/lint/type checks, contract tests, runtime tests, the pinned IaC/security scan, and repository hygiene checks. Validating all roots is acceptable and must include every changed root.
-  - [ ] Prefix or summarize failures with the exact Terraform root, example, runtime package, test suite, scanner, or policy that failed.
-  - [ ] Print the actual Terraform CLI, resolved AWS provider, Python, package-manager, and scanner versions used by validation.
-  - [ ] Use temporary Terraform data directories where practical and verify the command leaves no state, saved plan, credential, deployment, or unrelated generated artifact in the checkout.
+- [x] 4. Implement one local validation entry point (AC: 2, 3, 4, 6, 8)
+  - [x] Add a small documented wrapper such as `scripts/validate.sh` using `set -euo pipefail`; keep complex hygiene or policy logic in a typed, tested language rather than growing a large Bash program.
+  - [x] Have the entry point run Terraform formatting, independent backend-free init/validate for all modules and examples, Python formatting/lint/type checks, contract tests, runtime tests, the pinned IaC/security scan, and repository hygiene checks. Validating all roots is acceptable and must include every changed root.
+  - [x] Prefix or summarize failures with the exact Terraform root, example, runtime package, test suite, scanner, or policy that failed.
+  - [x] Print the actual Terraform CLI, resolved AWS provider, Python, package-manager, and scanner versions used by validation.
+  - [x] Use temporary Terraform data directories where practical and verify the command leaves no state, saved plan, credential, deployment, or unrelated generated artifact in the checkout.
 
-- [ ] 5. Enforce repository hygiene with tested positive and negative cases (AC: 6, 7, 8)
-  - [ ] Update `.gitignore` for saved Terraform plans, Python virtual environments/caches, local environment files, credentials, private keys, and generated secret material while explicitly allowing committed Terraform and Python lock files.
-  - [ ] Add a tracked-file hygiene validator that rejects prohibited paths/content even when `.gitignore` is bypassed; cover `.tfvars`, state, saved plans, `.terraform/`, credentials, private keys, generated secrets, unapproved local config, routine provisioners, `null_resource`, mutable production references, and undocumented deviations.
-  - [ ] Store scanner fixtures as inert fixture data or isolated test repositories so prohibited filenames are not accidentally treated as real repository artifacts. Use only unmistakably fake sentinel values and narrowly documented scanner exemptions.
-  - [ ] Add negative tests for every prohibited category and positive tests proving `.terraform.lock.hcl`, the Python dependency lock, documented fake fixtures, and legitimate Terraform source remain allowed.
+- [x] 5. Enforce repository hygiene with tested positive and negative cases (AC: 6, 7, 8)
+  - [x] Update `.gitignore` for saved Terraform plans, Python virtual environments/caches, local environment files, credentials, private keys, and generated secret material while explicitly allowing committed Terraform and Python lock files.
+  - [x] Add a tracked-file hygiene validator that rejects prohibited paths/content even when `.gitignore` is bypassed; cover `.tfvars`, state, saved plans, `.terraform/`, credentials, private keys, generated secrets, unapproved local config, routine provisioners, `null_resource`, mutable production references, and undocumented deviations.
+  - [x] Store scanner fixtures as inert fixture data or isolated test repositories so prohibited filenames are not accidentally treated as real repository artifacts. Use only unmistakably fake sentinel values and narrowly documented scanner exemptions.
+  - [x] Add negative tests for every prohibited category and positive tests proving `.terraform.lock.hcl`, the Python dependency lock, documented fake fixtures, and legitimate Terraform source remain allowed.
 
-- [ ] 6. Add credential-free baseline GitHub Actions validation (AC: 4, 5, 8)
-  - [ ] Add a pull-request workflow that invokes the same local validation entry point instead of duplicating validation logic.
-  - [ ] Declare top-level or job-level `permissions: contents: read`; do not grant `id-token: write`, write permissions, AWS credentials, repository secrets, protected Environments, state access, plan/apply capability, or privileged downstream jobs.
-  - [ ] Pin every third-party Action to a reviewed full commit SHA and retain the release tag in a comment for maintainability. Pin installed Terraform, Python, package-manager, and scanner versions to the tested seed.
-  - [ ] Use the unprivileged `pull_request` event. Do not use `pull_request_target`, execute attacker-controlled context directly in shell, or pass untrusted caches/artifacts into any privileged workflow.
+- [x] 6. Add credential-free baseline GitHub Actions validation (AC: 4, 5, 8)
+  - [x] Add a pull-request workflow that invokes the same local validation entry point instead of duplicating validation logic.
+  - [x] Declare top-level or job-level `permissions: contents: read`; do not grant `id-token: write`, write permissions, AWS credentials, repository secrets, protected Environments, state access, plan/apply capability, or privileged downstream jobs.
+  - [x] Pin every third-party Action to a reviewed full commit SHA and retain the release tag in a comment for maintainability. Pin installed Terraform, Python, package-manager, and scanner versions to the tested seed.
+  - [x] Use the unprivileged `pull_request` event. Do not use `pull_request_target`, execute attacker-controlled context directly in shell, or pass untrusted caches/artifacts into any privileged workflow.
 
-- [ ] 7. Document contribution, validation, security, and rollback contracts (AC: 1, 4, 6, 7, 8)
-  - [ ] Preserve the existing BMad customization section in `README.md` and add prerequisites, repository layout, the single validation command, toolchain matrix, lock update procedure, and troubleshooting for actionable validation failures.
-  - [ ] Document stable Terraform address expectations, reviewed `moved` blocks or migration guidance, prohibited patterns, immutable references, standards-deviation handling, and the boundary between credential-free bootstrap CI and later trusted delivery workflows.
-  - [ ] Add concise module READMEs with purpose, ownership, required providers, assumptions, example usage, future inputs/outputs, and explicit security/observability non-claims for the resource-free skeleton.
-  - [ ] Seed `docs/runbooks/README.md` as the stable operator Runbook location without writing the later production Job Runbook contract.
-  - [ ] Document rollback as reverting/removing only the Story 1.1 seed files, followed by rerunning validation; no AWS rollback, state operation, or deployment action is permitted because this story creates no AWS resources.
+- [x] 7. Document contribution, validation, security, and rollback contracts (AC: 1, 4, 6, 7, 8)
+  - [x] Preserve the existing BMad customization section in `README.md` and add prerequisites, repository layout, the single validation command, toolchain matrix, lock update procedure, and troubleshooting for actionable validation failures.
+  - [x] Document stable Terraform address expectations, reviewed `moved` blocks or migration guidance, prohibited patterns, immutable references, standards-deviation handling, and the boundary between credential-free bootstrap CI and later trusted delivery workflows.
+  - [x] Add concise module READMEs with purpose, ownership, required providers, assumptions, example usage, future inputs/outputs, and explicit security/observability non-claims for the resource-free skeleton.
+  - [x] Seed `docs/runbooks/README.md` as the stable operator Runbook location without writing the later production Job Runbook contract.
+  - [x] Document rollback as reverting/removing only the Story 1.1 seed files, followed by rerunning validation; no AWS rollback, state operation, or deployment action is permitted because this story creates no AWS resources.
 
-- [ ] 8. Prove the bootstrap from a clean-checkout-equivalent state (AC: 1-8)
-  - [ ] Run the documented validation entry point with no AWS environment credentials and confirm all module/example, Python, contract, runtime, security, policy, and hygiene checks pass.
-  - [ ] Verify the working tree contains no `.terraform/`, state, saved plans, credentials, deployment artifacts, unexpected lock changes, or generated secrets after validation.
-  - [ ] Record the tested tool versions and provide evidence that each module and example initialized and validated independently.
-  - [ ] Confirm the change creates zero AWS resources and that rollback is repository-only.
+- [x] 8. Prove the bootstrap from a clean-checkout-equivalent state (AC: 1-8)
+  - [x] Run the documented validation entry point with no AWS environment credentials and confirm all module/example, Python, contract, runtime, security, policy, and hygiene checks pass.
+  - [x] Verify the working tree contains no `.terraform/`, state, saved plans, credentials, deployment artifacts, unexpected lock changes, or generated secrets after validation.
+  - [x] Record the tested tool versions and provide evidence that each module and example initialized and validated independently.
+  - [x] Confirm the change creates zero AWS resources and that rollback is repository-only.
 
 ## Dev Notes
 
@@ -261,6 +261,18 @@ OpenAI Codex (GPT-5)
 - GREEN: the same contract suite passed after adding the resource-free module, runtime, contract, integration, and Runbook boundaries; `terraform fmt -check -recursive modules` also passed.
 - RED: `test_terraform_compatibility` failed because all four independent Terraform roots lacked provider locks.
 - GREEN: generated four root-local locks at AWS provider 6.54.0 and validated every root independently with Terraform 1.15.8, no backend, and no AWS credentials.
+- RED: runtime packaging contract failed on missing metadata, lock, typed packages, and tests; the first pytest run then exposed colliding test module names and mypy confirmed the same namespace defect.
+- GREEN: pinned Python 3.14/uv and four direct tools, committed the 108-package lock, added seven typed `src/` packages with unique tests, and passed pytest, Ruff, and strict mypy.
+- RED: validation-entrypoint tests failed before the wrapper/runner existed; pytest and mypy then identified import-path and heterogeneous-command typing issues, and the first full run correctly stopped on formatting drift.
+- GREEN: the shared entry point now strips AWS variables, reports tool versions, labels each failing unit, validates all four Terraform roots in temporary data directories, and passes formatting, lint, types, 18 tests/61 subtests, Checkov, and baseline hygiene.
+- RED: hygiene fixtures exposed six missing controls for generated secrets, local Terraform/CLI config, credential assignments, private-key markers, and mutable Action references.
+- GREEN: expanded path/content policy, candidate-file scanning, inert fixture exemptions, and `.gitignore`; 20 tests/83 subtests now prove all prohibited and allowed categories.
+- RED: the CI contract failed because no pull-request workflow existed; its first assertion pass also exposed an overly broad test match against the safe `UV_PROJECT_ENVIRONMENT` variable.
+- GREEN: added one read-only, unprivileged pull-request job using four full-SHA Actions, exact tool seeds, no cache/artifact handoff or AWS/OIDC/deployment access, and the same `scripts/validate.sh` command.
+- RED: documentation contracts found 18 missing root bootstrap sections/requirements while confirming module and Runbook seed notes already existed.
+- GREEN: preserved BMad guidance and added prerequisites, layout, validation, tested versions, lock updates, contribution/security boundaries, actionable troubleshooting, and zero-resource rollback; all documentation contracts pass.
+- PROOF: ran `./scripts/validate.sh` with AWS credential/profile/web-identity variables explicitly unset; all four roots initialized/validated independently and 26 tests/117 subtests, Ruff, mypy, Checkov, and hygiene passed.
+- CLEANLINESS: pre/post SHA-256 values for `uv.lock` and all four provider locks were identical; no `.terraform/`, state, plan, credential, deployment, Python cache, or generated-secret artifact remained in the checkout.
 
 ### Implementation Plan
 
@@ -274,5 +286,103 @@ OpenAI Codex (GPT-5)
 - Ultimate context engine analysis completed - comprehensive developer guide created
 - Task 1 completed: seeded both ownership-separated Terraform modules, seven runtime roots, contract/integration boundaries, and the operator Runbook location without AWS resources.
 - Task 2 completed: enforced Terraform/AWS provider ranges, root-local provider locks, and independent backend-free validation for both modules and examples.
+- Task 3 completed: added reproducible Python 3.14 packaging, an exact uv/tool lock, and independently discoverable typed boundaries for all seven runtime components.
+- Task 4 completed: added one executable local/CI validation command with credential scrubbing, precise stage labels, temporary Terraform data, complete toolchain reporting, and all required gates.
+- Task 5 completed: enforced prohibited repository artifacts and Terraform/Action anti-patterns with candidate-file scanning, fake fixtures, positive/negative tests, and lock-safe ignore rules.
+- Task 6 completed: added contract-tested credential-free GitHub Actions validation with minimal token permissions, immutable Action references, and no privileged path.
+- Task 7 completed: documented the complete bootstrap operating contract, including version/lock management, stable addresses, security boundaries, troubleshooting, and repository-only rollback.
+- Task 8 completed: proved the complete bootstrap without AWS credentials or resources, recorded the tested toolchain, confirmed immutable locks, and verified an artifact-clean checkout.
+- Story complete: all eight acceptance criteria and 44 task/subtask checks are satisfied; the final full regression passed and the implementation is ready for review.
+- Enhanced definition of done: PASS (26/26); no review follow-ups, regressions, scope additions, or blocking conditions remain.
 
 ### File List
+
+- M `.gitignore`
+- A `.github/workflows/validate.yml`
+- M `README.md`
+- A `_bmad-output/implementation-artifacts/1-1-bootstrap-the-greenfield-platform-repository.md`
+- A `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- A `contracts/README.md`
+- A `docs/runbooks/README.md`
+- A `modules/ecs-scheduled-job-platform/.terraform.lock.hcl`
+- A `modules/ecs-scheduled-job-platform/README.md`
+- A `modules/ecs-scheduled-job-platform/examples/basic/.terraform.lock.hcl`
+- A `modules/ecs-scheduled-job-platform/examples/basic/main.tf`
+- A `modules/ecs-scheduled-job-platform/examples/basic/outputs.tf`
+- A `modules/ecs-scheduled-job-platform/examples/basic/variables.tf`
+- A `modules/ecs-scheduled-job-platform/examples/basic/versions.tf`
+- A `modules/ecs-scheduled-job-platform/main.tf`
+- A `modules/ecs-scheduled-job-platform/outputs.tf`
+- A `modules/ecs-scheduled-job-platform/variables.tf`
+- A `modules/ecs-scheduled-job-platform/versions.tf`
+- A `modules/ecs-scheduled-job/.terraform.lock.hcl`
+- A `modules/ecs-scheduled-job/README.md`
+- A `modules/ecs-scheduled-job/examples/basic/.terraform.lock.hcl`
+- A `modules/ecs-scheduled-job/examples/basic/main.tf`
+- A `modules/ecs-scheduled-job/examples/basic/outputs.tf`
+- A `modules/ecs-scheduled-job/examples/basic/variables.tf`
+- A `modules/ecs-scheduled-job/examples/basic/versions.tf`
+- A `modules/ecs-scheduled-job/main.tf`
+- A `modules/ecs-scheduled-job/outputs.tf`
+- A `modules/ecs-scheduled-job/variables.tf`
+- A `modules/ecs-scheduled-job/versions.tf`
+- A `pyproject.toml`
+- A `runtime/alert_router/README.md`
+- A `runtime/alert_router/src/alert_router/__init__.py`
+- A `runtime/alert_router/src/alert_router/py.typed`
+- A `runtime/alert_router/tests/test_alert_router.py`
+- A `runtime/command_handler/README.md`
+- A `runtime/command_handler/src/command_handler/__init__.py`
+- A `runtime/command_handler/src/command_handler/py.typed`
+- A `runtime/command_handler/tests/test_command_handler.py`
+- A `runtime/deadline_scanner/README.md`
+- A `runtime/deadline_scanner/src/deadline_scanner/__init__.py`
+- A `runtime/deadline_scanner/src/deadline_scanner/py.typed`
+- A `runtime/deadline_scanner/tests/test_deadline_scanner.py`
+- A `runtime/evidence_normalizer/README.md`
+- A `runtime/evidence_normalizer/src/evidence_normalizer/__init__.py`
+- A `runtime/evidence_normalizer/src/evidence_normalizer/py.typed`
+- A `runtime/evidence_normalizer/tests/test_evidence_normalizer.py`
+- A `runtime/log_ingestor/README.md`
+- A `runtime/log_ingestor/src/log_ingestor/__init__.py`
+- A `runtime/log_ingestor/src/log_ingestor/py.typed`
+- A `runtime/log_ingestor/tests/test_log_ingestor.py`
+- A `runtime/occurrence_materializer/README.md`
+- A `runtime/occurrence_materializer/src/occurrence_materializer/__init__.py`
+- A `runtime/occurrence_materializer/src/occurrence_materializer/py.typed`
+- A `runtime/occurrence_materializer/tests/test_occurrence_materializer.py`
+- A `runtime/process_manager/README.md`
+- A `runtime/process_manager/src/process_manager/__init__.py`
+- A `runtime/process_manager/src/process_manager/py.typed`
+- A `runtime/process_manager/tests/test_process_manager.py`
+- A `scripts/__init__.py`
+- A `scripts/check_repository.py`
+- A `scripts/validate.py`
+- A `scripts/validate.sh`
+- A `tests/contract/test_ci_workflow.py`
+- A `tests/contract/test_documentation.py`
+- A `tests/contract/test_repository_structure.py`
+- A `tests/contract/test_runtime_packaging.py`
+- A `tests/contract/test_terraform_compatibility.py`
+- A `tests/hygiene/fixtures/cases.json`
+- A `tests/hygiene/test_repository_hygiene.py`
+- A `tests/integration/README.md`
+- A `tests/integration/test_validation_entrypoint.py`
+- A `uv.lock`
+
+### Change Log
+
+- 2026-07-14: Completed the reproducible greenfield bootstrap, locked toolchains, typed runtime boundaries, shared credential-free validation, repository hygiene policy, unprivileged CI, documentation, and clean-checkout proof.
+- 2026-07-15: Resolved code-review findings by isolating validation credentials and ambient controls, discovering Terraform roots, strengthening hygiene and CI policy checks, verifying checkout cleanliness, improving error/version reporting, and regenerating the baseline File List.
+
+### Review Findings
+
+- [x] [Review][Patch] High: Credential isolation and ambient validation controls are incomplete [scripts/validate.sh:12]
+- [x] [Review][Patch] High: Hygiene scanning permits committed secrets and prohibited artifact path variants [scripts/check_repository.py:10]
+- [x] [Review][Patch] High: Terraform policy checks miss `.tf.json`, variable-default mutable references, remote state, and ungoverned suppressions [scripts/check_repository.py:25]
+- [x] [Review][Patch] Medium: CI policy tests permit privilege, secret-expression, composite-action, and container-action regressions [tests/contract/test_ci_workflow.py:13]
+- [x] [Review][Patch] Medium: Terraform validation relies on a hard-coded root allowlist [scripts/validate.py:13]
+- [x] [Review][Patch] Medium: Validation creates ignored caches while claiming an artifact-clean checkout [scripts/validate.py:122]
+- [x] [Review][Patch] Medium: AWS provider reporting parses the first generic lock-file version [scripts/validate.py:50]
+- [x] [Review][Patch] Medium: Toolchain and lock failures bypass actionable stage error handling [scripts/validate.py:117]
+- [x] [Review][Patch] Medium: The story File List omits implementation files changed after its declared baseline [1-1-bootstrap-the-greenfield-platform-repository.md:298]
