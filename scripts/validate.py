@@ -190,9 +190,10 @@ def validate_terraform_security() -> None:
         "security:terraform:job-module",
         (*base_command, "-d", "modules/ecs-scheduled-job"),
     )
-    # MVP Cells are account/Region-local (AD-1); an unmanaged replication
-    # destination would weaken rollback and recovery. Limit the exception to
-    # the one Cell-foundation directory that owns this deliberate decision.
+    # MVP Cells are account/Region-local (AD-1), so an unmanaged replication
+    # destination would weaken rollback and recovery. The inbox also has no
+    # event consumer until the later Cell processor exists. Limit both
+    # exceptions to the one Cell-foundation directory that owns them.
     run_stage(
         "security:terraform:platform-cell",
         (
@@ -200,8 +201,12 @@ def validate_terraform_security() -> None:
             "-d",
             "modules/ecs-scheduled-job-platform",
             "--skip-check",
-            "CKV_AWS_144",
+            "CKV_AWS_144,CKV2_AWS_62",
         ),
+    )
+    run_stage(
+        "security:terraform:canary-fixture",
+        (*base_command, "-d", "fixtures/canary"),
     )
 
 

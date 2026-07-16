@@ -95,12 +95,15 @@ deployment artifact. `terraform validate` proves configuration consistency; it
 does not prove AWS API access or deployed behavior.
 
 The platform Cell security scan excludes Checkov `CKV_AWS_144` (S3 cross-Region
-replication) only for `modules/ecs-scheduled-job-platform`. The MVP
-architecture is one independent Cell per account and Region and defines
-controlled restore, not automatic cross-Region failover. Adding a replication
-destination without its recovery authority, KMS/key policy, and contract
-cutover design would create an unsafe partial implementation. Other module
-directories continue to run the check. This exception does not weaken
+replication) and `CKV2_AWS_62` (S3 event notifications) only for
+`modules/ecs-scheduled-job-platform`. The MVP architecture is one independent
+Cell per account and Region and defines controlled restore; it has no automatic cross-Region failover.
+Adding a replication destination without its recovery
+authority, KMS/key policy, and contract cutover design would create an unsafe
+partial implementation. The Cell also has no event consumer until the later
+processor exists, so configuring an S3 event destination now would create an
+unowned runtime path. Other module directories continue to run both checks.
+These exceptions do not weaken
 encryption, access logging, versioning, public-access, lifecycle, or PITR
 checks.
 

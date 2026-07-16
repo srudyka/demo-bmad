@@ -9,6 +9,8 @@ module "platform" {
   kms_key_arn                = var.kms_key_arn
   metric_namespace           = var.metric_namespace
   owner                      = var.owner
+  permissions_boundary_arn   = var.permissions_boundary_arn
   service                    = var.service
   tags                       = var.tags
+  canary_reservation         = var.canary_reservation
 }

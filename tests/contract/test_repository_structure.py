@@ -46,7 +46,7 @@ class RepositoryStructureTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((REPOSITORY_ROOT / path).is_file())
 
-    def test_terraform_boundaries_allow_only_cell_foundation_resources(self) -> None:
+    def test_terraform_boundaries_preserve_cell_and_canary_ownership(self) -> None:
         platform_main = (
             REPOSITORY_ROOT / "modules" / "ecs-scheduled-job-platform" / "main.tf"
         ).read_text(encoding="utf-8")
@@ -61,6 +61,13 @@ class RepositoryStructureTest(unittest.TestCase):
             "aws_s3_bucket_server_side_encryption_configuration",
             "aws_s3_bucket_versioning",
             "aws_ssm_parameter",
+            "aws_dynamodb_table_item",
+            "aws_iam_role",
+            "aws_iam_role_policy",
+            "aws_scheduler_schedule_group",
+            "aws_sqs_queue",
+            "aws_sqs_queue_policy",
+            "terraform_data",
         }
         found_resources = set(
             re.findall(r'^\s*resource\s+"([^"]+)"', platform_main, re.MULTILINE)
@@ -69,13 +76,11 @@ class RepositoryStructureTest(unittest.TestCase):
         self.assertTrue(found_resources.issubset(allowed_resources))
 
         prohibited_platform_terms = (
-            "aws_sqs_queue",
             "aws_lambda_function",
             "aws_ecs_task_definition",
-            "aws_scheduler_schedule",
+            'resource "aws_scheduler_schedule"',
             "aws_cloudwatch_metric_alarm",
             "aws_sns_topic",
-            "aws_iam_role",
             "aws_s3_bucket_notification",
             "terraform_remote_state",
             'backend "',
@@ -83,6 +88,19 @@ class RepositoryStructureTest(unittest.TestCase):
         for term in prohibited_platform_terms:
             with self.subTest(term=term):
                 self.assertNotIn(term, platform_main)
+
+        fixture_main = (REPOSITORY_ROOT / "fixtures" / "canary" / "main.tf").read_text(
+            encoding="utf-8"
+        )
+        for term in (
+            "aws_dynamodb_table_item",
+            "aws_dynamodb_table",
+            "aws_sqs_queue_policy",
+            "terraform_remote_state",
+            'backend "',
+        ):
+            with self.subTest(term=term):
+                self.assertNotIn(term, fixture_main)
 
         job_files = tuple(
             (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
@@ -107,6 +125,13 @@ class RepositoryStructureTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((contracts_root / path).exists())
         self.assertFalse((contracts_root / "latest").exists())
+
+    def test_validation_scans_the_canary_fixture_with_checkov(self) -> None:
+        validation = (REPOSITORY_ROOT / "scripts" / "validate.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"security:terraform:canary-fixture"', validation)
+        self.assertIn('"fixtures/canary"', validation)
 
 
 if __name__ == "__main__":

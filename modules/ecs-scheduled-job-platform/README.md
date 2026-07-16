@@ -1,14 +1,20 @@
 # ECS Scheduled Job Platform Cell Module
 
-This module creates the first account/Region-local Platform Cell foundation:
+This module creates the first account/Region-local Platform Cell foundation and
+the narrow, platform-owned canary bootstrap prerequisites:
 
 - a namespace registry for future job reservation authority;
 - an encrypted CONFIG candidate inbox; and
-- a separate encrypted CONFIG registry plus its SSM discovery contract.
+- a separate encrypted CONFIG registry plus its SSM discovery contract;
+- one best-effort declarative canary reservation and CONFIG-publisher principal;
+- a stable Cell-major Process Manager role shell; and
+- an encrypted Scheduler source queue, DLQ, and schedule group.
 
-It deliberately does not create a Registrar, queues, Lambda functions, a
-runtime ledger, ECS resources, schedules, alarms, notification targets, or job
-IAM roles. Those capabilities are owned by later stories.
+It deliberately does not create a general Registrar, Lambda functions, a
+runtime ledger, ECS resources, job schedules, alarms, notification targets, or
+runtime consumers. The Cell queues are delivery boundaries only, and the
+Process Manager role has no launch authority. Those runtime capabilities are
+owned by later stories.
 
 ## Required Providers
 
@@ -58,6 +64,12 @@ Required inputs:
 - `access_log_bucket_name` is an existing private bucket approved to receive
   CONFIG inbox access logs.
 - `metric_namespace` reserves the bounded namespace for later Cell metrics.
+- `permissions_boundary_arn` is applied to the Process Manager shell and the
+  Cell-owned canary CONFIG publisher role.
+- `canary_reservation` is the one platform-controlled, declarative non-production
+  bootstrap binding. It supplies the repository/root/apply identity, account,
+  Region, owner, generation, and canonical job identity; it is not a public
+  general-registration interface.
 - `enable_recovery_protection` explicitly enables PITR and deletion protection;
   it is required for `prod`.
 - `incomplete_multipart_upload_days` is a bounded 1-365 day cleanup policy for
@@ -69,9 +81,40 @@ non-secret `tags`. Module tags always override consumer collisions for
 `Environment`, `Application`, `Service`, `Owner`, and `ManagedBy=Terraform`;
 use `CostCenter` and `Repository` when applicable.
 
-Outputs provide Cell identity; table, bucket, and parameter names/ARNs; metric
-namespace; and the Cell Contract version/checksum. They contain no secret
-values or Terraform state.
+Outputs provide Cell identity; table, bucket, queue, schedule group, role, and
+parameter identifiers; metric namespace; the bootstrap publisher role; and the
+Cell Contract version/checksum. They contain no secret values or Terraform
+state.
+
+## Canary Bootstrap Exception
+
+The one canary reservation is declared only by the Cell root. Its authorization
+and reservation items use the same `pk`/`sk` shapes as the future Registrar;
+Cell identity preconditions, `prevent_destroy`, and a replacement trigger block
+ordinary Terraform replacement. This is a best-effort declaration, not an
+atomic conditional registration API; the canary fixture never writes the
+namespace table.
+
+The Process Manager role uses a stable Cell-major name/path and a supplied
+permissions boundary. It is trusted only by `lambda.amazonaws.com` and has no
+inline or attached authority in this phase, specifically no `ecs:RunTask`,
+`iam:PassRole`, registry, queue-consumption, Lambda, or self-modification
+permission. Creating this shell now prevents a later principal replacement
+from invalidating canary launch-role trust.
+
+The standard SQS source and DLQ use the Cell KMS key, 14-day retention, and a
+redrive count of five. Queue policies allow `scheduler.amazonaws.com` to send
+only from the exact Cell account and schedule group. They do not create a
+normalizer, canonical ingress, processor, ledger, alert, ECS-event, or log
+queue.
+
+AWS provider 6.54.0 cannot add `If-None-Match: *` to `aws_s3_object`. The S3
+policy retains that precondition for all ordinary writers and exempts only the
+Cell-created canary publisher role. Its trust is the exact registered apply
+role, its principal tags bind the job ID, and its policy is limited to the one
+canary CONFIG prefix and configured KMS key. This is best-effort
+content-addressed publication, not an immutable S3 write; a conditional
+publisher is required before that guarantee is claimed.
 
 ## Namespace Reservation Contract
 
@@ -140,17 +183,20 @@ always-enabled PITR. With `enable_recovery_protection`, they also use deletion
 protection. The CONFIG inbox has KMS SSE, bucket keys, versioning,
 BucketOwnerEnforced ownership, all public-access blocks, `force_destroy =
 false`, access logging to the supplied existing bucket, and an explicit
-multipart-upload cleanup rule. It creates no EventBridge integration,
-scheduler, queue, or runtime consumer.
+multipart-upload cleanup rule. Aside from the Cell-owned Scheduler delivery
+boundary described above, it creates no EventBridge integration or runtime
+consumer.
 
 The bucket policy contains scoped wildcard-principal **deny** statements only:
 they require TLS, SSE-KMS with the configured key, canonical CONFIG keys, and a
 Registrar-issued `PlatformEcsScheduledJobId` principal tag that matches the job
-prefix for object reads, writes, and deletes. Every CONFIG version is a
-64-character content hash and publication must use `If-None-Match: *`, which
-prevents overwriting a current version. It has no broad allow statement. The
-later Registrar supplies the prefix-scoped IAM allow after it verifies
-ownership; an S3 policy cannot query DynamoDB dynamically.
+prefix for object reads, writes, and deletes. General CONFIG versions are
+64-character content hashes and publication must use `If-None-Match: *`, which
+prevents overwriting a current version. The documented canary publisher is the
+only temporary exception because provider 6.54.0 cannot emit that header. The
+bucket has no broad allow statement. The later Registrar supplies the
+prefix-scoped IAM allow after it verifies ownership; an S3 policy cannot query
+DynamoDB dynamically.
 
 CONFIG objects and all their versions are intentionally not expired here. S3
 cannot determine whether a candidate is still referenced by validation, replay,

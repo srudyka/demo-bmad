@@ -123,3 +123,51 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "permissions_boundary_arn" {
+  description = "Approved IAM permissions-boundary ARN applied to Cell bootstrap roles."
+  type        = string
+
+  validation {
+    condition = can(
+      regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+$", var.permissions_boundary_arn),
+    )
+    error_message = "permissions_boundary_arn must be an IAM managed-policy ARN."
+  }
+}
+
+variable "canary_reservation" {
+  description = "Platform-controlled immutable reservation for the one non-production canary before the general Registrar exists."
+  type = object({
+    apply_role_arn    = string
+    apply_role_id     = string
+    application       = string
+    account_id        = string
+    environment       = string
+    job_id            = string
+    owner             = string
+    owner_generation  = number
+    region            = string
+    repository_id     = string
+    terraform_root_id = string
+  })
+
+  validation {
+    condition = (
+      can(regex("^[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}$", var.canary_reservation.job_id)) &&
+      can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$", var.canary_reservation.apply_role_arn)) &&
+      can(regex("^[0-9]{12}$", var.canary_reservation.account_id)) &&
+      var.canary_reservation.owner_generation >= 1 &&
+      floor(var.canary_reservation.owner_generation) == var.canary_reservation.owner_generation &&
+      alltrue([
+        for value in [
+          var.canary_reservation.apply_role_id,
+          var.canary_reservation.repository_id,
+          var.canary_reservation.terraform_root_id,
+          var.canary_reservation.owner,
+        ] : can(regex("^[ -~]+$", value))
+      ])
+    )
+    error_message = "canary_reservation must contain a canonical job ID, exact apply identity, account, nonempty ASCII ownership fields, and a positive whole generation."
+  }
+}

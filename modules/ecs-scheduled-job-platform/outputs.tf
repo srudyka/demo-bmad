@@ -41,3 +41,29 @@ output "metric_namespace" {
   description = "Reserved bounded CloudWatch metric namespace for future Cell integrations."
   value       = var.metric_namespace
 }
+
+output "process_manager" {
+  description = "Stable Cell-major Process Manager principal shell; it has no launch authority in this phase."
+  value = {
+    arn = aws_iam_role.process_manager.arn
+    id  = aws_iam_role.process_manager.unique_id
+  }
+}
+
+output "scheduler_ingress" {
+  description = "Cell-owned EventBridge Scheduler ingress queue, DLQ, and schedule-group identifiers."
+  value = {
+    dlq_arn            = aws_sqs_queue.scheduler_dlq.arn
+    queue_arn          = aws_sqs_queue.scheduler_ingress.arn
+    schedule_group_arn = aws_scheduler_schedule_group.cell.arn
+  }
+}
+
+output "canary_registration" {
+  description = "Immutable platform-owned bootstrap canary reservation and its narrowly scoped CONFIG publisher role."
+  value = {
+    config_publisher_role_arn = aws_iam_role.canary_config_publisher.arn
+    job_id                    = var.canary_reservation.job_id
+    owner_generation          = var.canary_reservation.owner_generation
+  }
+}

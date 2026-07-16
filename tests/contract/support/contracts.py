@@ -197,6 +197,54 @@ def validate_contract_instance(
     return tuple(issues)
 
 
+def canary_reservation_decision(
+    *,
+    cell_account_id: str,
+    cell_region: str,
+    authorization: dict[str, Any],
+    request: dict[str, Any],
+    existing_reservation: dict[str, Any] | None,
+) -> str:
+    """Model the one-canary bootstrap declaration's deterministic rejection path."""
+    if (
+        request.get("account_id") != cell_account_id
+        or request.get("region") != cell_region
+    ):
+        return "NAMESPACE_UNAUTHORIZED_MUTATION"
+
+    for field in ("repository_id", "terraform_root_id"):
+        if request.get(field) != authorization.get(field):
+            return "NAMESPACE_CROSS_NAMESPACE_CLAIM"
+    for field in ("apply_role_id", "account_id", "region"):
+        if request.get(field) != authorization.get(field):
+            return "NAMESPACE_UNAUTHORIZED_MUTATION"
+
+    if existing_reservation is None:
+        return "CREATED"
+    if existing_reservation.get("tombstoned") is True:
+        return "NAMESPACE_TOMBSTONED_JOB_ID"
+    if existing_reservation.get("owner_generation") != request.get("owner_generation"):
+        return "NAMESPACE_STALE_OWNER_GENERATION"
+
+    immutable_fields = (
+        "account_id",
+        "apply_role_id",
+        "environment",
+        "job_id",
+        "owner",
+        "owner_generation",
+        "region",
+        "repository_id",
+        "terraform_root_id",
+    )
+    if all(
+        existing_reservation.get(field) == request.get(field)
+        for field in immutable_fields
+    ):
+        return "IDEMPOTENT"
+    return "NAMESPACE_DUPLICATE_RESERVATION"
+
+
 def _validate_semantic_timestamps(
     value: Any, pointer: str, issues: list[ContractIssue]
 ) -> None:

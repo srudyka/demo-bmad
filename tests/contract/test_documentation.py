@@ -58,7 +58,7 @@ class DocumentationContractTest(unittest.TestCase):
         ):
             with self.subTest(module="ecs-scheduled-job-platform", heading=heading):
                 self.assertIn(heading, platform_contents)
-        self.assertIn("does not create a Registrar", platform_contents)
+        self.assertIn("does not create a general Registrar", platform_contents)
         self.assertIn("no runtime behavior", platform_contents)
 
         job_contents = (

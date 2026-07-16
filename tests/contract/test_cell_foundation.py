@@ -29,7 +29,7 @@ def module_contents(filename: str) -> str:
     return (MODULE_ROOT / filename).read_text(encoding="utf-8")
 
 
-def test_cell_foundation_declares_only_owned_registration_config_and_discovery() -> (
+def test_cell_foundation_declares_only_owned_bootstrap_registration_config_and_discovery() -> (
     None
 ):
     contents = module_contents("main.tf")
@@ -40,20 +40,66 @@ def test_cell_foundation_declares_only_owned_registration_config_and_discovery()
         'resource "aws_s3_bucket" "config_inbox"',
         'resource "aws_s3_bucket_logging" "config_inbox"',
         'resource "aws_ssm_parameter" "cell_contract"',
+        'resource "aws_dynamodb_table_item" "canary_job_reservation"',
+        'resource "aws_iam_role" "process_manager"',
+        'resource "aws_scheduler_schedule_group" "cell"',
+        'resource "aws_sqs_queue" "scheduler_ingress"',
     ):
         assert address in contents
 
     prohibited = (
-        "aws_sqs_queue",
         "aws_lambda_function",
         "aws_ecs_task_definition",
-        "aws_scheduler_schedule",
+        'resource "aws_scheduler_schedule"',
         "aws_cloudwatch_metric_alarm",
         "aws_sns_topic",
-        "aws_iam_role",
         "terraform_remote_state",
     )
     assert not any(resource in contents for resource in prohibited)
+
+
+def test_cell_canary_bootstrap_has_no_runtime_processing_or_launch_authority() -> None:
+    contents = module_contents("main.tf")
+
+    for requirement in (
+        'name                 = "${local.name_prefix}-process-manager-v1"',
+        'identifiers = ["lambda.amazonaws.com"]',
+        "permissions_boundary = var.permissions_boundary_arn",
+        'name                      = "${local.name_prefix}-scheduler-ingress"',
+        'name                      = "${local.name_prefix}-scheduler-dlq"',
+        "message_retention_seconds = 1209600",
+        "maxReceiveCount     = 5",
+        'identifiers = ["scheduler.amazonaws.com"]',
+        "aws_scheduler_schedule_group.cell.arn",
+        "aws_iam_role.canary_config_publisher.arn",
+        "prevent_destroy      = true",
+        "replace_triggered_by = [terraform_data.canary_reservation_identity]",
+    ):
+        assert requirement in contents
+
+    for prohibited in (
+        "ecs:RunTask",
+        "iam:PassRole",
+        "aws_lambda_function",
+        "aws_lambda_event_source_mapping",
+        "aws_cloudwatch_metric_alarm",
+        "aws_sns_topic",
+    ):
+        assert prohibited not in contents
+
+
+def test_cell_contract_includes_the_new_cell_owned_canary_integrations() -> None:
+    contents = module_contents("main.tf")
+    for integration in (
+        "canary_config_publisher = {",
+        "process_manager = {",
+        "scheduler_dlq = {",
+        "scheduler_ingress = {",
+        "scheduler_schedule_group = {",
+    ):
+        assert integration in contents
+    assert "aws_iam_role.process_manager.arn" in contents
+    assert "aws_sqs_queue.scheduler_ingress.arn" in contents
 
 
 def test_cell_foundation_storage_and_recovery_controls_are_explicit() -> None:
@@ -162,7 +208,7 @@ def test_generated_cell_foundation_contract_has_independent_jcs_proof() -> None:
     body = dict(cell_contract)
     body.pop("checksum")
     assert cell_contract["checksum"] == (
-        "445efc9d8070888d52119f45f85a4a59b358452355a6f6ad5af3b9e75a157ce5"
+        "c2accd8c7592f8ae840cba7d1597476502cdb0fbe3ac7a272b78c8ab0a2da2f7"
     )
     assert (
         cell_contract["checksum"]
@@ -239,7 +285,7 @@ def test_module_source_has_no_secrets_or_hard_coded_deployment_identity() -> Non
     assert hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
-def test_cross_region_replication_scan_exception_is_narrow_and_documented() -> None:
+def test_cell_security_scan_exceptions_are_narrow_and_documented() -> None:
     validation = (REPOSITORY_ROOT / "scripts" / "validate.py").read_text(
         encoding="utf-8"
     )
@@ -247,7 +293,9 @@ def test_cross_region_replication_scan_exception_is_narrow_and_documented() -> N
 
     assert '"security:terraform:platform-cell"' in validation
     assert '"modules/ecs-scheduled-job-platform"' in validation
-    assert '"--skip-check",\n            "CKV_AWS_144"' in validation
+    assert '"--skip-check",\n            "CKV_AWS_144,CKV2_AWS_62"' in validation
     assert "checkov:skip=CKV_AWS_144" not in module_contents("main.tf")
     assert "CKV_AWS_144" in readme
+    assert "CKV2_AWS_62" in readme
     assert re.search(r"automatic cross-Region\s+failover", readme)
+    assert "event consumer" in readme

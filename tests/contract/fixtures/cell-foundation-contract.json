@@ -5,13 +5,18 @@
     "environment": "dev",
     "region": "us-east-1"
   },
-  "checksum": "445efc9d8070888d52119f45f85a4a59b358452355a6f6ad5af3b9e75a157ce5",
+  "checksum": "c2accd8c7592f8ae840cba7d1597476502cdb0fbe3ac7a272b78c8ab0a2da2f7",
   "contract_version": "1.0.0",
   "discovery_path": "/platform/ecs-scheduled-jobs/dev/us-east-1/contract",
   "encryption": {
     "kms_key_arn": "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000001"
   },
   "integrations": {
+    "canary_config_publisher": {
+      "arn": "arn:aws:iam::111111111111:role/dev-platform-canary-config-publisher",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
     "config_inbox": {
       "arn": "arn:aws:s3:::dev-platform-cfg-111111111111-us-east-1",
       "owner": "cell-root",
@@ -24,6 +29,26 @@
     },
     "namespace_registry": {
       "arn": "arn:aws:dynamodb:us-east-1:111111111111:table/dev-platform-namespace-registry",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "process_manager": {
+      "arn": "arn:aws:iam::111111111111:role/dev-platform-process-manager-v1",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_dlq": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-scheduler-dlq",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_ingress": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-scheduler-ingress",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_schedule_group": {
+      "arn": "arn:aws:scheduler:us-east-1:111111111111:schedule-group/dev-platform-scheduler",
       "owner": "cell-root",
       "schema_range": ">=1.0.0,<2.0.0"
     }

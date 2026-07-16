@@ -165,6 +165,12 @@ data "aws_iam_policy_document" "config_inbox" {
       identifiers = ["*"]
     }
 
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:PrincipalArn"
+      values   = [aws_iam_role.canary_config_publisher.arn]
+    }
+
     # Multipart initiation and part uploads cannot carry If-None-Match. The
     # completed upload is still denied unless it supplies the precondition.
     condition {
@@ -217,6 +223,31 @@ locals {
       arn          = aws_dynamodb_table.namespace_registry.arn
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.cell
+    }
+    process_manager = {
+      arn          = aws_iam_role.process_manager.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["process-manager"]
+    }
+    scheduler_ingress = {
+      arn          = aws_sqs_queue.scheduler_ingress.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.cell
+    }
+    scheduler_dlq = {
+      arn          = aws_sqs_queue.scheduler_dlq.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.cell
+    }
+    scheduler_schedule_group = {
+      arn          = aws_scheduler_schedule_group.cell.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.cell
+    }
+    canary_config_publisher = {
+      arn          = aws_iam_role.canary_config_publisher.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.config
     }
   }
   cell_contract_body = {
@@ -304,6 +335,222 @@ resource "aws_dynamodb_table" "namespace_registry" {
   }
 
   tags = local.common_tags
+}
+
+locals {
+  canary_namespace_key = "NAMESPACE#${var.canary_reservation.environment}#${var.canary_reservation.application}"
+  canary_namespace_authorization_item = {
+    pk                = { S = local.canary_namespace_key }
+    sk                = { S = "AUTHORIZATION" }
+    account_id        = { S = var.canary_reservation.account_id }
+    apply_role_id     = { S = var.canary_reservation.apply_role_id }
+    repository_id     = { S = var.canary_reservation.repository_id }
+    region            = { S = var.canary_reservation.region }
+    terraform_root_id = { S = var.canary_reservation.terraform_root_id }
+  }
+  canary_job_reservation_item = {
+    pk                = { S = "JOB#${var.canary_reservation.job_id}" }
+    sk                = { S = "RESERVATION" }
+    account_id        = { S = var.canary_reservation.account_id }
+    apply_role_id     = { S = var.canary_reservation.apply_role_id }
+    namespace_key     = { S = local.canary_namespace_key }
+    owner             = { S = var.canary_reservation.owner }
+    owner_generation  = { N = tostring(var.canary_reservation.owner_generation) }
+    region            = { S = var.canary_reservation.region }
+    repository_id     = { S = var.canary_reservation.repository_id }
+    terraform_root_id = { S = var.canary_reservation.terraform_root_id }
+    tombstoned        = { BOOL = false }
+    transfer_state    = { S = "quiescent" }
+  }
+}
+
+# The general Registrar is intentionally deferred. This Cell-owned declaration
+# blocks ordinary Terraform replacement but is not an atomic transaction.
+resource "terraform_data" "canary_reservation_identity" {
+  input = jsonencode({
+    authorization = local.canary_namespace_authorization_item
+    reservation   = local.canary_job_reservation_item
+  })
+
+  triggers_replace = [jsonencode({
+    authorization = local.canary_namespace_authorization_item
+    reservation   = local.canary_job_reservation_item
+  })]
+}
+
+resource "aws_dynamodb_table_item" "canary_namespace_authorization" {
+  table_name = aws_dynamodb_table.namespace_registry.name
+  hash_key   = "pk"
+  range_key  = "sk"
+  item       = jsonencode(local.canary_namespace_authorization_item)
+
+  lifecycle {
+    prevent_destroy      = true
+    replace_triggered_by = [terraform_data.canary_reservation_identity]
+
+    precondition {
+      condition = (
+        var.canary_reservation.account_id == data.aws_caller_identity.current.account_id &&
+        var.canary_reservation.region == data.aws_region.current.region &&
+        var.canary_reservation.environment == var.environment &&
+        var.canary_reservation.application == var.application &&
+        split("/", var.canary_reservation.job_id)[0] == var.environment &&
+        split("/", var.canary_reservation.job_id)[1] == var.application &&
+        split(":", var.canary_reservation.apply_role_arn)[4] == data.aws_caller_identity.current.account_id
+      )
+      error_message = "CANARY_RESERVATION_CELL_MISMATCH: canary reservation identity must belong to this Cell and match its environment/application job namespace."
+    }
+  }
+}
+
+resource "aws_dynamodb_table_item" "canary_job_reservation" {
+  table_name = aws_dynamodb_table.namespace_registry.name
+  hash_key   = "pk"
+  range_key  = "sk"
+  item       = jsonencode(local.canary_job_reservation_item)
+
+  lifecycle {
+    prevent_destroy      = true
+    replace_triggered_by = [terraform_data.canary_reservation_identity]
+  }
+}
+
+data "aws_iam_policy_document" "process_manager_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "process_manager" {
+  name                 = "${local.name_prefix}-process-manager-v1"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.process_manager_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+data "aws_iam_policy_document" "canary_config_publisher_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "AWS"
+      identifiers = [var.canary_reservation.apply_role_arn]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "canary_config_publisher" {
+  statement {
+    sid       = "PublishOnlyTheReservedCanaryConfigPrefix"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/${var.canary_reservation.job_id}/config/*"]
+  }
+
+  statement {
+    sid       = "UseTheCellConfigKey"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+  }
+}
+
+resource "aws_iam_role" "canary_config_publisher" {
+  name                 = "${local.name_prefix}-canary-config-publisher"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.canary_config_publisher_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags = merge(local.common_tags, {
+    PlatformEcsScheduledJobCanaryPublication = "true"
+    PlatformEcsScheduledJobId                = var.canary_reservation.job_id
+  })
+}
+
+resource "aws_iam_role_policy" "canary_config_publisher" {
+  name   = "${local.name_prefix}-canary-config-publisher"
+  role   = aws_iam_role.canary_config_publisher.id
+  policy = data.aws_iam_policy_document.canary_config_publisher.json
+}
+
+resource "aws_scheduler_schedule_group" "cell" {
+  name = "${local.name_prefix}-scheduler"
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "scheduler_dlq" {
+  name                      = "${local.name_prefix}-scheduler-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = split(":", var.kms_key_arn)[3] == data.aws_region.current.region
+      error_message = "KMS_KEY_REGION_MISMATCH: kms_key_arn must be in the Cell provider Region."
+    }
+  }
+}
+
+resource "aws_sqs_queue" "scheduler_ingress" {
+  name                      = "${local.name_prefix}-scheduler-ingress"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.scheduler_dlq.arn
+    maxReceiveCount     = 5
+  })
+  tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = split(":", var.kms_key_arn)[3] == data.aws_region.current.region
+      error_message = "KMS_KEY_REGION_MISMATCH: kms_key_arn must be in the Cell provider Region."
+    }
+  }
+}
+
+data "aws_iam_policy_document" "scheduler_queue" {
+  statement {
+    sid       = "AllowOnlyThisCellSchedulerGroup"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.scheduler_dlq.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_scheduler_schedule_group.cell.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "scheduler_ingress" {
+  queue_url = aws_sqs_queue.scheduler_ingress.id
+  policy    = data.aws_iam_policy_document.scheduler_queue.json
+}
+
+resource "aws_sqs_queue_policy" "scheduler_dlq" {
+  queue_url = aws_sqs_queue.scheduler_dlq.id
+  policy    = data.aws_iam_policy_document.scheduler_queue.json
 }
 
 resource "aws_s3_bucket" "config_inbox" {
