@@ -12,11 +12,12 @@ Use this standard to keep AI-generated Terraform implementations consistent
 across branches. If an implementation intentionally deviates from the standard,
 document the reason in the story or PR notes.
 
-## Platform Bootstrap
+## Platform Foundation
 
 This repository is the implementation home for the ECS scheduled jobs platform.
-The bootstrap establishes ownership boundaries, reproducible tooling, and
-credential-free validation. It intentionally creates no AWS resources.
+The bootstrap and first Cell foundation establish ownership boundaries,
+reproducible tooling, credential-free validation, and account/Region-local
+registration, CONFIG, and discovery resources.
 
 The Platform Cell module owns shared resources for one AWS account and Region.
 The scheduled-job module owns per-job resources. Later stories add behavior;
@@ -49,9 +50,10 @@ docs/runbooks/                 # stable operator Runbook location
 scripts/                       # shared local/CI validation and hygiene tooling
 ```
 
-Each Terraform module has a resource-free `examples/basic/` root. Production
-examples, environment roots, AWS resources, and runtime behavior are introduced
-only by their owning stories.
+Each Terraform module has a backend-free `examples/basic/` root. The Platform
+Cell module now owns only its namespace registry, CONFIG inbox/registry, and
+SSM discovery contract; the per-job module remains resource-free. Runtime
+behavior is introduced only by its owning stories.
 
 ## Compatibility Package
 
@@ -91,6 +93,16 @@ CLI argument variables.
 Validation never plans, applies, accesses protected state, or creates a
 deployment artifact. `terraform validate` proves configuration consistency; it
 does not prove AWS API access or deployed behavior.
+
+The platform Cell security scan excludes Checkov `CKV_AWS_144` (S3 cross-Region
+replication) only for `modules/ecs-scheduled-job-platform`. The MVP
+architecture is one independent Cell per account and Region and defines
+controlled restore, not automatic cross-Region failover. Adding a replication
+destination without its recovery authority, KMS/key policy, and contract
+cutover design would create an unsafe partial implementation. Other module
+directories continue to run the check. This exception does not weaken
+encryption, access logging, versioning, public-access, lifecycle, or PITR
+checks.
 
 ## Tested Toolchain
 
@@ -169,9 +181,12 @@ delivery capabilities. Do not extend the baseline workflow with privileges.
 
 ## Rollback
 
-Stories 1.1 and 1.2 are repository-only and create no AWS resources, state,
-plans, or deployment artifacts. Roll back Story 1.2 with a normal
-version-control revert of the compatibility package, tests, exact dependency
-pins, lock, and documentation together, then run `./scripts/validate.sh`. Keep
-any contract version still referenced for replay, investigation, or rollback.
-Do not run `terraform destroy`, edit a backend, or perform an AWS operation.
+Stories 1.1 and 1.2 are repository-only. Story 1.3 creates Cell registration,
+CONFIG, and discovery data resources but no workload runtime. Roll back a Cell
+foundation change by restoring a compatible module and validated SSM Cell
+Contract while retaining S3 and DynamoDB evidence. Use a reviewed version-control
+revert only for the compatible module/contract release, never for retained data.
+Keep any contract version
+still referenced for replay, investigation, or rollback. Do not run `terraform
+destroy`, edit a backend, or delete registry/configuration evidence as routine
+rollback.

@@ -161,6 +161,11 @@ def validate_contract_instance(
     schema_id = schema.get("$id")
     if schema_id == "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config":
         _validate_config_semantics(instance, issues)
+    if (
+        schema_id
+        == "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:cell-contract"
+    ):
+        _validate_cell_contract_semantics(instance, issues)
     if schema_id in {
         "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command",
         "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:command-authorized",
@@ -509,6 +514,84 @@ def _validate_canonical_profile(value: Any) -> None:
 
 def config_hash(config_body: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(config_body)).hexdigest()
+
+
+def cell_contract_checksum(cell_contract: dict[str, Any]) -> str:
+    """Hash the RFC 8785 Cell Contract body with its self-checksum omitted."""
+
+    body = dict(cell_contract)
+    body.pop("checksum", None)
+    return hashlib.sha256(canonical_json_bytes(body)).hexdigest()
+
+
+def _validate_cell_contract_semantics(
+    cell_contract: dict[str, Any], issues: list[ContractIssue]
+) -> None:
+    checksum = cell_contract.get("checksum")
+    if not isinstance(checksum, str):
+        return
+    try:
+        expected = cell_contract_checksum(cell_contract)
+    except ContractViolation as error:
+        issues.append(ContractIssue(str(error), "/checksum", str(error)))
+        return
+    if checksum != expected:
+        issues.append(
+            ContractIssue(
+                "CELL_CONTRACT_CHECKSUM_MISMATCH",
+                "/checksum",
+                "checksum must equal SHA-256 of RFC 8785 bytes with checksum omitted",
+            )
+        )
+
+    cell = cell_contract.get("cell")
+    discovery_path = cell_contract.get("discovery_path")
+    if isinstance(cell, dict) and isinstance(discovery_path, str):
+        environment = cell.get("environment")
+        region = cell.get("region")
+        if isinstance(environment, str) and isinstance(region, str):
+            expected_path = (
+                f"/platform/ecs-scheduled-jobs/{environment}/{region}/contract"
+            )
+            if discovery_path != expected_path:
+                issues.append(
+                    ContractIssue(
+                        "CELL_CONTRACT_DISCOVERY_PATH_MISMATCH",
+                        "/discovery_path",
+                        "discovery_path must match the contract Cell environment and Region",
+                    )
+                )
+
+    declared_ranges: list[tuple[str, Any]] = []
+    supported_ranges = cell_contract.get("supported_ranges")
+    if isinstance(supported_ranges, dict):
+        declared_ranges.extend(
+            (f"/supported_ranges/{name}", value)
+            for name, value in supported_ranges.items()
+        )
+    integrations = cell_contract.get("integrations")
+    if isinstance(integrations, dict):
+        for name, integration in integrations.items():
+            if isinstance(integration, dict):
+                declared_ranges.append(
+                    (
+                        f"/integrations/{name}/schema_range",
+                        integration.get("schema_range"),
+                    )
+                )
+    for pointer, declared_range in declared_ranges:
+        if not isinstance(declared_range, str):
+            continue
+        try:
+            SimpleSpec(declared_range)
+        except ValueError:
+            issues.append(
+                ContractIssue(
+                    "CELL_CONTRACT_RANGE_INVALID",
+                    pointer,
+                    "declared compatibility range must be a semantic-version SimpleSpec",
+                )
+            )
 
 
 def occurrence_bytes(job_id: str, schedule_generation: str, epoch_minute: str) -> bytes:

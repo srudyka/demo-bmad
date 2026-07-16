@@ -184,6 +184,27 @@ def validate_terraform(roots: Sequence[Path]) -> None:
             )
 
 
+def validate_terraform_security() -> None:
+    base_command = ("checkov", "--framework", "terraform", "--quiet", "--compact")
+    run_stage(
+        "security:terraform:job-module",
+        (*base_command, "-d", "modules/ecs-scheduled-job"),
+    )
+    # MVP Cells are account/Region-local (AD-1); an unmanaged replication
+    # destination would weaken rollback and recovery. Limit the exception to
+    # the one Cell-foundation directory that owns this deliberate decision.
+    run_stage(
+        "security:terraform:platform-cell",
+        (
+            *base_command,
+            "-d",
+            "modules/ecs-scheduled-job-platform",
+            "--skip-check",
+            "CKV_AWS_144",
+        ),
+    )
+
+
 def main() -> int:
     print("AWS credentials are not passed to validation subprocesses.")
     artifacts_before = checkout_artifacts()
@@ -214,18 +235,6 @@ def main() -> int:
             ("pytest", "tests", "runtime", "-q", "-p", "no:cacheprovider"),
         ),
         (
-            "security:terraform",
-            (
-                "checkov",
-                "-d",
-                "modules",
-                "--framework",
-                "terraform",
-                "--quiet",
-                "--compact",
-            ),
-        ),
-        (
             "repository:hygiene",
             (sys.executable, "scripts/check_repository.py"),
         ),
@@ -236,7 +245,10 @@ def main() -> int:
         for label, command in stages[:1]:
             run_stage(label, command)
         validate_terraform(roots)
-        for label, command in stages[1:]:
+        for label, command in stages[1:-1]:
+            run_stage(label, command)
+        validate_terraform_security()
+        for label, command in stages[-1:]:
             run_stage(label, command)
         new_artifacts = checkout_artifacts() - artifacts_before
         if new_artifacts:

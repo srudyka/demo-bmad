@@ -46,11 +46,49 @@ class RepositoryStructureTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((REPOSITORY_ROOT / path).is_file())
 
-    def test_bootstrap_terraform_contains_no_resources_or_backends(self) -> None:
-        terraform_files = tuple((REPOSITORY_ROOT / "modules").glob("**/*.tf"))
-        self.assertTrue(terraform_files)
+    def test_terraform_boundaries_allow_only_cell_foundation_resources(self) -> None:
+        platform_main = (
+            REPOSITORY_ROOT / "modules" / "ecs-scheduled-job-platform" / "main.tf"
+        ).read_text(encoding="utf-8")
+        allowed_resources = {
+            "aws_dynamodb_table",
+            "aws_s3_bucket",
+            "aws_s3_bucket_lifecycle_configuration",
+            "aws_s3_bucket_logging",
+            "aws_s3_bucket_ownership_controls",
+            "aws_s3_bucket_policy",
+            "aws_s3_bucket_public_access_block",
+            "aws_s3_bucket_server_side_encryption_configuration",
+            "aws_s3_bucket_versioning",
+            "aws_ssm_parameter",
+        }
+        found_resources = set(
+            re.findall(r'^\s*resource\s+"([^"]+)"', platform_main, re.MULTILINE)
+        )
+        self.assertTrue(found_resources)
+        self.assertTrue(found_resources.issubset(allowed_resources))
+
+        prohibited_platform_terms = (
+            "aws_sqs_queue",
+            "aws_lambda_function",
+            "aws_ecs_task_definition",
+            "aws_scheduler_schedule",
+            "aws_cloudwatch_metric_alarm",
+            "aws_sns_topic",
+            "aws_iam_role",
+            "aws_s3_bucket_notification",
+            "terraform_remote_state",
+            'backend "',
+        )
+        for term in prohibited_platform_terms:
+            with self.subTest(term=term):
+                self.assertNotIn(term, platform_main)
+
+        job_files = tuple(
+            (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
+        )
         prohibited_blocks = re.compile(r'^\s*(resource|data|backend)\s+"', re.MULTILINE)
-        for terraform_file in terraform_files:
+        for terraform_file in job_files:
             with self.subTest(path=terraform_file.relative_to(REPOSITORY_ROOT)):
                 self.assertIsNone(
                     prohibited_blocks.search(terraform_file.read_text(encoding="utf-8"))

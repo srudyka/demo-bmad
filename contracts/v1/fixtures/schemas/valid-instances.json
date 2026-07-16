@@ -14,7 +14,7 @@
           "environment": "prod",
           "region": "us-east-1"
         },
-        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checksum": "e499457b02b25d743088bf5d551ff57068984b1576831e6e3d1fd6cba52922ba",
         "contract_version": "1.0.0",
         "discovery_path": "/platform/ecs-scheduled-jobs/prod/us-east-1/contract",
         "encryption": {

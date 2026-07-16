@@ -7,7 +7,7 @@
       "integration": "cell-contract-publication",
       "lifecycle_owner": "platform-engineering",
       "producer": "platform-cell-module",
-      "resource_arn_shape": "arn:aws:s3:<region>:<account>:accesspoint/<cell-contract-access-point>",
+      "resource_arn_shape": "arn:aws:ssm:<region>:<account>:parameter/platform/ecs-scheduled-jobs/<environment>/<region>/contract",
       "terraform_owner": "ecs-scheduled-job-platform"
     },
     {
@@ -17,7 +17,7 @@
       "integration": "job-config-publication",
       "lifecycle_owner": "application-owner",
       "producer": "job-module",
-      "resource_arn_shape": "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/<config-version>.json",
+      "resource_arn_shape": "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/config/<config-version>.json",
       "terraform_owner": "ecs-scheduled-job"
     },
     {
