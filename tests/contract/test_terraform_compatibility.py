@@ -35,6 +35,11 @@ class TerraformCompatibilityTest(unittest.TestCase):
                 self.assertTrue(lock_path.is_file())
                 contents = lock_path.read_bytes()
                 self.assertIn(b'version     = "6.54.0"', contents)
+                self.assertGreaterEqual(
+                    contents.count(b'"h1:'),
+                    2,
+                    "lock must include platform checksums for local and Linux CI validation",
+                )
 
 
 if __name__ == "__main__":

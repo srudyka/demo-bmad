@@ -123,7 +123,8 @@ consumer root's lock.
 To qualify a provider update, run `terraform init -backend=false -upgrade`
 independently in both module directories and both `examples/basic/` directories.
 Review every lock diff, confirm all four roots resolve the same approved provider
-version, then run `./scripts/validate.sh`. Normal validation uses
+version, and retain checksums for both local macOS and Linux CI, then run
+`./scripts/validate.sh`. Normal validation uses
 `-lockfile=readonly` and fails rather than changing a lock.
 
 ## Contribution Contract
