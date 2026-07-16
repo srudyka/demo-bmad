@@ -111,7 +111,9 @@ def test_evidence_extensions_are_screened_by_the_normal_validation_boundary() ->
     invalid["x-password"] = "forbidden-secret-sentinel:not-a-real-secret"
 
     issues = validate_contract_instance(
-        schemas["urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"],
+        schemas[
+            "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+        ],
         invalid,
         registry,
         secret_policy=policy,

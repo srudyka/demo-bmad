@@ -134,8 +134,8 @@ def test_future_release_cannot_misclassify_a_semantic_change(tmp_path: Path) -> 
         if item["path"] == "v1/catalogs/producers.json"
     )["sha256"] = "0" * 64
     (copied / "migrations" / "v1.0.1.md").write_text(
-        "<!-- compatibility-release: {\"package_version\":\"1.0.1\","
-        "\"predecessor_release\":\"1.0.0\",\"classification\":\"patch\"} -->\n",
+        '<!-- compatibility-release: {"package_version":"1.0.1",'
+        '"predecessor_release":"1.0.0","classification":"patch"} -->\n',
         encoding="utf-8",
     )
     (copied / "releases" / "1.0.1.json").write_text(

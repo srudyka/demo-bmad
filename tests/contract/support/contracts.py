@@ -167,8 +167,13 @@ def validate_contract_instance(
     }:
         command = instance.get("command", instance)
         if isinstance(command, dict):
-            _validate_canonical_command(command, "/command" if "command" in instance else "", issues)
-    if schema_id == "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope":
+            _validate_canonical_command(
+                command, "/command" if "command" in instance else "", issues
+            )
+    if (
+        schema_id
+        == "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+    ):
         if secret_policy is None:
             issues.append(
                 ContractIssue(
@@ -181,7 +186,9 @@ def validate_contract_instance(
             try:
                 screen_secret_safety(instance, secret_policy)
             except ContractViolation as error:
-                issues.append(ContractIssue(str(error).split(":", 1)[0], "/", str(error)))
+                issues.append(
+                    ContractIssue(str(error).split(":", 1)[0], "/", str(error))
+                )
     return tuple(issues)
 
 
@@ -382,7 +389,9 @@ def classify_semantic_change(before: dict[str, Any], after: dict[str, Any]) -> s
     before_required = set(before.get("required", []))
     after_required = set(after.get("required", []))
 
-    if not isinstance(before_properties, dict) or not isinstance(after_properties, dict):
+    if not isinstance(before_properties, dict) or not isinstance(
+        after_properties, dict
+    ):
         return "major"
     if not set(before_properties).issubset(after_properties):
         return "major"
@@ -422,7 +431,10 @@ def validate_release(contracts_root: Path, manifest: dict[str, Any]) -> None:
 
     migration = release.get("migration")
     expected_migration = f"migrations/v{package_version}.md"
-    if migration != expected_migration or not (contracts_root / expected_migration).is_file():
+    if (
+        migration != expected_migration
+        or not (contracts_root / expected_migration).is_file()
+    ):
         raise ContractViolation("RELEASE_MIGRATION_MISSING")
     migration_text = (contracts_root / expected_migration).read_text("utf-8")
     expected_metadata = (
@@ -435,7 +447,9 @@ def validate_release(contracts_root: Path, manifest: dict[str, Any]) -> None:
 
     predecessor_version = manifest.get("predecessor_release")
     if predecessor_version is None:
-        if release.get("classification") != "initial" or not manifest.get("initial_release"):
+        if release.get("classification") != "initial" or not manifest.get(
+            "initial_release"
+        ):
             raise ContractViolation("RELEASE_INITIAL_STATE")
         return
     predecessor_path = contracts_root / "releases" / f"{predecessor_version}.json"
@@ -765,7 +779,9 @@ def evaluate_iam_case(case: dict[str, Any], catalog: dict[str, Any]) -> None:
         raise ContractViolation("IAM_UNKNOWN_ROLE")
     if case["action"] not in role["actions"]:
         raise ContractViolation("IAM_ACTION_NOT_ALLOWED")
-    if not any(_catalog_template_matches(case["principal"], trust) for trust in role["trust"]):
+    if not any(
+        _catalog_template_matches(case["principal"], trust) for trust in role["trust"]
+    ):
         raise ContractViolation("IAM_PRINCIPAL_NOT_TRUSTED")
     if not any(
         _catalog_template_matches(case["resource"], resource)
