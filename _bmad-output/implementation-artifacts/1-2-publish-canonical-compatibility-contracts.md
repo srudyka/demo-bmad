@@ -1,6 +1,10 @@
+---
+baseline_commit: 970a8d8cc8add345024109d289eab8d17549b08c
+---
+
 # Story 1.2: Publish Canonical Compatibility Contracts
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -59,83 +63,83 @@ so that independently implemented Terraform and runtime components cannot disagr
 
 **Development entry gate:** Before editing implementation files, identify a reviewed commit that contains the completed Story 1.1 implementation and record it as this story's review baseline. If the current dirty Story 1.1 work is not committed, stop and establish that baseline first; do not mix prerequisite and Story 1.2 changes into one unattributable review diff.
 
-- [ ] 1. Establish the versioned Compatibility Package layout and manifest (AC: 1, 7, 8, 9)
-  - [ ] Replace the placeholder `contracts/README.md` with the normative package contract, consumer workflow, versioning policy, validation command, security rules, migration rules, and rollback guidance.
-  - [ ] Create `contracts/manifest.json` for package version `1.0.0`, predecessor release (`null` for the initial release), schema dialect, canonicalization profile, current major, initial-release/previous-major state, supported tool/component ranges, minimum replay/rollback horizon, and relative paths to every schema, catalog, fixture suite, and migration note.
-  - [ ] Use immutable versioned paths under `contracts/v1/`; do not use mutable `latest` aliases or remote `$ref` targets.
-  - [ ] Add `contracts/migrations/v1.0.0.md` as the initial-release compatibility note and define the Patch/Minor/Major classification rules used by tests.
-  - [ ] Define artifact checksums as SHA-256 of exact checked-in UTF-8 bytes after enforcing LF line endings and exactly one final newline; reserve RFC 8785 for semantic hashed JSON bodies. Add a package inventory test that validates the manifest itself and fails for a missing, duplicate, unreferenced, path-escaping, or checksum-mismatched referenced artifact. Do not create a circular self-checksum for `manifest.json`.
-  - [ ] Seed an immutable release index/snapshot for `1.0.0` and a semantic-diff classifier with Patch/Minor/Major positive and negative fixtures. Initial release explicitly has no predecessor; later validation must compare with the checked-in predecessor snapshot and reject breaking change, version bump, or migration-note disagreement.
+- [x] 1. Establish the versioned Compatibility Package layout and manifest (AC: 1, 7, 8, 9)
+  - [x] Replace the placeholder `contracts/README.md` with the normative package contract, consumer workflow, versioning policy, validation command, security rules, migration rules, and rollback guidance.
+  - [x] Create `contracts/manifest.json` for package version `1.0.0`, predecessor release (`null` for the initial release), schema dialect, canonicalization profile, current major, initial-release/previous-major state, supported tool/component ranges, minimum replay/rollback horizon, and relative paths to every schema, catalog, fixture suite, and migration note.
+  - [x] Use immutable versioned paths under `contracts/v1/`; do not use mutable `latest` aliases or remote `$ref` targets.
+  - [x] Add `contracts/migrations/v1.0.0.md` as the initial-release compatibility note and define the Patch/Minor/Major classification rules used by tests.
+  - [x] Define artifact checksums as SHA-256 of exact checked-in UTF-8 bytes after enforcing LF line endings and exactly one final newline; reserve RFC 8785 for semantic hashed JSON bodies. Add a package inventory test that validates the manifest itself and fails for a missing, duplicate, unreferenced, path-escaping, or checksum-mismatched referenced artifact. Do not create a circular self-checksum for `manifest.json`.
+  - [x] Seed an immutable release index/snapshot for `1.0.0` and a semantic-diff classifier with Patch/Minor/Major positive and negative fixtures. Initial release explicitly has no predecessor; later validation must compare with the checked-in predecessor snapshot and reject breaking change, version bump, or migration-note disagreement.
 
-- [ ] 2. Publish the nine required JSON Schemas and strict parsing profile (AC: 1, 8)
-  - [ ] Create Draft 2020-12 schemas for `cell-contract`, `config`, `evidence-envelope`, `occurrence-record`, `task-attempt-record`, `completion-signal`, `command`, `alert`, and `deployment-identity` under `contracts/v1/schemas/`.
-  - [ ] Give every schema an exact `https://json-schema.org/draft/2020-12/schema` declaration, immutable package-local `$id`, explicit major-bearing `schema_version`, required fields, identifier patterns, numeric bounds, and defined additive-field behavior.
-  - [ ] Freeze version syntax: `package_version`, `contract_version`, and every `schema_version` are canonical SemVer strings such as `1.0.0`; `config_version` and `schedule_generation` are 64-character lowercase SHA-256 values; identity algorithms are literals such as `occurrence/v1`; and each canonical `event_type` ends in `.v<schema major>`. Reject leading `v` on SemVer fields and reject a schema/event-type major mismatch.
-  - [ ] Parse JSON before schema validation with duplicate-key rejection, UTF-8 enforcement, and rejection of `NaN`, infinities, and invalid Unicode; validate all `$ref` values from an explicit local registry with network retrieval disabled.
-  - [ ] Enforce canonical timestamps as uppercase UTC `Z` with exactly three fractional digits (`YYYY-MM-DDTHH:MM:SS.sssZ`). Upstream AWS timestamps are normalized to this form before canonical validation; offsets, lowercase `z`, missing milliseconds, and excess precision are invalid canonical wire values.
-  - [ ] Keep security-sensitive typed objects and payloads closed. Every event type maps in the manifest to a closed versioned payload schema under `contracts/v1/schemas/payloads/` (or a named `$defs` entry with an immutable `$id`). The evidence envelope may retain architecture-required additive compatibility only after recursive sensitive-name/secret-shape validation and projection of known fields; unknown fields never become authority or persisted canonical state.
-  - [ ] Publish a versioned secret-safety catalog that defines forbidden field names/value shapes and the explicit approved Secrets Manager/SSM/approved-platform reference union. Approved references contain identifiers only, never secret values, and are validated before general secret-shape rules.
-  - [ ] Add positive and negative instances for every required field, unsupported major, malformed job/occurrence/config/UUID identifier, timestamp form, duplicate key, non-finite number, plaintext secret field/value, allowed secret reference, and disallowed unknown payload field. Store lexically invalid or non-UTF-8 inputs as base64-encoded raw bytes plus exact expected parser error so the fixture wrapper remains valid JSON.
+- [x] 2. Publish the nine required JSON Schemas and strict parsing profile (AC: 1, 8)
+  - [x] Create Draft 2020-12 schemas for `cell-contract`, `config`, `evidence-envelope`, `occurrence-record`, `task-attempt-record`, `completion-signal`, `command`, `alert`, and `deployment-identity` under `contracts/v1/schemas/`.
+  - [x] Give every schema an exact `https://json-schema.org/draft/2020-12/schema` declaration, immutable package-local `$id`, explicit major-bearing `schema_version`, required fields, identifier patterns, numeric bounds, and defined additive-field behavior.
+  - [x] Freeze version syntax: `package_version`, `contract_version`, and every `schema_version` are canonical SemVer strings such as `1.0.0`; `config_version` and `schedule_generation` are 64-character lowercase SHA-256 values; identity algorithms are literals such as `occurrence/v1`; and each canonical `event_type` ends in `.v<schema major>`. Reject leading `v` on SemVer fields and reject a schema/event-type major mismatch.
+  - [x] Parse JSON before schema validation with duplicate-key rejection, UTF-8 enforcement, and rejection of `NaN`, infinities, and invalid Unicode; validate all `$ref` values from an explicit local registry with network retrieval disabled.
+  - [x] Enforce canonical timestamps as uppercase UTC `Z` with exactly three fractional digits (`YYYY-MM-DDTHH:MM:SS.sssZ`). Upstream AWS timestamps are normalized to this form before canonical validation; offsets, lowercase `z`, missing milliseconds, and excess precision are invalid canonical wire values.
+  - [x] Keep security-sensitive typed objects and payloads closed. Every event type maps in the manifest to a closed versioned payload schema under `contracts/v1/schemas/payloads/` (or a named `$defs` entry with an immutable `$id`). The evidence envelope may retain architecture-required additive compatibility only after recursive sensitive-name/secret-shape validation and projection of known fields; unknown fields never become authority or persisted canonical state.
+  - [x] Publish a versioned secret-safety catalog that defines forbidden field names/value shapes and the explicit approved Secrets Manager/SSM/approved-platform reference union. Approved references contain identifiers only, never secret values, and are validated before general secret-shape rules.
+  - [x] Add positive and negative instances for every required field, unsupported major, malformed job/occurrence/config/UUID identifier, timestamp form, duplicate key, non-finite number, plaintext secret field/value, allowed secret reference, and disallowed unknown payload field. Store lexically invalid or non-UTF-8 inputs as base64-encoded raw bytes plus exact expected parser error so the fixture wrapper remains valid JSON.
 
-- [ ] 3. Define canonical JSON, CONFIG hashing, and occurrence identity (AC: 1, 2, 8)
-  - [ ] Adopt RFC 8785 JSON Canonicalization Scheme (JCS) and lowercase SHA-256 for semantic JSON hashes such as CONFIG and schedule generation; artifact-integrity digests follow Task 1's raw-byte rule. Reject floats and integers outside the interoperable IEEE-754 safe-integer range in semantic hashed bodies; require NFC strings and publish cross-language-sensitive vectors.
-  - [ ] Define CONFIG as a versioned wrapper whose `config_version` is SHA-256 over the RFC 8785 bytes of the secret-free `config` body only, avoiding a circular self-hash. Include immutable schedule generation, full task-definition revision ARN, cluster/network/role/runtime/log/notification references, approved secret references, and Deployment Identity reference.
-  - [ ] Implement the exact occurrence bytes `occurrence/v1\n<job_id>\n<schedule_generation>\n<epoch_minute>` with no trailing newline and hash those UTF-8 bytes to 64 lowercase hex characters.
-  - [ ] Enforce job IDs as three lowercase slash-separated segments matching `[a-z0-9][a-z0-9-]{0,62}` and epoch minute as canonical base-10 with no sign, whitespace, decimal, or leading zero except `0`.
-  - [ ] Add exact byte and digest vectors for ASCII, adjacent minutes, Unicode normalization rejection, CRLF/trailing-newline differences, DST transitions, malformed components, and asserted-hash mismatch.
-  - [ ] Do not assume Terraform `jsonencode` is JCS-equivalent. Fixtures must expose characters and numeric cases that could diverge so future Terraform consumers must prove byte compatibility rather than reimplement a look-alike hash.
+- [x] 3. Define canonical JSON, CONFIG hashing, and occurrence identity (AC: 1, 2, 8)
+  - [x] Adopt RFC 8785 JSON Canonicalization Scheme (JCS) and lowercase SHA-256 for semantic JSON hashes such as CONFIG and schedule generation; artifact-integrity digests follow Task 1's raw-byte rule. Reject floats and integers outside the interoperable IEEE-754 safe-integer range in semantic hashed bodies; require NFC strings and publish cross-language-sensitive vectors.
+  - [x] Define CONFIG as a versioned wrapper whose `config_version` is SHA-256 over the RFC 8785 bytes of the secret-free `config` body only, avoiding a circular self-hash. Include immutable schedule generation, full task-definition revision ARN, cluster/network/role/runtime/log/notification references, approved secret references, and Deployment Identity reference.
+  - [x] Implement the exact occurrence bytes `occurrence/v1\n<job_id>\n<schedule_generation>\n<epoch_minute>` with no trailing newline and hash those UTF-8 bytes to 64 lowercase hex characters.
+  - [x] Enforce job IDs as three lowercase slash-separated segments matching `[a-z0-9][a-z0-9-]{0,62}` and epoch minute as canonical base-10 with no sign, whitespace, decimal, or leading zero except `0`.
+  - [x] Add exact byte and digest vectors for ASCII, adjacent minutes, Unicode normalization rejection, CRLF/trailing-newline differences, DST transitions, malformed components, and asserted-hash mismatch.
+  - [x] Do not assume Terraform `jsonencode` is JCS-equivalent. Fixtures must expose characters and numeric cases that could diverge so future Terraform consumers must prove byte compatibility rather than reimplement a look-alike hash.
 
-- [ ] 4. Freeze the recurring schedule and generation contract (AC: 2, 4, 8)
-  - [ ] Define `schedule/v1` as one normalized expression, IANA time-zone name, explicit canonical start anchor, inclusive activation start, optional exclusive activation end, `flexible_time_window = "OFF"`, evaluator version, and pinned tzdb release.
-  - [ ] Set the MVP cron subset to daily `cron(M H * * ? *)`, weekly `cron(M H ? * DOW *)`, and monthly `cron(M H DOM * ? *)`, where `M=0..59`, `H=0..23`, `DOM=1..31`, `DOW=SUN..SAT`, month is `*`, and year is `*`. Reject lists, ranges, steps, `L`, `W`, `#`, wildcard minute/hour, explicit month/year, multiple weekdays/days, and alternate whitespace/case.
-  - [ ] Support canonical `rate(N minute[s]|hour[s]|day[s])` with a positive integer, no leading zero, singular only for `N=1`, plural otherwise, and an explicit start anchor. Rate days are fixed 24-hour intervals.
-  - [ ] Reject `at(...)`, aliases, empty/open-ended ambiguous anchors, activation end not after start, flexible windows other than `OFF`, and time zones unavailable in the pinned tzdb.
-  - [ ] Define `schedule_generation` as lowercase SHA-256 of `schedule/v1\n` followed by RFC 8785 bytes of the normalized generation body. Include evaluator and tzdb versions so a change that alters occurrence calculation creates a new generation.
-  - [ ] Pin `tzdata==2026.2`, record its bundled IANA release (2026b), and force conformance tests to use the wheel rather than the host TZPATH (for example, an empty/reset `zoneinfo` search path with package fallback). Assert the loaded package/release before evaluating ordinary dates, consecutive windows, spring-forward skipped cron time, fall-back repeated local time occurring once, month-end invalid dates, rate-across-DST, activation boundaries, and generation mismatches.
-  - [ ] Implement only a bounded offline conformance evaluator for fixtures. Do not add a generic cron library or production materializer behavior in this story.
+- [x] 4. Freeze the recurring schedule and generation contract (AC: 2, 4, 8)
+  - [x] Define `schedule/v1` as one normalized expression, IANA time-zone name, explicit canonical start anchor, inclusive activation start, optional exclusive activation end, `flexible_time_window = "OFF"`, evaluator version, and pinned tzdb release.
+  - [x] Set the MVP cron subset to daily `cron(M H * * ? *)`, weekly `cron(M H ? * DOW *)`, and monthly `cron(M H DOM * ? *)`, where `M=0..59`, `H=0..23`, `DOM=1..31`, `DOW=SUN..SAT`, month is `*`, and year is `*`. Reject lists, ranges, steps, `L`, `W`, `#`, wildcard minute/hour, explicit month/year, multiple weekdays/days, and alternate whitespace/case.
+  - [x] Support canonical `rate(N minute[s]|hour[s]|day[s])` with a positive integer, no leading zero, singular only for `N=1`, plural otherwise, and an explicit start anchor. Rate days are fixed 24-hour intervals.
+  - [x] Reject `at(...)`, aliases, empty/open-ended ambiguous anchors, activation end not after start, flexible windows other than `OFF`, and time zones unavailable in the pinned tzdb.
+  - [x] Define `schedule_generation` as lowercase SHA-256 of `schedule/v1\n` followed by RFC 8785 bytes of the normalized generation body. Include evaluator and tzdb versions so a change that alters occurrence calculation creates a new generation.
+  - [x] Pin `tzdata==2026.2`, record its bundled IANA release (2026b), and force conformance tests to use the wheel rather than the host TZPATH (for example, an empty/reset `zoneinfo` search path with package fallback). Assert the loaded package/release before evaluating ordinary dates, consecutive windows, spring-forward skipped cron time, fall-back repeated local time occurring once, month-end invalid dates, rate-across-DST, activation boundaries, and generation mismatches.
+  - [x] Implement only a bounded offline conformance evaluator for fixtures. Do not add a generic cron library or production materializer behavior in this story.
 
-- [ ] 5. Publish deterministic reducer and correlation fixtures (AC: 1, 3, 8)
-  - [ ] Define canonical event types, payload schemas, deduplication key `(producer_id, producer_event_id)`, occurrence/attempt/processed-event ledger keys, and task tag/environment/correlation assertions in versioned catalogs.
-  - [ ] Define occurrence and attempt record fields for job/config/schedule identity, state, expected/started/completed timestamps, exit code, optional operator-safe error reason, attempt zero, deterministic client token, launch-pending state, first-request time, safe-retry deadline, task ARN, correlation/conflict data, and immutable accepted evidence.
-  - [ ] Add an auxiliary processed-event ledger schema for registered producer plus producer-event deduplication identity, canonical event checksum, acceptance/rejection result, occurrence binding, and immutable processing metadata. This supplements the nine required boundary schemas; it does not add a runtime writer.
-  - [ ] Define completion as one structured marker tied to job, occurrence, config, attempt, and task assertions. `SUCCEEDED` requires exactly one accepted marker and zero essential-container exit; either signal alone is insufficient.
-  - [ ] Create bounded evidence sets for every canonical state and execute every ordering of each set after immutable deduplication. Cap individual fixture sets explicitly so exhaustive permutations remain fast and deterministic.
-  - [ ] Cover identical duplicates, same dedup key with conflicting body, delayed evidence, orphan ECS/log evidence, missing expectation repair, wrong occurrence/config/task assertions, non-zero exit, start/RunTask failure, deadline before/after start, conflicting task ARNs, duplicate completion, late consistent evidence, and late conflicting terminal evidence.
-  - [ ] Prove that accepted immutable evidence commutes, terminal truth is not silently replaced, conflicts resolve to `AMBIGUOUS`, and rejected unauthenticated/wrong-occurrence evidence never enters reduction.
+- [x] 5. Publish deterministic reducer and correlation fixtures (AC: 1, 3, 8)
+  - [x] Define canonical event types, payload schemas, deduplication key `(producer_id, producer_event_id)`, occurrence/attempt/processed-event ledger keys, and task tag/environment/correlation assertions in versioned catalogs.
+  - [x] Define occurrence and attempt record fields for job/config/schedule identity, state, expected/started/completed timestamps, exit code, optional operator-safe error reason, attempt zero, deterministic client token, launch-pending state, first-request time, safe-retry deadline, task ARN, correlation/conflict data, and immutable accepted evidence.
+  - [x] Add an auxiliary processed-event ledger schema for registered producer plus producer-event deduplication identity, canonical event checksum, acceptance/rejection result, occurrence binding, and immutable processing metadata. This supplements the nine required boundary schemas; it does not add a runtime writer.
+  - [x] Define completion as one structured marker tied to job, occurrence, config, attempt, and task assertions. `SUCCEEDED` requires exactly one accepted marker and zero essential-container exit; either signal alone is insufficient.
+  - [x] Create bounded evidence sets for every canonical state and execute every ordering of each set after immutable deduplication. Cap individual fixture sets explicitly so exhaustive permutations remain fast and deterministic.
+  - [x] Cover identical duplicates, same dedup key with conflicting body, delayed evidence, orphan ECS/log evidence, missing expectation repair, wrong occurrence/config/task assertions, non-zero exit, start/RunTask failure, deadline before/after start, conflicting task ARNs, duplicate completion, late consistent evidence, and late conflicting terminal evidence.
+  - [x] Prove that accepted immutable evidence commutes, terminal truth is not silently replaced, conflicts resolve to `AMBIGUOUS`, and rejected unauthenticated/wrong-occurrence evidence never enters reduction.
 
-- [ ] 6. Publish ownership, producer, IAM, metric, and alert catalogs (AC: 1, 5, 8)
-  - [ ] Catalog every Cell-root and job-root resource/integration edge with exactly one Terraform owner, lifecycle owner, producer, consumer, evidence type, ARN shape, and compatibility version.
-  - [ ] Catalog the distinct Scheduler delivery, materializer, normalizer, Process Manager, log ingestor, deadline scanner, alert router, command handler, lifecycle/garbage-collection, operator, break-glass, job launch, execution, task, plan, and apply roles with allowed trust, action, resource, and condition boundaries. No catalog entry may use an unexplained `Action="*"` or `Resource="*"`.
-  - [ ] Require Scheduler confused-deputy conditions for exact `aws:SourceAccount` and schedule-group `aws:SourceArn`; require job-scoped `iam:PassRole` plus `iam:PassedToService=ecs-tasks.amazonaws.com`; require the Process Manager to assume only approved boundary-constrained launch roles.
-  - [ ] Define producer authority from non-body metadata, including Scheduler queue `SenderId` immutable IAM `RoleId` prefix, ECS source/resource/task ARN, CloudWatch log group/stream, registry CONFIG, deadline key, and authorized command record. Payload coordinates are assertions only.
-  - [ ] Define raw AWS producer-shape fixtures separately from canonical evidence. ECS fixtures require the authoritative EventBridge/ECS task-state subset while allowing additive AWS-managed fields; Scheduler fixtures derive occurrence time from `<aws.scheduler.scheduled-time>`. Conditional stop fields and new AWS system attributes must not be mistaken for identity.
-  - [ ] Publish exact GitHub OIDC `aud` and custom `sub` template/rendering fixtures for immutable repository identity, deployment Environment, and pinned `job_workflow_ref`. Include wrong repository, Environment, workflow ref, audience, branch-only subject, and mutable workflow negative cases without adding OIDC privileges to Story 1.1 CI.
-  - [ ] Define bounded metric dimensions (`job_id`, `environment`, `state`; never occurrence ID), alarm names/dimensions/missing-data/threshold/ownership semantics, and alert/outbox fields including Environment, detection time, failure plane, Deployment Identity, account/Region, notification target reference, and Runbook context.
-  - [ ] Publish the registration and enablement lifecycle contract for `RESERVED`, `PUBLISHED`, `VALIDATED`, `MATERIALIZED`, `ENABLED`, and `REJECTED`, including acknowledgement bindings to role/schedule identity, owner generation, CONFIG hash, contract versions, horizon watermark, legal transitions, rejection reasons, timeout behavior, and the two-phase enablement guard. Add transition and stale/mismatched acknowledgement fixtures without implementing the Registrar or job resources.
-  - [ ] Add named positive and negative fixtures for exact and stale principals, wrong source account/group ARN, producer/event-type forgery, cross-job access, stale ownership generation, boundary omission/removal, unrelated role passing, arbitrary log/task assertions, and unauthorized lifecycle handoff.
+- [x] 6. Publish ownership, producer, IAM, metric, and alert catalogs (AC: 1, 5, 8)
+  - [x] Catalog every Cell-root and job-root resource/integration edge with exactly one Terraform owner, lifecycle owner, producer, consumer, evidence type, ARN shape, and compatibility version.
+  - [x] Catalog the distinct Scheduler delivery, materializer, normalizer, Process Manager, log ingestor, deadline scanner, alert router, command handler, lifecycle/garbage-collection, operator, break-glass, job launch, execution, task, plan, and apply roles with allowed trust, action, resource, and condition boundaries. No catalog entry may use an unexplained `Action="*"` or `Resource="*"`.
+  - [x] Require Scheduler confused-deputy conditions for exact `aws:SourceAccount` and schedule-group `aws:SourceArn`; require job-scoped `iam:PassRole` plus `iam:PassedToService=ecs-tasks.amazonaws.com`; require the Process Manager to assume only approved boundary-constrained launch roles.
+  - [x] Define producer authority from non-body metadata, including Scheduler queue `SenderId` immutable IAM `RoleId` prefix, ECS source/resource/task ARN, CloudWatch log group/stream, registry CONFIG, deadline key, and authorized command record. Payload coordinates are assertions only.
+  - [x] Define raw AWS producer-shape fixtures separately from canonical evidence. ECS fixtures require the authoritative EventBridge/ECS task-state subset while allowing additive AWS-managed fields; Scheduler fixtures derive occurrence time from `<aws.scheduler.scheduled-time>`. Conditional stop fields and new AWS system attributes must not be mistaken for identity.
+  - [x] Publish exact GitHub OIDC `aud` and custom `sub` template/rendering fixtures for immutable repository identity, deployment Environment, and pinned `job_workflow_ref`. Include wrong repository, Environment, workflow ref, audience, branch-only subject, and mutable workflow negative cases without adding OIDC privileges to Story 1.1 CI.
+  - [x] Define bounded metric dimensions (`job_id`, `environment`, `state`; never occurrence ID), alarm names/dimensions/missing-data/threshold/ownership semantics, and alert/outbox fields including Environment, detection time, failure plane, Deployment Identity, account/Region, notification target reference, and Runbook context.
+  - [x] Publish the registration and enablement lifecycle contract for `RESERVED`, `PUBLISHED`, `VALIDATED`, `MATERIALIZED`, `ENABLED`, and `REJECTED`, including acknowledgement bindings to role/schedule identity, owner generation, CONFIG hash, contract versions, horizon watermark, legal transitions, rejection reasons, timeout behavior, and the two-phase enablement guard. Add transition and stale/mismatched acknowledgement fixtures without implementing the Registrar or job resources.
+  - [x] Add named positive and negative fixtures for exact and stale principals, wrong source account/group ARN, producer/event-type forgery, cross-job access, stale ownership generation, boundary omission/removal, unrelated role passing, arbitrary log/task assertions, and unauthorized lifecycle handoff.
 
-- [ ] 7. Freeze queue/Lambda and ECS retry constraints (AC: 5, 6, 8)
-  - [ ] Publish AWS service maxima separately from stricter MVP platform limits. Record SQS message maximum 1 MiB but cap the MVP canonical message body at 256 KiB and SQS event-source batch size at 10 so the 6 MiB Lambda synchronous payload ceiling retains metadata headroom.
-  - [ ] Validate Lambda timeout `1..900` seconds, batch window `0..300` seconds, standard-queue batch size `1..10`, queue visibility `>= 6 * function_timeout + batch_window` and `<= 43200` seconds, and maximum concurrency `2..1000` that does not exceed declared reserved concurrency across mappings.
-  - [ ] Require encrypted standard queues, 14-day source/DLQ retention, redrive with `maxReceiveCount` in `5..1000`, a configured DLQ, `ReportBatchItemFailures`, failed `messageId` responses, and a finite application retry/redrive horizon. Reject provisioned poller mode in MVP.
-  - [ ] Define ECS `RunTask` client tokens as at most 64 printable ASCII characters, identical-parameter reuse within one cluster, HTTP-success `failures[]` handling, attempt zero reuse, and a conservative safe-retry deadline no later than one hour after the first request. No later retry is allowed unless the original task is authoritatively recovered.
-  - [ ] Add boundary-value and invalid-combination fixtures, including whole-batch exception behavior, partial failures, poison message redrive, visibility overflow, concurrency oversubscription, missing DLQ, retention drift, and retry after the safe deadline.
+- [x] 7. Freeze queue/Lambda and ECS retry constraints (AC: 5, 6, 8)
+  - [x] Publish AWS service maxima separately from stricter MVP platform limits. Record SQS message maximum 1 MiB but cap the MVP canonical message body at 256 KiB and SQS event-source batch size at 10 so the 6 MiB Lambda synchronous payload ceiling retains metadata headroom.
+  - [x] Validate Lambda timeout `1..900` seconds, batch window `0..300` seconds, standard-queue batch size `1..10`, queue visibility `>= 6 * function_timeout + batch_window` and `<= 43200` seconds, and maximum concurrency `2..1000` that does not exceed declared reserved concurrency across mappings.
+  - [x] Require encrypted standard queues, 14-day source/DLQ retention, redrive with `maxReceiveCount` in `5..1000`, a configured DLQ, `ReportBatchItemFailures`, failed `messageId` responses, and a finite application retry/redrive horizon. Reject provisioned poller mode in MVP.
+  - [x] Define ECS `RunTask` client tokens as at most 64 printable ASCII characters, identical-parameter reuse within one cluster, HTTP-success `failures[]` handling, attempt zero reuse, and a conservative safe-retry deadline no later than one hour after the first request. No later retry is allowed unless the original task is authoritatively recovered.
+  - [x] Add boundary-value and invalid-combination fixtures, including whole-batch exception behavior, partial failures, poison message redrive, visibility overflow, concurrency oversubscription, missing DLQ, retention drift, and retry after the safe deadline.
 
-- [ ] 8. Publish compatibility, migration, and command contracts (AC: 1, 7, 8)
-  - [ ] Use SemVer 2.0.0 and `semantic-version` SimpleSpec range semantics. Reject prerelease/build versions unless a fixture explicitly opts into them; do not substitute PEP 440 ranges.
-  - [ ] Make `1.0.0` an honest initial release with `current_major=1`, `previous_major=null`, and `initial_release=true`; encode the future invariant that releases support N and N-1 through at least 14 days and longer while referenced by CONFIG, occurrences, queues, DLQs, investigation, or rollback.
-  - [ ] Declare current component ranges for Cell, both modules, CONFIG, evidence, each runtime producer/consumer, workflow, Terraform `>=1.10.0,<2.0.0`, AWS provider `>=6.0.0,<7.0.0`, and Python `>=3.14.0,<3.15.0`.
-  - [ ] Add valid, unsupported-major, unknown-component, range-boundary, prerelease, rollback, replay, and missing-migration fixtures. Every rejection returns a stable machine code and relative migration reference.
-  - [ ] Separate the operator request from the Cell-stamped canonical command. The request identifies a job and scheduled time/approved lookup selector but rejects caller-supplied occurrence ID, command ID, producer identity, or evidence; the trusted handler resolves the original occurrence and creates the canonical record.
-  - [ ] Define handler-generated lowercase canonical UUIDv7 command IDs and exact manual bytes `occurrence/manual/v1\n<job_id>\n<original_occurrence_id>\n<config_version>\n<command_id>` with no trailing newline. The canonical command requires actor, approval, reason, resolved original occurrence, config version, Deployment Identity, verification, and compensation.
+- [x] 8. Publish compatibility, migration, and command contracts (AC: 1, 7, 8)
+  - [x] Use SemVer 2.0.0 and `semantic-version` SimpleSpec range semantics. Reject prerelease/build versions unless a fixture explicitly opts into them; do not substitute PEP 440 ranges.
+  - [x] Make `1.0.0` an honest initial release with `current_major=1`, `previous_major=null`, and `initial_release=true`; encode the future invariant that releases support N and N-1 through at least 14 days and longer while referenced by CONFIG, occurrences, queues, DLQs, investigation, or rollback.
+  - [x] Declare current component ranges for Cell, both modules, CONFIG, evidence, each runtime producer/consumer, workflow, Terraform `>=1.10.0,<2.0.0`, AWS provider `>=6.0.0,<7.0.0`, and Python `>=3.14.0,<3.15.0`.
+  - [x] Add valid, unsupported-major, unknown-component, range-boundary, prerelease, rollback, replay, and missing-migration fixtures. Every rejection returns a stable machine code and relative migration reference.
+  - [x] Separate the operator request from the Cell-stamped canonical command. The request identifies a job and scheduled time/approved lookup selector but rejects caller-supplied occurrence ID, command ID, producer identity, or evidence; the trusted handler resolves the original occurrence and creates the canonical record.
+  - [x] Define handler-generated lowercase canonical UUIDv7 command IDs and exact manual bytes `occurrence/manual/v1\n<job_id>\n<original_occurrence_id>\n<config_version>\n<command_id>` with no trailing newline. The canonical command requires actor, approval, reason, resolved original occurrence, config version, Deployment Identity, verification, and compensation.
 
-- [ ] 9. Integrate exact, credential-free validation and documentation (AC: 1-9)
-  - [ ] Promote contract-critical packages to exact direct development dependencies: `jsonschema==4.26.0`, `referencing==0.37.0`, `rfc8785==0.1.4`, `semantic-version==2.10.0`, and `tzdata==2026.2`; regenerate and review `uv.lock` with no unrelated dependency churn.
-  - [ ] Put reusable conformance helpers under `tests/contract/support/` or another explicitly linted and typed test-tooling boundary. Extend the existing Ruff/mypy/pytest paths rather than creating an unvalidated script island.
-  - [ ] Extend `tests/contract/` so the existing `./scripts/validate.sh` runs every package check from checked-in artifacts, never downloads schemas, opens sockets, reads AWS credentials, or depends on deployment-specific environment values.
-  - [ ] Preserve `scripts/validate.py` credential scrubbing, dynamic Terraform-root discovery, precise stage labels, temporary data directories, lock-readonly behavior, artifact cleanliness, and the single local/CI entry point.
-  - [ ] Update the root `README.md` layout/toolchain/validation/rollback sections without removing the BMad customization or bootstrap security boundary. Do not modify Terraform resources, runtime production packages, GitHub workflow privileges, architecture/PRD artifacts, or protected-state behavior.
-  - [ ] Run the full documented validation with AWS credential/profile/web-identity variables unset; prove both modules and both examples remain resource-free and valid, all contract suites pass, locks remain stable after validation, and no generated artifact remains.
+- [x] 9. Integrate exact, credential-free validation and documentation (AC: 1-9)
+  - [x] Promote contract-critical packages to exact direct development dependencies: `jsonschema==4.26.0`, `referencing==0.37.0`, `rfc8785==0.1.4`, `semantic-version==2.10.0`, and `tzdata==2026.2`; regenerate and review `uv.lock` with no unrelated dependency churn.
+  - [x] Put reusable conformance helpers under `tests/contract/support/` or another explicitly linted and typed test-tooling boundary. Extend the existing Ruff/mypy/pytest paths rather than creating an unvalidated script island.
+  - [x] Extend `tests/contract/` so the existing `./scripts/validate.sh` runs every package check from checked-in artifacts, never downloads schemas, opens sockets, reads AWS credentials, or depends on deployment-specific environment values.
+  - [x] Preserve `scripts/validate.py` credential scrubbing, dynamic Terraform-root discovery, precise stage labels, temporary data directories, lock-readonly behavior, artifact cleanliness, and the single local/CI entry point.
+  - [x] Update the root `README.md` layout/toolchain/validation/rollback sections without removing the BMad customization or bootstrap security boundary. Do not modify Terraform resources, runtime production packages, GitHub workflow privileges, architecture/PRD artifacts, or protected-state behavior.
+  - [x] Run the full documented validation with AWS credential/profile/web-identity variables unset; prove both modules and both examples remain resource-free and valid, all contract suites pass, locks remain stable after validation, and no generated artifact remains.
 
 ## Dev Notes
 
@@ -275,6 +279,21 @@ Names may be split into smaller files, but the versioned ownership boundary and 
 - At story creation time, Story 1.1 implementation changes are present in the working tree but not represented by the current `HEAD` commit. Before developing Story 1.2, create or identify a reviewed Story 1.1 baseline commit. Otherwise Story 1.2 review cannot distinguish prerequisite files from new contract work.
 - `uv.lock` was excluded from the prior code-review chunk even though locked validation passed. Treat the Story 1.2 regenerated lock as a separately reviewable dependency artifact and inspect both direct and transitive changes.
 
+### Review Findings
+
+- [x] [Review][Patch] Enforce secret-safety screening before accepting additive evidence-envelope extensions; `x-*` fields currently bypass the required recursive checks. [tests/contract/support/contracts.py:141]
+- [x] [Review][Patch] Bind CONFIG identity to its RFC 8785 body and use the one normalized `schedule/v1` contract, including verified schedule generation and real timestamp semantics. [tests/contract/support/contracts.py:141]
+- [x] [Review][Patch] Validate registered producer authority values, not merely producer/event names or the presence of ECS metadata keys. [tests/contract/support/contracts.py:610]
+- [x] [Review][Patch] Drive IAM authority conformance from the IAM catalog and test all trust, action, resource, and condition boundaries rather than hard-coded fixture values. [tests/contract/support/contracts.py:576]
+- [x] [Review][Patch] Recompute and verify the canonical command's `synthetic_occurrence_id` from the required `occurrence/manual/v1` bytes. [contracts/v1/schemas/command.schema.json:100]
+- [x] [Review][Patch] Enforce release-to-predecessor semantic comparison, semver classification, and migration agreement; the current classifier and snapshot cannot detect future breaking releases. [tests/contract/support/contracts.py:263]
+- [x] [Review][Patch] Reject overflowing JSON numeric exponents that Python parses as non-finite floats. [tests/contract/support/contracts.py:95]
+- [x] [Review][Patch] Apply canonical timestamp semantic validation to every timestamp field, including CONFIG schedule anchors and activation windows. [tests/contract/support/contracts.py:155]
+- [x] [Review][Patch] Validate all operator-request field semantics in the public request validator or compose schema validation into that boundary. [tests/contract/support/contracts.py:744]
+- [x] [Review][Patch] Bound ECS safe-retry deadlines and elapsed time at zero as well as the one-hour maximum. [tests/contract/support/contracts.py:707]
+- [x] [Review][Patch] Extend manifest coverage so a future versioned contract tree cannot bypass the unreferenced-artifact checksum guard. [tests/contract/support/contracts.py:224]
+- [x] [Review][Patch] Honor explicit fixture opt-in for SemVer build metadata or remove that unsupported opt-in contract. [tests/contract/support/contracts.py:716]
+
 ### Scope Boundaries
 
 Do not implement or deploy:
@@ -338,8 +357,120 @@ OpenAI Codex (GPT-5)
 
 ### Debug Log References
 
+- RED Task 1: `test_contract_manifest.py` failed because the package support boundary did not exist.
+- GREEN Task 1: manifest, release, migration, checksum inventory, and semantic-classification tests passed (6 tests); full regression passed (36 tests, 136 subtests).
+- RED Task 2: schema tests failed on missing local-registry and strict-parser APIs.
+- GREEN Task 2: 18 schemas and strict parser/semantic/secret fixtures passed (13 focused tests); full regression passed (43 tests, 136 subtests).
+- RED Task 3: identity tests failed on missing RFC 8785 and occurrence helper APIs.
+- GREEN Task 3: canonical JSON/CONFIG and exact occurrence vectors passed (12 focused tests); full regression passed (48 tests, 137 subtests).
+- RED Task 4: schedule tests failed on missing bounded evaluator and generation APIs.
+- GREEN Task 4: schedule grammar, generation, activation, tzdb, DST, rate, and invalid-date vectors passed (12 focused tests); full regression passed (53 tests, 138 subtests).
+- RED Task 5: reducer tests failed on the missing reducer API and bounded evidence fixture.
+- GREEN Task 5: every ordering of bounded immutable evidence converged across all seven states, duplicate/conflict/late/orphan/repair cases, and rejected wrong occurrence/config/task assertions.
+- GREEN Task 6: ownership, producer authority, 16-role IAM, OIDC, metrics/alerts, and lifecycle fixtures passed 10 focused tests.
+- GREEN Task 7: queue/Lambda and ECS retry boundary fixtures passed 3 focused tests, including service/platform limits, redrive, partial-batch, concurrency, visibility, and one-hour retry behavior.
+- GREEN Task 8: SimpleSpec compatibility and exact command/manual identity fixtures passed 4 focused tests.
+- GREEN Task 9: final `./scripts/validate.sh` passed four Terraform roots, Ruff, strict mypy, 78 tests plus 154 subtests, Checkov, repository hygiene, lock stability, and generated-artifact cleanliness.
+
+### Implementation Plan
+
+- Build each normative contract domain as checked-in JSON/Markdown plus pure typed offline conformance helpers.
+- Add failing domain tests before each task, then implement the minimum catalogs, schemas, fixtures, and validation needed for green.
+- Keep Terraform modules resource-free, preserve credential isolation, and finish with the single repository validation command.
+
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Task 1 completed: published the initial package manifest, migration/release records, exact-byte inventory validation, semantic classification fixtures, and normative consumer/security/rollback documentation.
+- Task 2 completed: published nine boundary schemas, auxiliary payload/processed-event schemas, an offline registry, strict JSON parsing, version/timestamp semantics, and secret-safety policy fixtures.
+- Task 3 completed: implemented the restricted RFC 8785 profile, CONFIG hashing, exact occurrence bytes/digests, and literal cross-language-sensitive vectors.
+- Task 4 completed: froze the recurring schedule catalog and wheel-backed evaluator with deterministic DST, activation-window, rate, generation, and rejection fixtures.
+- Task 5 completed: published canonical event/key/correlation catalogs, complete occurrence/attempt/processed-event records, and a deterministic occurrence-aware reducer conformance suite.
+- Task 6 completed: published single-owner integration edges, explicit least-privilege role boundaries, non-body producer authority, immutable GitHub OIDC claims, bounded observability, and two-phase lifecycle contracts.
+- Task 7 completed: froze stricter platform queue/Lambda constraints and ECS `RunTask` idempotency/recovery limits with boundary-value fixtures.
+- Task 8 completed: published current component ranges, stable migration failures, initial-release retention semantics, and separate operator/canonical command identities.
+- Task 9 completed: promoted all five exact contract dependencies, typed and linted conformance tooling, offline/credential-free proof, manifest/release inventory, and consumer/rollback documentation.
+- Scope preserved: no Terraform resource/data/backend blocks, runtime production behavior, OIDC workflow privileges, AWS state, plans, credentials, or deployment artifacts were added.
 
 ### File List
+
+- M `README.md`
+- M `_bmad-output/implementation-artifacts/1-2-publish-canonical-compatibility-contracts.md`
+- M `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- M `contracts/README.md`
+- A `contracts/manifest.json`
+- A `contracts/migrations/v1.0.0.md`
+- A `contracts/releases/1.0.0.json`
+- A `contracts/v1/catalogs/commands.json`
+- A `contracts/v1/catalogs/compatibility.json`
+- A `contracts/v1/catalogs/event-types.json`
+- A `contracts/v1/catalogs/iam.json`
+- A `contracts/v1/catalogs/keys-and-correlation.json`
+- A `contracts/v1/catalogs/lifecycle.json`
+- A `contracts/v1/catalogs/metrics-alerts.json`
+- A `contracts/v1/catalogs/oidc.json`
+- A `contracts/v1/catalogs/ownership.json`
+- A `contracts/v1/catalogs/producers.json`
+- A `contracts/v1/catalogs/queue-lambda-constraints.json`
+- A `contracts/v1/catalogs/reducer.json`
+- A `contracts/v1/catalogs/schedules.json`
+- A `contracts/v1/catalogs/secret-safety.json`
+- A `contracts/v1/fixtures/canonical-json/invalid.json`
+- A `contracts/v1/fixtures/canonical-json/vectors.json`
+- A `contracts/v1/fixtures/compatibility/cases.json`
+- A `contracts/v1/fixtures/compatibility/commands.json`
+- A `contracts/v1/fixtures/compatibility/semantic-change-classification.json`
+- A `contracts/v1/fixtures/iam/cases.json`
+- A `contracts/v1/fixtures/iam/producer-authority.json`
+- A `contracts/v1/fixtures/iam/raw-aws-producer-shapes.json`
+- A `contracts/v1/fixtures/identity/occurrence-v1.json`
+- A `contracts/v1/fixtures/lifecycle/cases.json`
+- A `contracts/v1/fixtures/oidc/cases.json`
+- A `contracts/v1/fixtures/queue-lambda/cases.json`
+- A `contracts/v1/fixtures/reducer/cases.json`
+- A `contracts/v1/fixtures/schedules/cases.json`
+- A `contracts/v1/fixtures/schemas/invalid-instances.json`
+- A `contracts/v1/fixtures/schemas/raw-parser-cases.json`
+- A `contracts/v1/fixtures/schemas/secret-safety-cases.json`
+- A `contracts/v1/fixtures/schemas/valid-instances.json`
+- A `contracts/v1/schemas/alert.schema.json`
+- A `contracts/v1/schemas/cell-contract.schema.json`
+- A `contracts/v1/schemas/command.schema.json`
+- A `contracts/v1/schemas/common.schema.json`
+- A `contracts/v1/schemas/completion-signal.schema.json`
+- A `contracts/v1/schemas/config.schema.json`
+- A `contracts/v1/schemas/deployment-identity.schema.json`
+- A `contracts/v1/schemas/evidence-envelope.schema.json`
+- A `contracts/v1/schemas/occurrence-record.schema.json`
+- A `contracts/v1/schemas/payloads/command-authorized.schema.json`
+- A `contracts/v1/schemas/payloads/completion-observed.schema.json`
+- A `contracts/v1/schemas/payloads/deadline-reached.schema.json`
+- A `contracts/v1/schemas/payloads/occurrence-expected.schema.json`
+- A `contracts/v1/schemas/payloads/occurrence-launch.schema.json`
+- A `contracts/v1/schemas/payloads/task-launch-result.schema.json`
+- A `contracts/v1/schemas/payloads/task-state.schema.json`
+- A `contracts/v1/schemas/processed-event.schema.json`
+- A `contracts/v1/schemas/task-attempt-record.schema.json`
+- M `pyproject.toml`
+- M `scripts/validate.py`
+- A `tests/contract/support/__init__.py`
+- A `tests/contract/support/contracts.py`
+- A `tests/contract/test_contract_commands.py`
+- A `tests/contract/test_contract_compatibility.py`
+- A `tests/contract/test_contract_iam.py`
+- A `tests/contract/test_contract_identity.py`
+- A `tests/contract/test_contract_lifecycle.py`
+- A `tests/contract/test_contract_manifest.py`
+- A `tests/contract/test_contract_offline.py`
+- A `tests/contract/test_contract_oidc.py`
+- A `tests/contract/test_contract_queue_lambda.py`
+- A `tests/contract/test_contract_reducer.py`
+- A `tests/contract/test_contract_schedules.py`
+- A `tests/contract/test_contract_schemas.py`
+- M `tests/contract/test_documentation.py`
+- M `tests/contract/test_repository_structure.py`
+- M `uv.lock`
+
+### Change Log
+
+- 2026-07-15: Published Compatibility Package `1.0.0`, offline conformance tooling, exact dependency pins, and repository validation/documentation integration; moved Story 1.2 to review.

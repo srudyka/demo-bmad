@@ -1,0 +1,42 @@
+{
+  "component_ranges": {
+    "alert-router": ">=1.0.0,<2.0.0",
+    "aws-provider": ">=6.0.0,<7.0.0",
+    "cell": ">=1.0.0,<2.0.0",
+    "command-handler": ">=1.0.0,<2.0.0",
+    "config": ">=1.0.0,<2.0.0",
+    "deadline-scanner": ">=1.0.0,<2.0.0",
+    "ecs-scheduled-job-module": ">=1.0.0,<2.0.0",
+    "ecs-scheduled-job-platform-module": ">=1.0.0,<2.0.0",
+    "evidence": ">=1.0.0,<2.0.0",
+    "evidence-normalizer": ">=1.0.0,<2.0.0",
+    "log-ingestor": ">=1.0.0,<2.0.0",
+    "occurrence-materializer": ">=1.0.0,<2.0.0",
+    "process-manager": ">=1.0.0,<2.0.0",
+    "python": ">=3.14.0,<3.15.0",
+    "terraform": ">=1.10.0,<2.0.0",
+    "workflow": ">=1.0.0,<2.0.0"
+  },
+  "current_major": 1,
+  "initial_release": true,
+  "migration_reference": "migrations/v1.0.0.md",
+  "minimum_support_horizon_days": 14,
+  "previous_major": null,
+  "range_semantics": "semantic-version SimpleSpec",
+  "rejection_codes": [
+    "COMPATIBILITY_BUILD_FORBIDDEN",
+    "COMPATIBILITY_MIGRATION_MISSING",
+    "COMPATIBILITY_PRERELEASE_FORBIDDEN",
+    "COMPATIBILITY_UNKNOWN_COMPONENT",
+    "COMPATIBILITY_UNSUPPORTED_VERSION"
+  ],
+  "retention_extensions": [
+    "referenced by CONFIG",
+    "referenced by occurrence",
+    "present in queue or DLQ",
+    "required by investigation",
+    "required by replay",
+    "required by rollback"
+  ],
+  "schema_version": "1.0.0"
+}

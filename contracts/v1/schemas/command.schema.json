@@ -1,0 +1,146 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "approval_reference": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "form": {
+          "const": "operator_request"
+        },
+        "job_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+        },
+        "reason": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        "request_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
+        },
+        "scheduled_time": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        "schema_version": {
+          "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "form",
+        "request_id",
+        "job_id",
+        "scheduled_time",
+        "actor",
+        "approval_reference",
+        "reason"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "approval_reference": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "command_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
+        },
+        "command_type": {
+          "enum": [
+            "RERUN",
+            "REPLAY",
+            "DISABLE",
+            "RECOVER"
+          ],
+          "type": "string"
+        },
+        "compensation_acknowledged": {
+          "type": "boolean"
+        },
+        "config_version": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "deployment_identity_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "form": {
+          "const": "canonical"
+        },
+        "job_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+        },
+        "original_occurrence_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "reason": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "synthetic_occurrence_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "verification_reference": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "form",
+        "command_id",
+        "command_type",
+        "job_id",
+        "original_occurrence_id",
+        "synthetic_occurrence_id",
+        "config_version",
+        "deployment_identity_id",
+        "actor",
+        "approval_reference",
+        "reason",
+        "verification_reference",
+        "compensation_acknowledged"
+      ],
+      "type": "object"
+    }
+  ],
+  "properties": {
+    "form": {
+      "enum": [
+        "operator_request",
+        "canonical"
+      ]
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "form"
+  ],
+  "title": "Operator Request Or Canonical Command",
+  "type": "object",
+  "unevaluatedProperties": false
+}

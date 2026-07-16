@@ -1,0 +1,13 @@
+{
+  "audience": "sts.amazonaws.com",
+  "claim_keys": [
+    "repository_id",
+    "context",
+    "job_workflow_ref"
+  ],
+  "deployment_environment": "production",
+  "immutable_repository_id": "42424242",
+  "job_workflow_ref": "octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567",
+  "schema_version": "1.0.0",
+  "subject": "repository_id:42424242:environment:production:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"
+}

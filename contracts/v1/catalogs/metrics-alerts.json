@@ -1,0 +1,23 @@
+{
+  "alarm_contract": {
+    "dimensions": ["job_id", "environment", "state"],
+    "missing_data": "breaching for expected-completion alarms; notBreaching for event-driven failure counters",
+    "name": "<environment>/<job-id>/<state>",
+    "owner": "application-owner",
+    "threshold": 1
+  },
+  "alert_required_fields": [
+    "environment",
+    "detected_at",
+    "failure_plane",
+    "deployment_identity_id",
+    "account_id",
+    "region",
+    "notification_target_arn",
+    "runbook_uri"
+  ],
+  "forbidden_dimensions": ["occurrence_id", "task_arn", "command_id"],
+  "metric_dimensions": ["job_id", "environment", "state"],
+  "outbox_identity": ["job_id", "occurrence_id", "state", "failure_plane"],
+  "schema_version": "1.0.0"
+}

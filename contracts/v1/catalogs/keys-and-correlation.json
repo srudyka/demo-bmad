@@ -1,0 +1,44 @@
+{
+  "attempt_no": 0,
+  "deduplication_key": [
+    "producer_id",
+    "producer_event_id"
+  ],
+  "ledger_keys": {
+    "attempt": "PK=JOB#<job_id>;SK=ATTEMPT#<occurrence_id>#0",
+    "occurrence": "PK=JOB#<job_id>;SK=OCCURRENCE#<occurrence_id>",
+    "processed_event": "PK=EVENT#<producer_id>;SK=<producer_event_id>"
+  },
+  "metrics_forbidden_dimensions": [
+    "occurrence_id"
+  ],
+  "schema_version": "1.0.0",
+  "task_correlation": {
+    "authoritative": [
+      "ecs_event_task_arn",
+      "ecs_event_cluster_arn",
+      "registered_log_group",
+      "registered_log_stream",
+      "ledger_task_arn_index"
+    ],
+    "assertions": [
+      "job_id",
+      "occurrence_id",
+      "config_version",
+      "attempt_no"
+    ],
+    "task_environment": [
+      "PLATFORM_JOB_ID",
+      "PLATFORM_OCCURRENCE_ID",
+      "PLATFORM_CONFIG_VERSION",
+      "PLATFORM_ATTEMPT_NO"
+    ],
+    "task_tags": [
+      "PlatformCell",
+      "JobId",
+      "OccurrenceId",
+      "ConfigVersion",
+      "AttemptNo"
+    ]
+  }
+}

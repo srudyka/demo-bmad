@@ -1,0 +1,26 @@
+{
+  "cases": [
+    {
+      "error_code": "CANONICAL_FLOAT_FORBIDDEN",
+      "input": {
+        "cpu": 0.5
+      },
+      "name": "floating point values are outside the profile"
+    },
+    {
+      "error_code": "CANONICAL_INTEGER_OUT_OF_RANGE",
+      "input": {
+        "value": 9007199254740992
+      },
+      "name": "integer above interoperable maximum"
+    },
+    {
+      "error_code": "CANONICAL_INTEGER_OUT_OF_RANGE",
+      "input": {
+        "value": -9007199254740992
+      },
+      "name": "integer below interoperable minimum"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

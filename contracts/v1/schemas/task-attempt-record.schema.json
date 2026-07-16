@@ -1,0 +1,136 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:task-attempt-record",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt_no": {
+      "const": 0
+    },
+    "client_token": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[ -~]+$",
+      "type": "string"
+    },
+    "config_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "correlation": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
+        "config_version": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "occurrence_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        }
+      },
+      "required": [
+        "cluster_arn",
+        "config_version",
+        "occurrence_id"
+      ],
+      "type": "object"
+    },
+    "conflict_evidence_ids": {
+      "items": {
+        "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "first_request_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "launch_state": {
+      "enum": [
+        "PENDING",
+        "STARTED",
+        "FAILED",
+        "AMBIGUOUS"
+      ],
+      "type": "string"
+    },
+    "occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "record_type": {
+      "const": "TASK_ATTEMPT"
+    },
+    "recovery": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritatively_recovered": {
+          "type": "boolean"
+        },
+        "recovered_at": {
+          "oneOf": [
+            {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recovered_task_arn": {
+          "oneOf": [
+            {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "authoritatively_recovered",
+        "recovered_at",
+        "recovered_task_arn"
+      ],
+      "type": "object"
+    },
+    "safe_retry_deadline": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "task_arn": {
+      "oneOf": [
+        {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "record_type",
+    "job_id",
+    "occurrence_id",
+    "config_version",
+    "correlation",
+    "attempt_no",
+    "client_token",
+    "launch_state",
+    "first_request_at",
+    "safe_retry_deadline",
+    "recovery",
+    "task_arn",
+    "conflict_evidence_ids"
+  ],
+  "title": "Task Attempt Ledger Record",
+  "type": "object"
+}

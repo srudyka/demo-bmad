@@ -50,8 +50,22 @@ scripts/                       # shared local/CI validation and hygiene tooling
 ```
 
 Each Terraform module has a resource-free `examples/basic/` root. Production
-examples, environment roots, AWS resources, runtime behavior, and compatibility
-schemas are introduced only by their owning stories.
+examples, environment roots, AWS resources, and runtime behavior are introduced
+only by their owning stories.
+
+## Compatibility Package
+
+`contracts/manifest.json` is the entry point for the versioned, language-neutral
+Cell compatibility package. It inventories every checked-in schema, catalog,
+fixture, release snapshot, and migration note by exact raw-byte SHA-256. Runtime,
+Terraform, and workflow consumers must select a supported major, resolve schemas
+only from the local package, and reject unsupported input before side effects.
+
+The package freezes canonical JSON, occurrence identity, recurring schedule
+semantics, evidence reduction, producer authority, IAM and OIDC boundaries,
+queue/Lambda and ECS retry limits, lifecycle enablement, metrics, alerts, and
+operator commands. See `contracts/README.md` for the consumer workflow and
+repository-only rollback procedure.
 
 ## Validation
 
@@ -87,9 +101,14 @@ does not prove AWS API access or deployed behavior.
 | Python | 3.14.6 | `>= 3.14, < 3.15` |
 | uv | 0.11.28 | exact repository tool pin |
 | Checkov | 3.3.8 | exact direct dependency |
+| jsonschema | 4.26.0 | exact direct contract dependency |
 | mypy | 2.3.0 | exact direct dependency |
 | pytest | 9.1.1 | exact direct dependency |
+| referencing | 0.37.0 | exact direct contract dependency |
+| rfc8785 | 0.1.4 | exact direct contract dependency |
 | Ruff | 0.15.21 | exact direct dependency |
+| semantic-version | 2.10.0 | exact direct contract dependency |
+| tzdata | 2026.2 (IANA 2026b) | exact direct contract dependency |
 
 The Terraform, AWS provider, and Python entries are dated validation seeds, not
 permanent patch constraints. CI and `uv.lock` make the currently tested set
@@ -149,8 +168,9 @@ delivery capabilities. Do not extend the baseline workflow with privileges.
 
 ## Rollback
 
-Story 1.1 is repository-only and creates no AWS resources, state, plans, or
-deployment artifacts. Roll back with a normal version-control revert of the
-bootstrap files, restore the previous `README.md` and `.gitignore`, and rerun the
-checks that existed before the seed. Do not run `terraform destroy`, edit a
-backend, or perform an AWS operation.
+Stories 1.1 and 1.2 are repository-only and create no AWS resources, state,
+plans, or deployment artifacts. Roll back Story 1.2 with a normal
+version-control revert of the compatibility package, tests, exact dependency
+pins, lock, and documentation together, then run `./scripts/validate.sh`. Keep
+any contract version still referenced for replay, investigation, or rollback.
+Do not run `terraform destroy`, edit a backend, or perform an AWS operation.

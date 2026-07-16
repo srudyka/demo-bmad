@@ -1,0 +1,28 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-launch",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "owner_generation": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schedule_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "schedule_group_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "scheduler_scheduled_time": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "schedule_arn",
+    "schedule_group_arn",
+    "scheduler_scheduled_time",
+    "owner_generation"
+  ],
+  "title": "Occurrence Launch Evidence Payload",
+  "type": "object"
+}

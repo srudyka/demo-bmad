@@ -56,6 +56,20 @@ class RepositoryStructureTest(unittest.TestCase):
                     prohibited_blocks.search(terraform_file.read_text(encoding="utf-8"))
                 )
 
+    def test_versioned_compatibility_package_boundaries_exist(self) -> None:
+        contracts_root = REPOSITORY_ROOT / "contracts"
+        for path in (
+            "manifest.json",
+            "migrations/v1.0.0.md",
+            "releases/1.0.0.json",
+            "v1/schemas",
+            "v1/catalogs",
+            "v1/fixtures",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue((contracts_root / path).exists())
+        self.assertFalse((contracts_root / "latest").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

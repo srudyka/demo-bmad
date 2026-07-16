@@ -1,0 +1,89 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cluster_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "containers": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "essential": {
+            "type": "boolean"
+          },
+          "exit_code": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "essential",
+          "exit_code"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "event_time": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "last_status": {
+      "enum": [
+        "PENDING",
+        "RUNNING",
+        "STOPPED"
+      ],
+      "type": "string"
+    },
+    "stop_code": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stopped_reason": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "task_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    }
+  },
+  "required": [
+    "task_arn",
+    "cluster_arn",
+    "last_status",
+    "event_time",
+    "containers",
+    "stop_code",
+    "stopped_reason"
+  ],
+  "title": "ECS Task State Evidence Payload",
+  "type": "object"
+}

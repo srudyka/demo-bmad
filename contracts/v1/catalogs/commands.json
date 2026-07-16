@@ -1,0 +1,37 @@
+{
+  "canonical_command": {
+    "command_id": "handler-generated lowercase RFC 9562 UUIDv7",
+    "manual_identity_bytes": "occurrence/manual/v1\\n<job_id>\\n<original_occurrence_id>\\n<config_version>\\n<command_id>",
+    "required_bindings": [
+      "actor",
+      "approval_reference",
+      "reason",
+      "original_occurrence_id",
+      "config_version",
+      "deployment_identity_id",
+      "verification_reference",
+      "compensation_acknowledged"
+    ],
+    "trailing_newline": false
+  },
+  "operator_request": {
+    "allowed_lookup_selectors": ["scheduled_time"],
+    "forbidden_caller_fields": [
+      "occurrence_id",
+      "original_occurrence_id",
+      "synthetic_occurrence_id",
+      "command_id",
+      "producer_id",
+      "evidence"
+    ],
+    "idempotency_key": "request_id",
+    "trusted_handler_resolves": [
+      "original_occurrence_id",
+      "config_version",
+      "deployment_identity_id",
+      "command_id",
+      "synthetic_occurrence_id"
+    ]
+  },
+  "schema_version": "1.0.0"
+}

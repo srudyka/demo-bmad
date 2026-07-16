@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "expected_sha256": "36b4a98b7addb73554f2b209c1edeb6589f1a9332cbe668b33b64683a6c64062",
+      "expected_utf8_hex": "7b2261223a223c3e26222c2261737472616c223a22f09f9880222c2262223a317d",
+      "input": {
+        "a": "<>&",
+        "astral": "\ud83d\ude00",
+        "b": 1
+      },
+      "name": "jcs key order and terraform-sensitive escaping"
+    },
+    {
+      "expected_sha256": "d6cd8f2e8ec6873a9cb65d25f34f8d1f4140f314dcaeebbba0614bde202940e8",
+      "expected_utf8_hex": "7b226a6f625f6964223a2270726f642f7265706f7274696e672f6461696c792d73756d6d617279222c226f776e65725f67656e65726174696f6e223a317d",
+      "input": {
+        "job_id": "prod/reporting/daily-summary",
+        "owner_generation": 1
+      },
+      "name": "config body hash excludes wrapper"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

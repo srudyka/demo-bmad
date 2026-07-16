@@ -1,0 +1,133 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "properties": {
+        "event_type": {
+          "const": "occurrence.expected.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-expected"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "occurrence.launch.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-launch"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "task.launch-result.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-launch-result"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "task.state.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "completion.observed.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:completion-observed"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "occurrence.deadline-reached.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:deadline-reached"
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_type": {
+          "const": "command.authorized.v1"
+        },
+        "payload": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:command-authorized"
+        }
+      }
+    }
+  ],
+  "patternProperties": {
+    "^x-[a-z0-9][a-z0-9.-]{0,62}$": true
+  },
+  "properties": {
+    "config_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "emitted_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "event_type": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/event_type"
+    },
+    "job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "producer_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/producer_id"
+    },
+    "schedule_generation": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "scheduled_time": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "producer_id",
+    "producer_event_id",
+    "event_type",
+    "schema_version",
+    "job_id",
+    "config_version",
+    "schedule_generation",
+    "scheduled_time",
+    "occurrence_id",
+    "emitted_at",
+    "payload"
+  ],
+  "title": "Authenticated Canonical Evidence Envelope",
+  "type": "object",
+  "unevaluatedProperties": false
+}

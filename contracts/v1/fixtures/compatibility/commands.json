@@ -1,0 +1,21 @@
+{
+  "canonical": {
+    "command_id": "0190f2c9-6c00-7000-8000-000000000001",
+    "config_version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expected_bytes_base64": "b2NjdXJyZW5jZS9tYW51YWwvdjEKZmFrZS9kZXYvam9iCmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEKYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYgowMTkwZjJjOS02YzAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDE=",
+    "expected_occurrence_id": "fa611405deecbe42615b8cf62358c8f3fc6c9527156572d14e5ae3b3b6badff6",
+    "job_id": "fake/dev/job",
+    "original_occurrence_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "operator_requests": [
+    {"accepted": true, "name": "scheduled-time-lookup", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "reason": "rerun after a verified transient failure", "request_id": "0190f2c9-6c00-7000-8000-000000000002", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_CALLER_OWNED_ID", "name": "caller-occurrence-id", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "occurrence_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "reason": "invalid caller authority", "request_id": "0190f2c9-6c00-7000-8000-000000000003", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_CALLER_OWNED_ID", "name": "caller-command-id", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "command_id": "0190f2c9-6c00-7000-8000-000000000004", "form": "operator_request", "job_id": "fake/dev/job", "reason": "invalid caller authority", "request_id": "0190f2c9-6c00-7000-8000-000000000005", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_CALLER_AUTHORITY", "name": "caller-producer-identity", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "producer_id": "process-manager", "reason": "invalid caller authority", "request_id": "0190f2c9-6c00-7000-8000-000000000006", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_REQUEST_ID", "name": "request-id-not-v7", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "reason": "invalid idempotency identity", "request_id": "550e8400-e29b-41d4-a716-446655440000", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_SCHEMA_VERSION", "name": "unsupported-request-schema-major", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "reason": "unsupported schema", "request_id": "0190f2c9-6c00-7000-8000-000000000007", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "2.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_SCHEDULED_TIME", "name": "invalid-request-scheduled-time", "request": {"actor": "fake-operator", "approval_reference": "FAKE-CHANGE-1", "form": "operator_request", "job_id": "fake/dev/job", "reason": "invalid time", "request_id": "0190f2c9-6c00-7000-8000-000000000008", "scheduled_time": "2026-02-31T10:00:00.000Z", "schema_version": "1.0.0"}},
+    {"accepted": false, "error_code": "COMMAND_REQUEST_FIELD", "name": "empty-request-approval", "request": {"actor": "fake-operator", "approval_reference": "", "form": "operator_request", "job_id": "fake/dev/job", "reason": "missing approval", "request_id": "0190f2c9-6c00-7000-8000-000000000009", "scheduled_time": "2026-07-15T10:00:00.000Z", "schema_version": "1.0.0"}}
+  ],
+  "schema_version": "1.0.0"
+}

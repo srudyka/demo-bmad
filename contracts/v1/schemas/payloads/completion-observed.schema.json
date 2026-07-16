@@ -1,0 +1,25 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:completion-observed",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "completion": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:completion-signal"
+    },
+    "log_group": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "log_stream": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "completion",
+    "log_group",
+    "log_stream"
+  ],
+  "title": "Completion Observed Evidence Payload",
+  "type": "object"
+}

@@ -1,0 +1,12 @@
+{
+  "cases": [
+    {"accepted": true, "aud": "sts.amazonaws.com", "name": "exact-production-workflow", "sub": "repository_id:42424242:environment:production:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"},
+    {"accepted": false, "error_code": "OIDC_AUDIENCE", "aud": "https://github.com/octo-org-internal", "name": "wrong-audience", "sub": "repository_id:42424242:environment:production:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"},
+    {"accepted": false, "error_code": "OIDC_SUBJECT", "aud": "sts.amazonaws.com", "name": "wrong-repository", "sub": "repository_id:99999999:environment:production:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"},
+    {"accepted": false, "error_code": "OIDC_SUBJECT", "aud": "sts.amazonaws.com", "name": "wrong-environment", "sub": "repository_id:42424242:environment:staging:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"},
+    {"accepted": false, "error_code": "OIDC_SUBJECT", "aud": "sts.amazonaws.com", "name": "wrong-workflow", "sub": "repository_id:42424242:environment:production:job_workflow_ref:octo-org-internal/other/.github/workflows/apply.yml@0123456789abcdef0123456789abcdef01234567"},
+    {"accepted": false, "error_code": "OIDC_SUBJECT", "aud": "sts.amazonaws.com", "name": "branch-only-subject", "sub": "repo:octo-org-internal/platform-jobs:ref:refs/heads/main"},
+    {"accepted": false, "error_code": "OIDC_SUBJECT", "aud": "sts.amazonaws.com", "name": "mutable-workflow-ref", "sub": "repository_id:42424242:environment:production:job_workflow_ref:octo-org-internal/platform-workflows/.github/workflows/apply.yml@main"}
+  ],
+  "schema_version": "1.0.0"
+}

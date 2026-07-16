@@ -17,6 +17,7 @@ class DocumentationContractTest(unittest.TestCase):
             "## Platform Bootstrap",
             "## Prerequisites",
             "## Repository Layout",
+            "## Compatibility Package",
             "## Validation",
             "## Tested Toolchain",
             "## Provider Lock Updates",
@@ -35,6 +36,7 @@ class DocumentationContractTest(unittest.TestCase):
             "standards deviation",
             "pull_request",
             "credential-free",
+            "contracts/manifest.json",
             "revert",
             "no AWS resources",
         ):
@@ -63,6 +65,20 @@ class DocumentationContractTest(unittest.TestCase):
         )
         self.assertIn("stable location", contents)
         self.assertIn("defines only the location", contents)
+
+    def test_contract_documentation_covers_consumer_security_and_rollback(self) -> None:
+        contents = (REPOSITORY_ROOT / "contracts" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        for heading in (
+            "## Consumer Workflow",
+            "## Versioning And Migration",
+            "## Security",
+            "## Validation",
+            "## Rollback",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, contents)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,55 @@
+{
+  "cases": [
+    {
+      "accepted": true,
+      "expected": {
+        "ok": true
+      },
+      "input_base64": "eyJvayI6dHJ1ZX0=",
+      "name": "canonical utf8 object"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_DUPLICATE_KEY",
+      "input_base64": "eyJhIjoxLCJhIjoyfQ==",
+      "name": "duplicate key"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_INVALID_UTF8",
+      "input_base64": "/w==",
+      "name": "invalid utf8"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_UTF8_BOM",
+      "input_base64": "77u/eyJvayI6dHJ1ZX0=",
+      "name": "utf8 bom"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_NON_FINITE_NUMBER",
+      "input_base64": "eyJhIjpOYU59",
+      "name": "non-finite number"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_NON_FINITE_NUMBER",
+      "input_base64": "eyJuIjoxZTQwMH0=",
+      "name": "overflowing exponent becomes non-finite"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_STRING_NOT_NFC",
+      "input_base64": "eyJhIjoiZVx1MDMwMSJ9",
+      "name": "decomposed unicode"
+    },
+    {
+      "accepted": false,
+      "error_code": "JSON_UNPAIRED_SURROGATE",
+      "input_base64": "eyJhIjoiXHVkODAwIn0=",
+      "name": "unpaired unicode surrogate"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

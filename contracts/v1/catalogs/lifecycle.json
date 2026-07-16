@@ -1,0 +1,34 @@
+{
+  "acknowledgement_bindings": [
+    "job_id",
+    "ownership_generation",
+    "config_version",
+    "schedule_generation",
+    "scheduler_delivery_role_arn",
+    "schedule_arn",
+    "contract_version",
+    "horizon_watermark"
+  ],
+  "legal_transitions": {
+    "MATERIALIZED": ["ENABLED", "REJECTED"],
+    "PUBLISHED": ["VALIDATED", "REJECTED"],
+    "RESERVED": ["PUBLISHED", "REJECTED"],
+    "VALIDATED": ["MATERIALIZED", "REJECTED"]
+  },
+  "rejection_reasons": [
+    "ACKNOWLEDGEMENT_MISMATCH",
+    "AUTHORITY_STALE",
+    "CONFIG_INVALID",
+    "CONTRACT_UNSUPPORTED",
+    "ENABLEMENT_TIMEOUT",
+    "HORIZON_NOT_PROVEN"
+  ],
+  "schema_version": "1.0.0",
+  "states": ["RESERVED", "PUBLISHED", "VALIDATED", "MATERIALIZED", "ENABLED", "REJECTED"],
+  "timeout_disposition": "REJECTED",
+  "two_phase_enablement": [
+    "materializer acknowledgement binds all acknowledgement fields",
+    "registrar compares acknowledgement with current registration",
+    "registrar enables only an exact current acknowledgement"
+  ]
+}

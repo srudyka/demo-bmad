@@ -1,0 +1,132 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:occurrence-record",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "completed_at": {
+      "oneOf": [
+        {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "config_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "deadline_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "error_code": {
+      "oneOf": [
+        {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/machine_code"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_ids": {
+      "items": {
+        "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "exit_code": {
+      "oneOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "keys": {
+      "additionalProperties": false,
+      "properties": {
+        "pk": {
+          "pattern": "^JOB#.+$",
+          "type": "string"
+        },
+        "sk": {
+          "pattern": "^OCCURRENCE#[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pk",
+        "sk"
+      ],
+      "type": "object"
+    },
+    "occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "operator_safe_error_reason": {
+      "oneOf": [
+        {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "record_type": {
+      "const": "OCCURRENCE"
+    },
+    "schedule_generation": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "scheduled_time": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "started_at": {
+      "oneOf": [
+        {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/occurrence_state"
+    }
+  },
+  "required": [
+    "schema_version",
+    "record_type",
+    "keys",
+    "job_id",
+    "config_version",
+    "schedule_generation",
+    "occurrence_id",
+    "scheduled_time",
+    "deadline_at",
+    "state",
+    "started_at",
+    "completed_at",
+    "exit_code",
+    "error_code",
+    "operator_safe_error_reason",
+    "evidence_ids"
+  ],
+  "title": "Occurrence Ledger Record",
+  "type": "object"
+}

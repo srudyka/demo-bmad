@@ -198,7 +198,17 @@ def main() -> int:
             ("ruff", "format", "--check", "--no-cache", "runtime", "scripts", "tests"),
         ),
         ("python:lint", ("ruff", "check", "--no-cache", "runtime", "scripts", "tests")),
-        ("python:type", ("mypy", "--cache-dir", str(mypy_cache), "runtime", "scripts")),
+        (
+            "python:type",
+            (
+                "mypy",
+                "--cache-dir",
+                str(mypy_cache),
+                "runtime",
+                "scripts",
+                "tests/contract/support",
+            ),
+        ),
         (
             "tests:contract-runtime-integration-hygiene",
             ("pytest", "tests", "runtime", "-q", "-p", "no:cacheprovider"),

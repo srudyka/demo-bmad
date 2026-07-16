@@ -1,0 +1,112 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:cell-contract",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cell": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/account_id"
+        },
+        "cell_id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,127}$",
+          "type": "string"
+        },
+        "environment": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/environment"
+        },
+        "region": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/region"
+        }
+      },
+      "required": [
+        "cell_id",
+        "account_id",
+        "region",
+        "environment"
+      ],
+      "type": "object"
+    },
+    "checksum": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "contract_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/semver"
+    },
+    "discovery_path": {
+      "pattern": "^/platform/ecs-scheduled-jobs/[a-z0-9-]+/[a-z0-9-]+/contract$",
+      "type": "string"
+    },
+    "encryption": {
+      "additionalProperties": false,
+      "properties": {
+        "kms_key_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        }
+      },
+      "required": [
+        "kms_key_arn"
+      ],
+      "type": "object"
+    },
+    "integrations": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "arn": {
+            "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+          },
+          "owner": {
+            "enum": [
+              "cell-root",
+              "job-root"
+            ],
+            "type": "string"
+          },
+          "schema_range": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "arn",
+          "owner",
+          "schema_range"
+        ],
+        "type": "object"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "metric_namespace": {
+      "pattern": "^[A-Za-z0-9/_-]{1,255}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "supported_ranges": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minProperties": 1,
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_version",
+    "cell",
+    "discovery_path",
+    "integrations",
+    "metric_namespace",
+    "encryption",
+    "supported_ranges",
+    "checksum"
+  ],
+  "title": "Platform Cell Contract",
+  "type": "object"
+}
