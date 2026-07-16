@@ -8,6 +8,24 @@ Contract cutover, and never use routine destructive cleanup as recovery.
 Runtime, alarm, rerun, and incident procedures are introduced with the
 capabilities they operate.
 
+## Evidence Normalizer Investigation
+
+The Cell Evidence Normalizer consumes only the Scheduler source queue. A
+permanent malformed or forged record is acknowledged after a sanitized
+quarantine record containing only the stable rejection code, source queue ARN,
+hashed source message ID, and receipt timestamp. Do not retrieve or log raw
+untrusted bodies during routine triage. Query the normalizer log group for
+`normalizer_record code=<NORMALIZER_...>` and correlate the stable code to the
+quarantine record; inspect the bounded `EvidenceNormalizerRejected` metric
+using only `job_id`, `environment`, and `state` dimensions.
+
+For an immediate rollback, disable the normalizer event-source mapping while
+keeping the canary schedule disabled. Do not delete scheduler source, canonical
+ingress, quarantine, DLQ, mapping, or log evidence during the 14-day retention
+period. Replaying quarantine data is not an MVP operation: correct the
+registration/configuration, deploy a compatible runtime and Cell Contract, and
+perform any replay through a separately reviewed procedure.
+
 ## Canary Bootstrap Recovery
 
 The platform-owned canary fixture is a non-production, disabled Scheduler

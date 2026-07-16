@@ -59,6 +59,19 @@ output "scheduler_ingress" {
   }
 }
 
+output "evidence_normalizer" {
+  description = "Cell-owned canonical evidence ingress, quarantine, and normalizer runtime identifiers."
+  value = {
+    function_arn         = aws_lambda_function.evidence_normalizer.arn
+    ingress_dlq_arn      = aws_sqs_queue.normalizer_ingress_dlq.arn
+    ingress_queue_arn    = aws_sqs_queue.normalizer_ingress.arn
+    log_group_name       = aws_cloudwatch_log_group.evidence_normalizer.name
+    quarantine_dlq_arn   = aws_sqs_queue.normalizer_quarantine_dlq.arn
+    quarantine_queue_arn = aws_sqs_queue.normalizer_quarantine.arn
+    role_arn             = aws_iam_role.evidence_normalizer.arn
+  }
+}
+
 output "canary_registration" {
   description = "Immutable platform-owned bootstrap canary reservation and its narrowly scoped CONFIG publisher role."
   value = {

@@ -95,7 +95,9 @@ deployment artifact. `terraform validate` proves configuration consistency; it
 does not prove AWS API access or deployed behavior.
 
 The platform Cell security scan excludes Checkov `CKV_AWS_144` (S3 cross-Region
-replication) and `CKV2_AWS_62` (S3 event notifications) only for
+replication), `CKV2_AWS_62` (S3 event notifications), and the Evidence
+Normalizer-specific `CKV_AWS_50`, `CKV_AWS_116`, `CKV_AWS_117`, and
+`CKV_AWS_272` only for
 `modules/ecs-scheduled-job-platform`. The MVP architecture is one independent
 Cell per account and Region and defines controlled restore; it has no automatic cross-Region failover.
 Adding a replication destination without its recovery
@@ -103,7 +105,9 @@ authority, KMS/key policy, and contract cutover design would create an unsafe
 partial implementation. The Cell also has no event consumer until the later
 processor exists, so configuring an S3 event destination now would create an
 unowned runtime path. Other module directories continue to run both checks.
-These exceptions do not weaken
+The normalizer exceptions preserve its required no-VPC design, source-queue
+redrive behavior, least-privilege telemetry role, and reviewed artifact-hash
+interface; they do not waive encryption or source identity controls. These exceptions do not weaken
 encryption, access logging, versioning, public-access, lifecycle, or PITR
 checks.
 

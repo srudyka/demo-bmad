@@ -249,6 +249,21 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.config
     }
+    normalizer_ingress = {
+      arn          = aws_sqs_queue.normalizer_ingress.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    normalizer_quarantine = {
+      arn          = aws_sqs_queue.normalizer_quarantine.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    evidence_normalizer = {
+      arn          = aws_lambda_function.evidence_normalizer.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["evidence-normalizer"]
+    }
   }
   cell_contract_body = {
     cell = {
@@ -500,9 +515,10 @@ resource "aws_sqs_queue" "scheduler_dlq" {
 }
 
 resource "aws_sqs_queue" "scheduler_ingress" {
-  name                      = "${local.name_prefix}-scheduler-ingress"
-  kms_master_key_id         = var.kms_key_arn
-  message_retention_seconds = 1209600
+  name                       = "${local.name_prefix}-scheduler-ingress"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.scheduler_dlq.arn
     maxReceiveCount     = 5
@@ -514,7 +530,188 @@ resource "aws_sqs_queue" "scheduler_ingress" {
       condition     = split(":", var.kms_key_arn)[3] == data.aws_region.current.region
       error_message = "KMS_KEY_REGION_MISMATCH: kms_key_arn must be in the Cell provider Region."
     }
+
+    precondition {
+      condition     = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds <= 43200
+      error_message = "NORMALIZER_SOURCE_VISIBILITY_INVALID: scheduler ingress visibility must not exceed the SQS maximum."
+    }
   }
+}
+
+resource "aws_sqs_queue" "normalizer_ingress_dlq" {
+  name                      = "${local.name_prefix}-evidence-ingress-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "normalizer_ingress" {
+  name                      = "${local.name_prefix}-evidence-ingress"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.normalizer_ingress_dlq.arn
+    maxReceiveCount     = var.normalizer.max_receive_count
+  })
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "normalizer_quarantine_dlq" {
+  name                      = "${local.name_prefix}-evidence-quarantine-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "normalizer_quarantine" {
+  name                      = "${local.name_prefix}-evidence-quarantine"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.normalizer_quarantine_dlq.arn
+    maxReceiveCount     = var.normalizer.max_receive_count
+  })
+  tags = local.common_tags
+}
+
+data "aws_iam_policy_document" "evidence_normalizer_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_group" "evidence_normalizer" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/evidence-normalizer"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.normalizer.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "evidence_normalizer" {
+  statement {
+    sid       = "ReadOnlyTheRegisteredSchedulerSource"
+    effect    = "Allow"
+    actions   = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
+    resources = [aws_sqs_queue.scheduler_ingress.arn]
+  }
+  statement {
+    sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+  }
+  statement {
+    sid       = "WriteOnlyOwnStructuredLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.evidence_normalizer.arn}:*"]
+  }
+  statement {
+    sid       = "UseOnlyCellQueueKeys"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "kms:EncryptionContext:aws:sqs:arn"
+      values = [
+        aws_sqs_queue.scheduler_ingress.arn,
+        aws_sqs_queue.normalizer_ingress.arn,
+        aws_sqs_queue.normalizer_quarantine.arn,
+      ]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyBoundedCellMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+}
+
+resource "aws_iam_role" "evidence_normalizer" {
+  name                 = "${local.name_prefix}-evidence-normalizer"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.evidence_normalizer_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "evidence_normalizer" {
+  name   = "${local.name_prefix}-evidence-normalizer"
+  role   = aws_iam_role.evidence_normalizer.id
+  policy = data.aws_iam_policy_document.evidence_normalizer.json
+}
+
+resource "aws_lambda_function" "evidence_normalizer" {
+  function_name                  = "${local.name_prefix}-evidence-normalizer"
+  filename                       = var.normalizer.artifact_path
+  source_code_hash               = var.normalizer.artifact_source_hash
+  handler                        = "evidence_normalizer.handler.lambda_handler"
+  role                           = aws_iam_role.evidence_normalizer.arn
+  runtime                        = "python3.14"
+  timeout                        = var.normalizer.timeout_seconds
+  reserved_concurrent_executions = var.normalizer.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
+  environment {
+    variables = {
+      NORMALIZER_CONTRACTS_ROOT       = "/var/task/contracts/v1"
+      NORMALIZER_INGRESS_QUEUE_URL    = aws_sqs_queue.normalizer_ingress.url
+      NORMALIZER_METRIC_NAMESPACE     = var.metric_namespace
+      NORMALIZER_QUARANTINE_QUEUE_URL = aws_sqs_queue.normalizer_quarantine.url
+      NORMALIZER_REGISTRATION = jsonencode({
+        account_id          = var.canary_normalizer_registration.account_id
+        config_version      = var.canary_normalizer_registration.config_version
+        environment         = var.canary_normalizer_registration.environment
+        job_id              = var.canary_normalizer_registration.job_id
+        owner_generation    = var.canary_normalizer_registration.owner_generation
+        region              = var.canary_normalizer_registration.region
+        schedule_arn        = var.canary_normalizer_registration.schedule_arn
+        schedule_generation = var.canary_normalizer_registration.schedule_generation
+        schedule_group_arn  = var.canary_normalizer_registration.schedule_group_arn
+        scheduler_role_id   = var.canary_normalizer_registration.scheduler_delivery_role_id
+        source_queue_arn    = var.canary_normalizer_registration.source_queue_arn
+      })
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.evidence_normalizer]
+  tags       = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.canary_normalizer_registration.account_id == data.aws_caller_identity.current.account_id &&
+        var.canary_normalizer_registration.region == data.aws_region.current.region &&
+        var.canary_normalizer_registration.environment == var.environment &&
+        var.canary_normalizer_registration.job_id == var.canary_reservation.job_id &&
+        var.canary_normalizer_registration.owner_generation == var.canary_reservation.owner_generation &&
+        var.canary_normalizer_registration.source_queue_arn == aws_sqs_queue.scheduler_ingress.arn &&
+        var.canary_normalizer_registration.schedule_group_arn == aws_scheduler_schedule_group.cell.arn &&
+        var.canary_normalizer_registration.schedule_arn == "arn:aws:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/${aws_scheduler_schedule_group.cell.name}/${local.name_prefix}-canary"
+      )
+      error_message = "CANARY_NORMALIZER_REGISTRATION_MISMATCH: registration must bind the exact Cell, reserved canary, Scheduler source queue, and schedule group."
+    }
+  }
+}
+
+resource "aws_lambda_event_source_mapping" "evidence_normalizer" {
+  event_source_arn                   = aws_sqs_queue.scheduler_ingress.arn
+  function_name                      = aws_lambda_function.evidence_normalizer.arn
+  batch_size                         = var.normalizer.batch_size
+  maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
 }
 
 data "aws_iam_policy_document" "scheduler_queue" {

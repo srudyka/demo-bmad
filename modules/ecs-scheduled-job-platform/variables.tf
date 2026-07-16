@@ -171,3 +171,65 @@ variable "canary_reservation" {
     error_message = "canary_reservation must contain a canonical job ID, exact apply identity, account, nonempty ASCII ownership fields, and a positive whole generation."
   }
 }
+
+variable "canary_normalizer_registration" {
+  description = "Cell-controlled Scheduler identity binding for the platform-owned canary normalizer."
+  type = object({
+    account_id                 = string
+    config_version             = string
+    environment                = string
+    job_id                     = string
+    owner_generation           = number
+    region                     = string
+    schedule_arn               = string
+    schedule_generation        = string
+    schedule_group_arn         = string
+    scheduler_delivery_role_id = string
+    source_queue_arn           = string
+  })
+
+  validation {
+    condition = (
+      can(regex("^[0-9]{12}$", var.canary_normalizer_registration.account_id)) &&
+      can(regex("^[0-9a-f]{64}$", var.canary_normalizer_registration.config_version)) &&
+      can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.canary_normalizer_registration.region)) &&
+      can(regex("^[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}$", var.canary_normalizer_registration.job_id)) &&
+      var.canary_normalizer_registration.owner_generation >= 1 &&
+      floor(var.canary_normalizer_registration.owner_generation) == var.canary_normalizer_registration.owner_generation &&
+      can(regex("^[0-9a-f]{64}$", var.canary_normalizer_registration.schedule_generation)) &&
+      can(regex("^AROA[A-Z0-9]+$", var.canary_normalizer_registration.scheduler_delivery_role_id)) &&
+      can(regex("^arn:aws:sqs:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:[A-Za-z0-9_-]{1,80}$", var.canary_normalizer_registration.source_queue_arn)) &&
+      can(regex("^arn:aws:scheduler:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:schedule-group/[A-Za-z0-9_-]{1,64}$", var.canary_normalizer_registration.schedule_group_arn)) &&
+      can(regex("^arn:aws:scheduler:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:schedule/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,64}$", var.canary_normalizer_registration.schedule_arn))
+    )
+    error_message = "canary_normalizer_registration must contain canonical Cell, Scheduler, generation, and immutable role-ID values."
+  }
+}
+
+variable "normalizer" {
+  description = "Explicit trusted Evidence Normalizer artifact and Lambda/SQS controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    max_receive_count    = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+
+  validation {
+    condition = (
+      length(var.normalizer.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.normalizer.artifact_source_hash)) &&
+      var.normalizer.batch_size >= 1 && var.normalizer.batch_size <= 10 &&
+      var.normalizer.batch_window_seconds >= 0 && var.normalizer.batch_window_seconds <= 300 &&
+      var.normalizer.timeout_seconds >= 1 && var.normalizer.timeout_seconds <= 900 &&
+      var.normalizer.reserved_concurrency >= 2 && var.normalizer.reserved_concurrency <= 1000 &&
+      var.normalizer.max_receive_count >= 5 && var.normalizer.max_receive_count <= 1000 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.normalizer.log_retention_days)
+    )
+    error_message = "normalizer must use the published artifact, Lambda, SQS redrive, and log-retention bounds."
+  }
+}

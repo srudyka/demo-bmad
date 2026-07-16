@@ -16,7 +16,9 @@ output "canary" {
       task_id       = aws_iam_role.task.unique_id
     }
     schedule_arn               = aws_scheduler_schedule.canary.arn
+    schedule_generation        = local.schedule_generation
     scheduler_dlq_arn          = var.cell_scheduler_dlq_arn
+    scheduler_delivery_role_id = aws_iam_role.scheduler_delivery.unique_id
     scheduler_source_queue_arn = var.cell_scheduler_source_queue_arn
     task_definition_arn        = aws_ecs_task_definition.canary.arn
     task_revision              = aws_ecs_task_definition.canary.revision

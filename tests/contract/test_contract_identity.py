@@ -11,6 +11,8 @@ from tests.contract.support.contracts import (
     load_json_strict,
     occurrence_bytes,
     occurrence_id,
+    scheduler_producer_event_bytes,
+    scheduler_producer_event_id,
 )
 
 
@@ -65,3 +67,26 @@ def test_asserted_occurrence_hash_mismatch_is_detected() -> None:
         case["job_id"], case["schedule_generation"], case["epoch_minute"]
     )
     assert actual != case["asserted_occurrence_id"]
+
+
+def test_scheduler_producer_event_identity_exact_byte_vectors() -> None:
+    fixture = load_json_strict(FIXTURES_ROOT / "identity" / "scheduler-v1.json")
+    for case in fixture["valid"]:
+        assert (
+            scheduler_producer_event_bytes(
+                case["schedule_arn"],
+                case["scheduled_time"],
+                case["config_version"],
+                case["owner_generation"],
+            ).hex()
+            == case["expected_utf8_hex"]
+        )
+        assert (
+            scheduler_producer_event_id(
+                case["schedule_arn"],
+                case["scheduled_time"],
+                case["config_version"],
+                case["owner_generation"],
+            )
+            == case["expected_sha256"]
+        )

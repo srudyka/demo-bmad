@@ -192,8 +192,10 @@ def validate_terraform_security() -> None:
     )
     # MVP Cells are account/Region-local (AD-1), so an unmanaged replication
     # destination would weaken rollback and recovery. The inbox also has no
-    # event consumer until the later Cell processor exists. Limit both
-    # exceptions to the one Cell-foundation directory that owns them.
+    # event consumer until the later Cell processor exists. The normalizer is
+    # intentionally regional/no-VPC, uses source-queue redrive instead of a
+    # Lambda async DLQ, and relies on a reviewed artifact hash rather than a
+    # code-signing profile. Limit every exception to this Cell module.
     run_stage(
         "security:terraform:platform-cell",
         (
@@ -201,7 +203,7 @@ def validate_terraform_security() -> None:
             "-d",
             "modules/ecs-scheduled-job-platform",
             "--skip-check",
-            "CKV_AWS_144,CKV2_AWS_62",
+            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV2_AWS_62",
         ),
     )
     run_stage(

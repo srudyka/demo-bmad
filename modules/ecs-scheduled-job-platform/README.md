@@ -8,13 +8,15 @@ the narrow, platform-owned canary bootstrap prerequisites:
 - a separate encrypted CONFIG registry plus its SSM discovery contract;
 - one best-effort declarative canary reservation and CONFIG-publisher principal;
 - a stable Cell-major Process Manager role shell; and
-- an encrypted Scheduler source queue, DLQ, and schedule group.
+- an encrypted Scheduler source queue, DLQ, and schedule group; and
+- a Cell-owned Evidence Normalizer with canonical ingress and sanitized quarantine queues.
 
-It deliberately does not create a general Registrar, Lambda functions, a
-runtime ledger, ECS resources, job schedules, alarms, notification targets, or
-runtime consumers. The Cell queues are delivery boundaries only, and the
-Process Manager role has no launch authority. Those runtime capabilities are
-owned by later stories.
+It deliberately does not create a general Registrar, runtime ledger, ECS
+resources, job schedules, alarms, notification targets, or later runtime
+consumers. The Process Manager role has no launch authority. Those runtime
+capabilities remain owned by later stories.
+
+The module makes no runtime behavior claim for those deferred components.
 
 ## Required Providers
 
@@ -70,6 +72,17 @@ Required inputs:
   bootstrap binding. It supplies the repository/root/apply identity, account,
   Region, owner, generation, and canonical job identity; it is not a public
   general-registration interface.
+- `canary_normalizer_registration` is the exact, platform-controlled Scheduler
+  identity binding for that canary: source queue, schedule/group ARNs, immutable
+  Scheduler role ID, account/Region, job/generation, and CONFIG version.
+- `normalizer` supplies an externally built immutable Lambda artifact path and
+  base64 SHA-256 plus bounded timeout, concurrency, batch, redrive, and log
+  retention controls. Terraform never packages source from the checkout. The
+  trusted artifact must include the `evidence_normalizer` source, the shared
+  `tests.contract.support.contracts` package until it is promoted to a runtime
+  package, `contracts/v1` at `/var/task/contracts/v1`, and its pinned Python
+  dependencies (`boto3`, `botocore`, `jsonschema`, `referencing`, `rfc8785`,
+  `semantic-version`, and `tzdata`).
 - `enable_recovery_protection` explicitly enables PITR and deletion protection;
   it is required for `prod`.
 - `incomplete_multipart_upload_days` is a bounded 1-365 day cleanup policy for
@@ -102,11 +115,36 @@ inline or attached authority in this phase, specifically no `ecs:RunTask`,
 permission. Creating this shell now prevents a later principal replacement
 from invalidating canary launch-role trust.
 
-The standard SQS source and DLQ use the Cell KMS key, 14-day retention, and a
-redrive count of five. Queue policies allow `scheduler.amazonaws.com` to send
-only from the exact Cell account and schedule group. They do not create a
-normalizer, canonical ingress, processor, ledger, alert, ECS-event, or log
-queue.
+The standard Scheduler source queue and DLQ use the Cell KMS key, 14-day
+retention, and a redrive count of five. Queue policies allow
+`scheduler.amazonaws.com` to send only from the exact Cell account and schedule
+group. The Evidence Normalizer is the sole source consumer in this phase. It
+uses a dedicated Lambda-only role, reads only that queue, writes only canonical
+evidence ingress and sanitized quarantine, logs to its explicit-retention group,
+and publishes bounded Cell metrics. It has no VPC attachment, function URL,
+ledger, ECS, STS, or role-pass authority. The canonical ingress and quarantine
+each have a separate KMS-encrypted 14-day DLQ; later producer queues are not
+created here.
+
+The normalizer log group is KMS-encrypted and retains logs for at least one
+year. The Cell's Checkov scan narrowly documents the intentional no-VPC,
+source-queue-DLQ, no-X-Ray, and artifact-hash-instead-of-code-signing decisions;
+they are not general exemptions for other Lambda functions.
+
+The normalizer compares every available body identity claim to the explicit
+registration. EventBridge Scheduler can supply its occurrence timestamp but
+cannot calculate the platform occurrence hash in a target template, so the
+normalizer derives the occurrence ID from that trusted timestamp; a supplied
+`occurrence_id` remains an assertion and must match. It derives authority from
+SQS source ARN, Region, Scheduler role ID, and Cell registration. Permanent
+invalid input is acknowledged after a secret-free quarantine record, structured
+machine-code log, and bounded metric; only queue/metric transport errors are
+retried via `ReportBatchItemFailures`. The KMS key policy must permit the AWS
+SQS, Lambda, and CloudWatch Logs service use for this account/Region and must
+allow the normalizer execution role `kms:Decrypt` and `kms:GenerateDataKey` for
+the Cell's source, canonical-ingress, and quarantine queue encryption contexts.
+The module grants only those scoped actions; it does not add broad KMS IAM
+authority.
 
 AWS provider 6.54.0 cannot add `If-None-Match: *` to `aws_s3_object`. The S3
 policy retains that precondition for all ordinary writers and exempts only the
@@ -207,9 +245,9 @@ The Cell Contract uses the SSM Standard tier. Its generated ASCII JSON value is
 checked at plan time against the Standard tier's 4 KiB limit; contract growth
 beyond that limit requires a reviewed tier/interface change.
 
-This foundation has no runtime behavior to monitor yet. It reserves the metric
-namespace and publishes discovery state; later stories add actionable Cell and
-job alarms with their producing components.
+The normalizer emits structured secret-free records and a bounded rejection
+counter (`job_id`, `environment`, `state`). It does not create alert routing;
+later stories connect the metric to the approved production incident path.
 
 ## Validation
 
@@ -226,10 +264,11 @@ and the absence of premature runtime resources.
 
 ## Rollback And Recovery
 
-For a failed foundation change, restore the prior compatible module and Cell
-Contract after validating that prior contract locally. Retain the S3 bucket,
-object versions, namespace registry, and CONFIG registry; routine rollback is
-not `terraform destroy` or data cleanup.
+For a failed normalizer deployment, first disable its event-source mapping and
+keep the canary schedule disabled. Retain scheduler source, canonical ingress,
+quarantine queues and DLQs, mapping, and logs for the full 14-day investigation
+window. Revert only to a compatible Cell Contract and runtime artifact; routine
+rollback is not `terraform destroy` or retained-evidence cleanup.
 
 DynamoDB PITR restores to a new table. A recovery runbook must validate the
 restored data and reapply tags, KMS configuration, PITR, deletion protection,

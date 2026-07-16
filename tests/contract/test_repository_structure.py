@@ -64,6 +64,9 @@ class RepositoryStructureTest(unittest.TestCase):
             "aws_dynamodb_table_item",
             "aws_iam_role",
             "aws_iam_role_policy",
+            "aws_cloudwatch_log_group",
+            "aws_lambda_event_source_mapping",
+            "aws_lambda_function",
             "aws_scheduler_schedule_group",
             "aws_sqs_queue",
             "aws_sqs_queue_policy",
@@ -76,7 +79,6 @@ class RepositoryStructureTest(unittest.TestCase):
         self.assertTrue(found_resources.issubset(allowed_resources))
 
         prohibited_platform_terms = (
-            "aws_lambda_function",
             "aws_ecs_task_definition",
             'resource "aws_scheduler_schedule"',
             "aws_cloudwatch_metric_alarm",

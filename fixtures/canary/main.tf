@@ -290,11 +290,19 @@ resource "aws_scheduler_schedule" "canary" {
     arn      = var.cell_scheduler_source_queue_arn
     role_arn = aws_iam_role.scheduler_delivery.arn
     input = jsonencode({
+      account_id               = var.account_id
+      config_version           = local.config_version
+      event_type               = "occurrence.launch.v1"
       job_id                   = var.job_id
       ownership_generation     = var.ownership_generation
+      producer_id              = "scheduler"
+      region                   = var.region
+      schedule_arn             = local.schedule_arn
       schedule_generation      = local.schedule_generation
+      schedule_group_arn       = "arn:aws:scheduler:${var.region}:${var.account_id}:schedule-group/${var.cell_scheduler_group_name}"
       scheduler_scheduled_time = "<aws.scheduler.scheduled-time>"
       schema_version           = "1.0.0"
+      source_queue_arn         = var.cell_scheduler_source_queue_arn
     })
 
     dead_letter_config {

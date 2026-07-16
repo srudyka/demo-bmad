@@ -62,9 +62,9 @@
       "trust": ["lambda.amazonaws.com"]
     },
     "normalizer": {
-      "actions": ["dynamodb:GetItem", "dynamodb:PutItem", "sqs:SendMessage"],
-      "conditions": {"dynamodb:LeadingKeys": "EVENT#<producer-id>"},
-      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:sqs:<region>:<account>:<cell>-evidence"],
+      "actions": ["cloudwatch:PutMetricData", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage", "sqs:SendMessage"],
+      "conditions": {"cloudwatch:namespace": "<metric-namespace>", "kms:EncryptionContext:aws:sqs:arn": ["arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress", "arn:aws:sqs:<region>:<account>:<cell>-evidence-quarantine", "arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress"]},
+      "resources": ["arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/evidence-normalizer:*", "arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress", "arn:aws:sqs:<region>:<account>:<cell>-evidence-quarantine", "arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress"],
       "trust": ["lambda.amazonaws.com"]
     },
     "operator": {

@@ -88,6 +88,12 @@ def test_canary_roles_network_schedule_and_config_are_narrow_and_disabled() -> N
     assert 'resource "aws_sqs_queue" "test_notification_sink"' in contents
     assert "message_retention_seconds = 1209600" in contents
     assert 'scheduler_scheduled_time = "<aws.scheduler.scheduled-time>"' in contents
+    assert (
+        "occurrence_id"
+        not in contents.split("input = jsonencode({", 1)[1].split("})", 1)[0]
+    )
+    assert 'event_type               = "occurrence.launch.v1"' in contents
+    assert "source_queue_arn         = var.cell_scheduler_source_queue_arn" in contents
     assert 'session_name = "platform-canary-config-publisher"' in contents
     assert (
         "tags = {"

@@ -48,7 +48,6 @@ def test_cell_foundation_declares_only_owned_bootstrap_registration_config_and_d
         assert address in contents
 
     prohibited = (
-        "aws_lambda_function",
         "aws_ecs_task_definition",
         'resource "aws_scheduler_schedule"',
         "aws_cloudwatch_metric_alarm",
@@ -65,7 +64,7 @@ def test_cell_canary_bootstrap_has_no_runtime_processing_or_launch_authority() -
         'name                 = "${local.name_prefix}-process-manager-v1"',
         'identifiers = ["lambda.amazonaws.com"]',
         "permissions_boundary = var.permissions_boundary_arn",
-        'name                      = "${local.name_prefix}-scheduler-ingress"',
+        'name                       = "${local.name_prefix}-scheduler-ingress"',
         'name                      = "${local.name_prefix}-scheduler-dlq"',
         "message_retention_seconds = 1209600",
         "maxReceiveCount     = 5",
@@ -74,14 +73,19 @@ def test_cell_canary_bootstrap_has_no_runtime_processing_or_launch_authority() -
         "aws_iam_role.canary_config_publisher.arn",
         "prevent_destroy      = true",
         "replace_triggered_by = [terraform_data.canary_reservation_identity]",
+        'resource "aws_lambda_function" "evidence_normalizer"',
+        'resource "aws_lambda_event_source_mapping" "evidence_normalizer"',
+        'function_response_types            = ["ReportBatchItemFailures"]',
+        "visibility_timeout_seconds = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds",
+        'sid       = "UseOnlyCellQueueKeys"',
+        'variable = "kms:EncryptionContext:aws:sqs:arn"',
+        "schedule/${aws_scheduler_schedule_group.cell.name}/${local.name_prefix}-canary",
     ):
         assert requirement in contents
 
     for prohibited in (
         "ecs:RunTask",
         "iam:PassRole",
-        "aws_lambda_function",
-        "aws_lambda_event_source_mapping",
         "aws_cloudwatch_metric_alarm",
         "aws_sns_topic",
     ):
@@ -96,6 +100,9 @@ def test_cell_contract_includes_the_new_cell_owned_canary_integrations() -> None
         "scheduler_dlq = {",
         "scheduler_ingress = {",
         "scheduler_schedule_group = {",
+        "normalizer_ingress = {",
+        "normalizer_quarantine = {",
+        "evidence_normalizer = {",
     ):
         assert integration in contents
     assert "aws_iam_role.process_manager.arn" in contents
@@ -208,7 +215,7 @@ def test_generated_cell_foundation_contract_has_independent_jcs_proof() -> None:
     body = dict(cell_contract)
     body.pop("checksum")
     assert cell_contract["checksum"] == (
-        "c2accd8c7592f8ae840cba7d1597476502cdb0fbe3ac7a272b78c8ab0a2da2f7"
+        "3a9a8828b268497cc010767c998b322f1250e44cf274dd936c5d6f8e9d259326"
     )
     assert (
         cell_contract["checksum"]
@@ -293,9 +300,13 @@ def test_cell_security_scan_exceptions_are_narrow_and_documented() -> None:
 
     assert '"security:terraform:platform-cell"' in validation
     assert '"modules/ecs-scheduled-job-platform"' in validation
-    assert '"--skip-check",\n            "CKV_AWS_144,CKV2_AWS_62"' in validation
+    assert (
+        '"--skip-check",\n            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV2_AWS_62"'
+        in validation
+    )
     assert "checkov:skip=CKV_AWS_144" not in module_contents("main.tf")
     assert "CKV_AWS_144" in readme
     assert "CKV2_AWS_62" in readme
+    assert "CKV_AWS_117" in readme
     assert re.search(r"automatic cross-Region\s+failover", readme)
     assert "event consumer" in readme

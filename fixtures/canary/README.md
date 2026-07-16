@@ -66,10 +66,16 @@ state.
 
 The schedule is permanently declared `DISABLED` in this phase, uses flexible
 window `OFF`, an explicit IANA time zone and future activation anchor, bounded
-retry/age, the Cell DLQ, and a payload containing the literal Scheduler
-scheduled-time context. Its target is the Cell Scheduler source queue, never
-ECS. The encrypted test SQS queue retains delivery evidence for 14 days and
-does not contact production on-call or customer integrations.
+retry/age, the Cell DLQ, and a body containing identity assertions plus literal
+Scheduler scheduled-time context. Its target is the Cell Scheduler source
+queue, never ECS. Scheduler provides the scheduled timestamp but cannot derive
+the platform occurrence hash in its target template, so this body omits
+`occurrence_id`; Story 1.5's Cell-owned normalizer derives it from the trusted
+timestamp and rejects any supplied mismatching assertion. The body is otherwise
+untrusted and is accepted only when the source queue, account/Region, exact
+schedule/group, generation, CONFIG version, and immutable Scheduler role ID
+match its explicit registration. The fixture output exposes the delivery role
+ID, schedule ARN, and generation as reviewed wiring evidence, not remote state.
 
 No successful completion, occurrence, task launch, or Scheduler delivery is
 claimed until disposable-account evidence exists in later stories. Application
@@ -91,10 +97,12 @@ account with the exact inputs and CI OIDC identity described above.
 
 ## Rollback And Teardown
 
-Keep the schedule disabled. Rollback restores a compatible fixture definition
-and preserves the Cell-owned reservation, CONFIG bucket/object versions, Cell
-queues, and investigation evidence. Do not run routine `terraform destroy` for
-the Cell or CONFIG candidate: the bootstrap declaration and object use
-`prevent_destroy` deliberately. Safe cleanup requires a separately reviewed
+Keep the schedule disabled. If normalizer investigation is needed, disable its
+event-source mapping before changing the fixture and retain source, canonical
+ingress, quarantine, and DLQ evidence for 14 days. Rollback restores a
+compatible fixture/Cell Contract/runtime version; it does not replay arbitrary
+quarantine bodies or delete retained evidence. Do not run routine `terraform
+destroy` for the Cell or CONFIG candidate: the bootstrap declaration and object
+use `prevent_destroy` deliberately. Safe cleanup requires a separately reviewed
 incident or pilot-retirement procedure after evidence-retention obligations are
 met.

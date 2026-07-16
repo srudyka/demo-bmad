@@ -108,11 +108,13 @@
       "authority": [
         "sqs_sender_role_id_prefix",
         "queue_arn",
-        "schedule_group_arn"
+        "schedule_group_arn",
+        "schedule_arn"
       ],
       "authority_metadata": [
         "queue_arn",
-        "schedule_group_arn"
+        "schedule_group_arn",
+        "schedule_arn"
       ],
       "event_types": [
         "occurrence.launch.v1"

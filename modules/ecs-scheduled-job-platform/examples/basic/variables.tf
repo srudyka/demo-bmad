@@ -97,3 +97,57 @@ variable "canary_reservation" {
     terraform_root_id = "fixtures/canary"
   }
 }
+
+variable "canary_normalizer_registration" {
+  description = "Fictitious explicit Scheduler binding for local configuration validation only."
+  type = object({
+    account_id                 = string
+    config_version             = string
+    environment                = string
+    job_id                     = string
+    owner_generation           = number
+    region                     = string
+    schedule_arn               = string
+    schedule_generation        = string
+    schedule_group_arn         = string
+    scheduler_delivery_role_id = string
+    source_queue_arn           = string
+  })
+  default = {
+    account_id                 = "000000000000"
+    config_version             = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    environment                = "dev"
+    job_id                     = "dev/platform/canary"
+    owner_generation           = 1
+    region                     = "us-east-1"
+    schedule_arn               = "arn:aws:scheduler:us-east-1:000000000000:schedule/dev-platform-scheduler/dev-platform-canary"
+    schedule_generation        = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    schedule_group_arn         = "arn:aws:scheduler:us-east-1:000000000000:schedule-group/dev-platform-scheduler"
+    scheduler_delivery_role_id = "AROASCHEDULEREXAMPLE"
+    source_queue_arn           = "arn:aws:sqs:us-east-1:000000000000:dev-platform-scheduler-ingress"
+  }
+}
+
+variable "normalizer" {
+  description = "Fictitious external artifact and bounded normalizer controls for local configuration validation only."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    max_receive_count    = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+  default = {
+    artifact_path        = "/tmp/evidence-normalizer.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    batch_size           = 1
+    batch_window_seconds = 0
+    log_retention_days   = 365
+    max_receive_count    = 5
+    reserved_concurrency = 2
+    timeout_seconds      = 30
+  }
+}

@@ -5,7 +5,7 @@ baseline_commit: c564247c8e3dc1c92ab78a923ad905da9c1f0263
 
 # Story 1.5: Authenticate and Normalize Platform Evidence
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -57,47 +57,60 @@ so that an event body cannot forge producer, job, generation, or authorization i
 
 ## Tasks / Subtasks
 
-- [ ] 1. Define the canary-only trusted Scheduler registration and contract additions (AC: 2, 3, 4, 6, 8)
-  - [ ] Add an explicit `canary_normalizer_registration` Cell input. It is platform-controlled and contains the canary job ID, account, Region, owner generation, CONFIG version, schedule generation, source queue ARN, schedule group ARN, exact schedule ARN, and immutable scheduler delivery Role ID. Validate every field against the existing Cell, `canary_reservation`, canonical ARN/identifier grammar, and the exact `fixtures/canary` root.
-  - [ ] The registration is the normalizer's read-only deployment configuration; do not introduce a general Registrar, a runtime ledger, or a normalizer DynamoDB permission. The fixture must expose `aws_iam_role.scheduler_delivery.unique_id` as evidence for this explicit Cell input, without `terraform_remote_state` or root-to-root mutation.
-  - [ ] Extend the Compatibility Package for the normalized Scheduler launch envelope: define the deterministic Scheduler producer-event-ID byte serialization and vectors, a SHA-256 payload hash, and an optional secret-safe trace-context representation. Preserve schema compatibility by using an additive compatible schema/catalog change and update `contracts/manifest.json`, `contracts/releases/1.0.0.json`, and `contracts/migrations/v1.0.0.md` according to the existing manifest/release tests.
-  - [ ] Use the existing RFC 8785 helpers, schema registry, secret-safety policy, `occurrence_id`, producer catalog, and raw AWS producer fixtures. Do not duplicate JSON canonicalization, schema validation, schedule evaluation, or occurrence hashing in the runtime package.
-  - [ ] Correct `contracts/v1/catalogs/iam.json` so the normalizer catalog does not grant DynamoDB `PutItem` or any ledger write. Its required authority is only exact source-queue receive/delete/attribute access, exact canonical-ingress/quarantine send, own log delivery, and approved bounded metric publication.
+- [x] 1. Define the canary-only trusted Scheduler registration and contract additions (AC: 2, 3, 4, 6, 8)
+  - [x] Add an explicit `canary_normalizer_registration` Cell input. It is platform-controlled and contains the canary job ID, account, Region, owner generation, CONFIG version, schedule generation, source queue ARN, schedule group ARN, exact schedule ARN, and immutable scheduler delivery Role ID. Validate every field against the existing Cell, `canary_reservation`, canonical ARN/identifier grammar, and the exact `fixtures/canary` root.
+  - [x] The registration is the normalizer's read-only deployment configuration; do not introduce a general Registrar, a runtime ledger, or a normalizer DynamoDB permission. The fixture must expose `aws_iam_role.scheduler_delivery.unique_id` as evidence for this explicit Cell input, without `terraform_remote_state` or root-to-root mutation.
+  - [x] Extend the Compatibility Package for the normalized Scheduler launch envelope: define the deterministic Scheduler producer-event-ID byte serialization and vectors, a SHA-256 payload hash, and an optional secret-safe trace-context representation. Preserve schema compatibility by using an additive compatible schema/catalog change and update `contracts/manifest.json`, `contracts/releases/1.0.0.json`, and `contracts/migrations/v1.0.0.md` according to the existing manifest/release tests.
+  - [x] Use the existing RFC 8785 helpers, schema registry, secret-safety policy, `occurrence_id`, producer catalog, and raw AWS producer fixtures. Do not duplicate JSON canonicalization, schema validation, schedule evaluation, or occurrence hashing in the runtime package.
+  - [x] Correct `contracts/v1/catalogs/iam.json` so the normalizer catalog does not grant DynamoDB `PutItem` or any ledger write. Its required authority is only exact source-queue receive/delete/attribute access, exact canonical-ingress/quarantine send, own log delivery, and approved bounded metric publication.
 
-- [ ] 2. Add Cell-owned queues, Lambda integration, and least-privilege IAM (AC: 1, 5, 6, 7)
-  - [ ] In `modules/ecs-scheduled-job-platform/`, add separate standard SQS resources for canonical ingress and its DLQ, plus a bounded sanitized-rejection quarantine queue and its DLQ. Do not rename or repurpose `aws_sqs_queue.scheduler_ingress`: it remains the Story 1.4 Scheduler **source** queue.
-  - [ ] Use the supplied Cell KMS key, 14-day retention, no public policy, and redrive `maxReceiveCount` from 5 through 1000. Preserve source-queue policy ownership in the Cell root. Quarantine records contain stable rejection code, source message ID/hash, source queue ARN, and receipt timestamp only; never retain the raw untrusted body or a secret value.
-  - [ ] Add a dedicated Evidence Normalizer Lambda role with the supplied permissions boundary and Lambda-only trust. Grant only `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:GetQueueAttributes` on the exact Scheduler source queue; `sqs:SendMessage` on exact canonical ingress and quarantine; own-log-group write actions; and `cloudwatch:PutMetricData` restricted to the configured namespace and the approved bounded dimensions. Do not grant DynamoDB, S3, ECS, STS AssumeRole, `iam:PassRole`, queue/policy mutation, other queue reads, or self-modification.
-  - [ ] Add the Lambda function, explicit secret-free environment configuration for the Cell registration, encrypted explicit-retention log group, and SQS event-source mapping. The Lambda has no VPC configuration, public endpoint, function URL, or inbound interface.
-  - [ ] Configure `ReportBatchItemFailures`, standard-queue batch size 1-10, batch window 0-300 seconds, timeout 1-900 seconds, and reserved concurrency 2-1000. Validate `scheduler_ingress.visibility_timeout_seconds >= 6 * normalizer_timeout_seconds + normalizer_batch_window_seconds` and `<= 43200`; validate all queue/Lambda controls against `contracts/v1/catalogs/queue-lambda-constraints.json` before apply.
-  - [ ] Add all new Cell ARNs to the SSM Cell Contract, outputs, basic example, checked-in Cell Contract fixture, checksum, ownership catalog, manifest/release/migration evidence, and static tests. Keep the SSM path, contract identity, ASCII/JCS guard, and existing integration addresses stable.
+- [x] 2. Add Cell-owned queues, Lambda integration, and least-privilege IAM (AC: 1, 5, 6, 7)
+  - [x] In `modules/ecs-scheduled-job-platform/`, add separate standard SQS resources for canonical ingress and its DLQ, plus a bounded sanitized-rejection quarantine queue and its DLQ. Do not rename or repurpose `aws_sqs_queue.scheduler_ingress`: it remains the Story 1.4 Scheduler **source** queue.
+  - [x] Use the supplied Cell KMS key, 14-day retention, no public policy, and redrive `maxReceiveCount` from 5 through 1000. Preserve source-queue policy ownership in the Cell root. Quarantine records contain stable rejection code, source message ID/hash, source queue ARN, and receipt timestamp only; never retain the raw untrusted body or a secret value.
+  - [x] Add a dedicated Evidence Normalizer Lambda role with the supplied permissions boundary and Lambda-only trust. Grant only `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:GetQueueAttributes` on the exact Scheduler source queue; `sqs:SendMessage` on exact canonical ingress and quarantine; own-log-group write actions; and `cloudwatch:PutMetricData` restricted to the configured namespace and the approved bounded dimensions. Do not grant DynamoDB, S3, ECS, STS AssumeRole, `iam:PassRole`, queue/policy mutation, other queue reads, or self-modification.
+  - [x] Add the Lambda function, explicit secret-free environment configuration for the Cell registration, encrypted explicit-retention log group, and SQS event-source mapping. The Lambda has no VPC configuration, public endpoint, function URL, or inbound interface.
+  - [x] Configure `ReportBatchItemFailures`, standard-queue batch size 1-10, batch window 0-300 seconds, timeout 1-900 seconds, and reserved concurrency 2-1000. Validate `scheduler_ingress.visibility_timeout_seconds >= 6 * normalizer_timeout_seconds + normalizer_batch_window_seconds` and `<= 43200`; validate all queue/Lambda controls against `contracts/v1/catalogs/queue-lambda-constraints.json` before apply.
+  - [x] Add all new Cell ARNs to the SSM Cell Contract, outputs, basic example, checked-in Cell Contract fixture, checksum, ownership catalog, manifest/release/migration evidence, and static tests. Keep the SSM path, contract identity, ASCII/JCS guard, and existing integration addresses stable.
 
-- [ ] 3. Implement deterministic, isolated normalizer runtime behavior (AC: 2-5, 8)
-  - [ ] Replace only the `runtime/evidence_normalizer/` package stub with typed, testable Python 3.14 code. Keep AWS transport calls behind a narrow adapter so parsing/authorization/normalization is deterministic and unit-testable without AWS credentials; do not add runtime account, Region, Environment, queue, or secret defaults.
-  - [ ] Parse each SQS record strictly. Derive authority from record `eventSourceARN`, `awsRegion`, system `attributes.SenderId`, and the Cell registration; require the Scheduler role-ID prefix before `:` to match the registered immutable role ID. Treat all body identity coordinates as assertions, including job ID, producer ID, evidence type, source/schedule ARN, account, Region, owner generation, CONFIG version, schedule generation, scheduled time, and occurrence ID.
-  - [ ] Accept only `occurrence.launch.v1` from this source. Verify the registered schedule ARN/group, account/Region, generation, CONFIG version, and canonical Scheduler time. Recompute `occurrence/v1` from the registered job ID, registered schedule generation, and scheduled-time epoch minute; reject a supplied occurrence ID unless it matches.
-  - [ ] Define and use the contract-owned Scheduler producer event ID as SHA-256 of exact ASCII bytes `scheduler/v1\n<schedule_arn>\n<scheduled_time>\n<config_version>\n<owner_generation>`. Use Cell-stamped `producer_id = "scheduler"`; derive the payload hash from canonical JSON bytes; preserve an optional sanitized AWS trace header only in the approved trace-context field. Do not use a mutable SQS message ID as the deduplication identity.
-  - [ ] Set canonical-envelope `emitted_at` to the canonical Scheduler scheduled time, not the Lambda wall clock, so a replay of identical valid source evidence produces the same bytes.
-  - [ ] Validate the completed canonical envelope and secret safety before sending it to canonical ingress. Identical valid records must produce byte-identical canonical envelopes. Duplicate delivery is allowed to emit the same envelope because Story 1.7 owns processed-event deduplication and all occurrence-state mutation.
-  - [ ] Classify malformed/unsupported/forged/stale records as permanent rejections: emit one sanitized quarantine record and bounded rejection metric, then acknowledge the source record. Return only transient transport failures in `batchItemFailures`; never raise a batch-wide exception for a record-specific permanent failure.
-  - [ ] Use structured secret-free logs with stable machine codes. Do not log raw bodies, untrusted headers, SQS receipt handles, credentials, or unrestricted exception data.
+- [x] 3. Implement deterministic, isolated normalizer runtime behavior (AC: 2-5, 8)
+  - [x] Replace only the `runtime/evidence_normalizer/` package stub with typed, testable Python 3.14 code. Keep AWS transport calls behind a narrow adapter so parsing/authorization/normalization is deterministic and unit-testable without AWS credentials; do not add runtime account, Region, Environment, queue, or secret defaults.
+  - [x] Parse each SQS record strictly. Derive authority from record `eventSourceARN`, `awsRegion`, system `attributes.SenderId`, and the Cell registration; require the Scheduler role-ID prefix before `:` to match the registered immutable role ID. Treat all body identity coordinates as assertions, including job ID, producer ID, evidence type, source/schedule ARN, account, Region, owner generation, CONFIG version, schedule generation, scheduled time, and occurrence ID.
+  - [x] Accept only `occurrence.launch.v1` from this source. Verify the registered schedule ARN/group, account/Region, generation, CONFIG version, and canonical Scheduler time. Recompute `occurrence/v1` from the registered job ID, registered schedule generation, and scheduled-time epoch minute; reject a supplied occurrence ID unless it matches.
+  - [x] Define and use the contract-owned Scheduler producer event ID as SHA-256 of exact ASCII bytes `scheduler/v1\n<schedule_arn>\n<scheduled_time>\n<config_version>\n<owner_generation>`. Use Cell-stamped `producer_id = "scheduler"`; derive the payload hash from canonical JSON bytes; preserve an optional sanitized AWS trace header only in the approved trace-context field. Do not use a mutable SQS message ID as the deduplication identity.
+  - [x] Set canonical-envelope `emitted_at` to the canonical Scheduler scheduled time, not the Lambda wall clock, so a replay of identical valid source evidence produces the same bytes.
+  - [x] Validate the completed canonical envelope and secret safety before sending it to canonical ingress. Identical valid records must produce byte-identical canonical envelopes. Duplicate delivery is allowed to emit the same envelope because Story 1.7 owns processed-event deduplication and all occurrence-state mutation.
+  - [x] Classify malformed/unsupported/forged/stale records as permanent rejections: emit one sanitized quarantine record and bounded rejection metric, then acknowledge the source record. Return only transient transport failures in `batchItemFailures`; never raise a batch-wide exception for a record-specific permanent failure.
+  - [x] Use structured secret-free logs with stable machine codes. Do not log raw bodies, untrusted headers, SQS receipt handles, credentials, or unrestricted exception data.
 
-- [ ] 4. Keep Terraform packaging reproducible without committing build output (AC: 1, 7, 8)
-  - [ ] Define an explicit trusted normalizer artifact input/interface for `aws_lambda_function` and `source_code_hash`; the caller/CI supplies the immutable package artifact outside the checkout. Terraform validation must not depend on a locally generated zip, and no zip, Terraform state, plan, credentials, or `.terraform/` directory may be committed.
-  - [ ] Do not use provisioners, `null_resource`, a checkout-writing archive step, or an unpinned external packaging tool. If a provider/dependency is added for artifact metadata, pin it, update provider locks for required platforms, and document the reproducible build/verification path.
-  - [ ] Document external KMS key-policy prerequisites for Lambda/SQS/log use instead of adding broad KMS IAM permissions. Keep code distribution and runtime execution account/Region-local.
+- [x] 4. Keep Terraform packaging reproducible without committing build output (AC: 1, 7, 8)
+  - [x] Define an explicit trusted normalizer artifact input/interface for `aws_lambda_function` and `source_code_hash`; the caller/CI supplies the immutable package artifact outside the checkout. Terraform validation must not depend on a locally generated zip, and no zip, Terraform state, plan, credentials, or `.terraform/` directory may be committed.
+  - [x] Do not use provisioners, `null_resource`, a checkout-writing archive step, or an unpinned external packaging tool. If a provider/dependency is added for artifact metadata, pin it, update provider locks for required platforms, and document the reproducible build/verification path.
+  - [x] Document external KMS key-policy prerequisites for Lambda/SQS/log use instead of adding broad KMS IAM permissions. Keep code distribution and runtime execution account/Region-local.
 
-- [ ] 5. Add deterministic contract, runtime, Terraform, and IAM-negative proof (AC: 1-8)
-  - [ ] Extend contract fixtures/tests for Scheduler raw SQS source shape, exact role-ID prefix, schedule registration, deterministic producer event ID, schema/secret validation, payload hash, trace-context handling, unsupported major, and every assertion mismatch.
-  - [ ] Add runtime tests for accepted evidence, duplicate/replay determinism, malformed JSON/schema, oversized body, forged job/producer/type/schedule/group/account/Region/generation/CONFIG/time/occurrence ID, stale role ID, source queue mismatch, cross-account input, and no side effect on every rejection.
-  - [ ] Add partial-batch tests containing accepted, permanent-rejection, and transient-failure records. Assert accepted/quarantined records are omitted from `batchItemFailures`, only transient record IDs are returned, and one poison record does not block an unrelated accepted record.
-  - [ ] Extend Cell/fixture static tests for encryption, 14-day retention, all redrive policies, visibility formula, event-source mapping response type, Lambda timeout/concurrency/batch bounds, no VPC/function URL, exact IAM resources/trust/boundary, log retention, Cell Contract additions, and absence of materializer/ECS/log/command queues, ledger, Process Manager runtime authority, ECS launch, alarms, and alert routing.
-  - [ ] Update module, fixture, and runbook documentation with source authentication, body-assertion semantics, quarantine investigation/replay limits, metrics/log queries, safe rollback, and retained-evidence cleanup boundaries.
+- [x] 5. Add deterministic contract, runtime, Terraform, and IAM-negative proof (AC: 1-8)
+  - [x] Extend contract fixtures/tests for Scheduler raw SQS source shape, exact role-ID prefix, schedule registration, deterministic producer event ID, schema/secret validation, payload hash, trace-context handling, unsupported major, and every assertion mismatch.
+  - [x] Add runtime tests for accepted evidence, duplicate/replay determinism, malformed JSON/schema, oversized body, forged job/producer/type/schedule/group/account/Region/generation/CONFIG/time/occurrence ID, stale role ID, source queue mismatch, cross-account input, and no side effect on every rejection.
+  - [x] Add partial-batch tests containing accepted, permanent-rejection, and transient-failure records. Assert accepted/quarantined records are omitted from `batchItemFailures`, only transient record IDs are returned, and one poison record does not block an unrelated accepted record.
+  - [x] Extend Cell/fixture static tests for encryption, 14-day retention, all redrive policies, visibility formula, event-source mapping response type, Lambda timeout/concurrency/batch bounds, no VPC/function URL, exact IAM resources/trust/boundary, log retention, Cell Contract additions, and absence of materializer/ECS/log/command queues, ledger, Process Manager runtime authority, ECS launch, alarms, and alert routing.
+  - [x] Update module, fixture, and runbook documentation with source authentication, body-assertion semantics, quarantine investigation/replay limits, metrics/log queries, safe rollback, and retained-evidence cleanup boundaries.
 
-- [ ] 6. Run full credential-free validation and record limitations (AC: 1-8)
-  - [ ] Run `terraform fmt -check -recursive`, backend-free locked init/validate for every discovered root, Ruff format/check, strict mypy, all contract/runtime tests, Checkov for the Cell and fixture, repository hygiene, `./scripts/validate.sh`, and `git diff --check`.
-  - [ ] Do not claim a live Scheduler delivery, Lambda invocation, ECS task, occurrence state, or production alert without recorded disposable-account evidence. Local tests must prove behavior without AWS credentials, plan, apply, state, or saved artifacts.
-  - [ ] Rollback disables the normalizer event-source mapping while leaving the canary schedule disabled, retains source/ingress/quarantine queues, DLQs, mappings, and logs through their 14-day investigation window, and reverts only to a compatible Cell Contract/runtime version. It does not delete shared Cell or canary evidence as routine cleanup.
+- [x] 6. Run full credential-free validation and record limitations (AC: 1-8)
+  - [x] Run `terraform fmt -check -recursive`, backend-free locked init/validate for every discovered root, Ruff format/check, strict mypy, all contract/runtime tests, Checkov for the Cell and fixture, repository hygiene, `./scripts/validate.sh`, and `git diff --check`.
+  - [x] Do not claim a live Scheduler delivery, Lambda invocation, ECS task, occurrence state, or production alert without recorded disposable-account evidence. Local tests must prove behavior without AWS credentials, plan, apply, state, or saved artifacts.
+  - [x] Rollback disables the normalizer event-source mapping while leaving the canary schedule disabled, retains source/ingress/quarantine queues, DLQs, mappings, and logs through their 14-day investigation window, and reverts only to a compatible Cell Contract/runtime version. It does not delete shared Cell or canary evidence as routine cleanup.
+
+### Review Findings
+
+- [x] [Review][Patch] Live Scheduler evidence cannot satisfy the occurrence assertion [fixtures/canary/main.tf:292] — fixed by deriving the occurrence ID from Scheduler's trusted timestamp, retaining a supplied value as a checked assertion, and canonicalizing RFC 3339 Scheduler timestamps.
+- [x] [Review][Patch] Normalizer artifact cannot run from the documented package [runtime/evidence_normalizer/src/evidence_normalizer/handler.py:11] — fixed by documenting the required shared contract package and pinned runtime dependencies in the trusted artifact interface.
+- [x] [Review][Patch] Partial-batch handling misses AWS transport failures [runtime/evidence_normalizer/src/evidence_normalizer/normalizer.py:239] — fixed by translating botocore queue and metric failures to record-local retryable transport errors.
+- [x] [Review][Patch] Encrypted queue access lacks normalizer KMS authority [modules/ecs-scheduled-job-platform/main.tf:595] — fixed with exact queue encryption-context KMS permissions and matching external key-policy documentation.
+- [x] [Review][Patch] Sender identity validation accepts a role ID without a session separator [runtime/evidence_normalizer/src/evidence_normalizer/normalizer.py:143] — fixed by requiring a nonempty `<role-id>:<session>` value.
+- [x] [Review][Patch] Raw evidence parsing bypasses the contract strict JSON parser [runtime/evidence_normalizer/src/evidence_normalizer/normalizer.py:80] — fixed by using the shared strict JSON byte parser for raw SQS bodies.
+- [x] [Review][Patch] Quarantine records report send time as receipt time [runtime/evidence_normalizer/src/evidence_normalizer/normalizer.py:63] — fixed by using SQS's `ApproximateFirstReceiveTimestamp`.
+- [x] [Review][Patch] Canonical envelope bytes are not serialized with the RFC 8785 helper [runtime/evidence_normalizer/src/evidence_normalizer/handler.py:87] — fixed by serializing SQS messages with contract-owned RFC 8785 bytes.
+- [x] [Review][Patch] Permanent rejections are not logged with their machine code [runtime/evidence_normalizer/src/evidence_normalizer/handler.py:123] — fixed with secret-free record-local rejection-code logging.
+- [x] [Review][Patch] Canary registration validation does not enforce all exact coordinates [modules/ecs-scheduled-job-platform/variables.tf:191] — fixed with ARN/Region grammar checks and exact canary schedule binding.
 
 ## Dev Notes
 
@@ -212,12 +225,32 @@ GPT-5
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added the canary-bound Evidence Normalizer, encrypted canonical ingress and
+  quarantine DLQ paths, constrained Lambda IAM, explicit external artifact
+  interface, and Cell Contract/outputs/example wiring.
+- Implemented deterministic, secret-screened Scheduler normalization with exact
+  producer-event vectors, assertion-based body validation, sanitized permanent
+  rejections, bounded metrics, and partial-batch retries.
+- Updated compatibility evidence, static/runtime coverage, security-scan
+  exception documentation, module/fixture/runbook guidance, and rollback
+  procedure. No AWS plan, apply, live Scheduler delivery, Lambda invocation,
+  ECS launch, occurrence mutation, or production alert was performed.
+- Validation passed: `terraform fmt -check -recursive`; backend-free Terraform
+  init/validate for the module and example; Ruff format/check; strict mypy for
+  the normalizer; `pytest -q` (114 passed); Cell and canary Checkov scans;
+  repository hygiene; `git diff --check`; and `./scripts/validate.sh`.
 
 ### File List
 
-- _bmad-output/implementation-artifacts/1-5-authenticate-and-normalize-platform-evidence.md
+- `modules/ecs-scheduled-job-platform/{main.tf,variables.tf,outputs.tf,README.md,examples/basic/*}`
+- `runtime/evidence_normalizer/{src/evidence_normalizer/*,tests/*}`
+- `fixtures/canary/{main.tf,outputs.tf,README.md}`
+- `contracts/{manifest.json,migrations/v1.0.0.md,releases/1.0.0.json,v1/catalogs/{iam,ownership,producers}.json,v1/fixtures/{iam/producer-authority,identity/scheduler-v1}.json,v1/schemas/evidence-envelope.schema.json}`
+- `tests/contract/{fixtures/cell-foundation-contract.json,support/contracts.py,test_canary_fixture.py,test_cell_foundation.py,test_contract_identity.py,test_repository_structure.py}`
+- `docs/runbooks/README.md`, `README.md`, `scripts/validate.py`
+- `_bmad-output/implementation-artifacts/{1-5-authenticate-and-normalize-platform-evidence.md,sprint-status.yaml}`
 
 ### Change Log
 
 - 2026-07-16: Created Story 1.5 implementation context and marked it ready for development.
+- 2026-07-16: Implemented deterministic Scheduler evidence normalization and moved the story to review.

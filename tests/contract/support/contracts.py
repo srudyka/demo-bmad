@@ -660,6 +660,33 @@ def occurrence_id(job_id: str, schedule_generation: str, epoch_minute: str) -> s
     ).hexdigest()
 
 
+def scheduler_producer_event_bytes(
+    schedule_arn: str, scheduled_time: str, config_version: str, owner_generation: int
+) -> bytes:
+    """Return the contract-owned immutable Scheduler producer-event bytes."""
+
+    if not schedule_arn.startswith("arn:aws:scheduler:"):
+        raise ContractViolation("SCHEDULER_IDENTITY_ARN_NONCANONICAL")
+    if SHA256_PATTERN.fullmatch(config_version) is None:
+        raise ContractViolation("SCHEDULER_IDENTITY_CONFIG_NONCANONICAL")
+    if owner_generation < 1:
+        raise ContractViolation("SCHEDULER_IDENTITY_OWNER_GENERATION_INVALID")
+    _parse_canonical_timestamp(scheduled_time)
+    return (
+        f"scheduler/v1\n{schedule_arn}\n{scheduled_time}\n{config_version}\n{owner_generation}"
+    ).encode("ascii")
+
+
+def scheduler_producer_event_id(
+    schedule_arn: str, scheduled_time: str, config_version: str, owner_generation: int
+) -> str:
+    return hashlib.sha256(
+        scheduler_producer_event_bytes(
+            schedule_arn, scheduled_time, config_version, owner_generation
+        )
+    ).hexdigest()
+
+
 def validate_schedule_contract(schedule: dict[str, Any]) -> None:
     if set(schedule) != SCHEDULE_FIELDS:
         raise ContractViolation("SCHEDULE_FIELDS")

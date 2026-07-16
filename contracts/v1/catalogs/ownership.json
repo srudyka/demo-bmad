@@ -32,6 +32,16 @@
     },
     {
       "compatibility_version": "1.0.0",
+      "consumer": "occurrence-materializer",
+      "evidence_type": "occurrence.launch.v1",
+      "integration": "canonical-evidence-ingress",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "evidence-normalizer",
+      "resource_arn_shape": "arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
       "consumer": "ecs",
       "evidence_type": "task.launch-result.v1",
       "integration": "job-launch-role",
