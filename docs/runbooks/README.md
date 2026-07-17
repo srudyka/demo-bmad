@@ -8,9 +8,39 @@ Contract cutover, and never use routine destructive cleanup as recovery.
 Runtime, alarm, rerun, and incident procedures are introduced with the
 capabilities they operate.
 
+## Occurrence Materializer Investigation
+
+The materializer is an independent UTC minute trigger, not the job scheduler.
+It reads the registered immutable CONFIG version, produces only
+`occurrence.expected.v1`, and sends it through the materializer source queue
+for normalizer authentication. A `MATERIALIZER_CONFIG_*` or
+`MATERIALIZER_SCHEDULE_INVALID` failure means the candidate was not eligible
+for expectation generation; do not inspect or log its raw CONFIG body. Check
+the materializer log group, the source queue/DLQ, and immutable configuration
+snapshot watermark. Local validation proves neither live EventBridge delivery
+nor an ECS launch, occurrence state, or alert.
+
+For `MATERIALIZER_CONFIG_SCHEDULE_ARN_MISMATCH` or
+`MATERIALIZER_CONFIG_SCHEDULER_ROLE_MISMATCH`, compare the Cell-controlled
+registration with the immutable CONFIG's exact Scheduler ARN and role ID; do
+not edit an existing CONFIG version. A valid snapshot progresses from
+`VALIDATED` to `MATERIALIZED` only after source-queue sends complete. Query the
+bounded materializer result metric by account, Region, environment, job, and
+state; never add an occurrence ID, CONFIG hash, schedule ARN, role ID, or raw
+error text as a metric dimension. A stalled `VALIDATED` snapshot or a horizon
+near the configured 24-hour watermark requires investigation before later
+enablement.
+
+To contain a materializer fault, disable the exact EventBridge materializer
+rule and its normalizer source mapping, keep the Scheduler canary disabled, and
+retain CONFIG snapshots, queues, DLQs, and logs for at least 14 days. Revert
+only to a compatible Cell Contract and runtime artifact. Do not delete evidence
+or enable a Scheduler schedule as a recovery action.
+
 ## Evidence Normalizer Investigation
 
-The Cell Evidence Normalizer consumes only the Scheduler source queue. A
+The Cell Evidence Normalizer consumes the Scheduler and materializer source
+queues through distinct registrations. A
 permanent malformed or forged record is acknowledged after a sanitized
 quarantine record containing only the stable rejection code, source queue ARN,
 hashed source message ID, and receipt timestamp. Do not retrieve or log raw

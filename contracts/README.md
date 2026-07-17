@@ -46,6 +46,15 @@ fixtures. Producer identity comes from registered AWS metadata, not message
 body assertions. Wildcard IAM authority is invalid unless the catalog records
 the AWS requirement, narrowing conditions, owner, and review justification.
 
+## Occurrence Materialization
+
+The occurrence materializer owns only `occurrence.expected.v1`. Its producer
+event ID is the SHA-256 of the exact ASCII bytes
+`materializer/v1\n<job_id>\n<schedule_generation>\n<scheduled_time>\n<config_version>\n<owner_generation>`.
+It reads one immutable CONFIG, materializes an at-least-24-hour horizon, and
+creates conditional CONFIG snapshots. It does not create Scheduler schedules,
+write occurrence ledger state, or produce `occurrence.launch.v1`.
+
 ## Validation
 
 Run the same credential-free command used by pull-request CI:

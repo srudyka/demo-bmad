@@ -56,9 +56,9 @@
       "trust": ["logs.<region>.amazonaws.com"]
     },
     "materializer": {
-      "actions": ["dynamodb:PutItem", "s3:GetObjectVersion", "scheduler:CreateSchedule", "scheduler:UpdateSchedule"],
+      "actions": ["cloudwatch:PutMetricData", "dynamodb:GetItem", "dynamodb:PutItem", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "s3:GetObjectVersion", "sqs:SendMessage"],
       "conditions": {"dynamodb:LeadingKeys": "JOB#<job-id>"},
-      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/<config-version>.json", "arn:aws:scheduler:<region>:<account>:schedule/<cell-group>/<job-id>"],
+      "resources": ["arn:aws:cloudwatch:<region>:<account>:metric/<metric-namespace>", "arn:aws:dynamodb:<region>:<account>:table/<cell>-config-registry", "arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/occurrence-materializer:*", "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/config/<config-version>.json", "arn:aws:sqs:<region>:<account>:<cell>-materializer-ingress"],
       "trust": ["lambda.amazonaws.com"]
     },
     "normalizer": {

@@ -83,6 +83,10 @@ def test_raw_aws_shapes_keep_authority_separate_from_additive_fields() -> None:
     assert fixture["scheduler"]["occurrence_time_source"] == (
         "<aws.scheduler.scheduled-time>"
     )
+    assert fixture["occurrence-materializer"]["body"] == "RFC8785 evidence-envelope"
+    assert fixture["occurrence-materializer"]["system_attributes"][
+        "SenderId"
+    ].startswith("AROA")
 
 
 def test_every_integration_edge_has_one_owner_and_version() -> None:

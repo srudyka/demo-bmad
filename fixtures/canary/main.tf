@@ -367,10 +367,12 @@ locals {
       launch    = aws_iam_role.launch.arn
       task      = aws_iam_role.task.arn
     }
-    schedule            = local.schedule_contract
-    schedule_generation = local.schedule_generation
-    secret_references   = []
-    task_definition_arn = aws_ecs_task_definition.canary.arn
+    schedule                   = local.schedule_contract
+    schedule_arn               = local.schedule_arn
+    schedule_generation        = local.schedule_generation
+    scheduler_delivery_role_id = aws_iam_role.scheduler_delivery.unique_id
+    secret_references          = []
+    task_definition_arn        = aws_ecs_task_definition.canary.arn
   }
   config_version = sha256(jsonencode(local.config_body))
   config_document = {

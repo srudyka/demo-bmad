@@ -15,6 +15,7 @@ from tests.contract.support.contracts import (
     canonical_json_bytes,
     load_json_bytes_strict,
     occurrence_id,
+    materializer_producer_event_id as contract_materializer_producer_event_id,
     scheduler_producer_event_id as contract_scheduler_producer_event_id,
     validate_contract_instance,
 )
@@ -42,6 +43,21 @@ class SchedulerRegistration:
     schedule_generation: str
     schedule_group_arn: str
     scheduler_role_id: str
+    source_queue_arn: str
+
+
+@dataclass(frozen=True)
+class MaterializerRegistration:
+    """Cell-owned binding for the materializer source queue."""
+
+    account_id: str
+    config_version: str
+    environment: str
+    job_id: str
+    materializer_role_id: str
+    owner_generation: int
+    region: str
+    schedule_generation: str
     source_queue_arn: str
 
 
@@ -229,6 +245,82 @@ def normalize_scheduler_record(
         return _rejection(record, str(error))
 
 
+def normalize_materializer_record(
+    record: Mapping[str, object],
+    registration: MaterializerRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+) -> NormalizationResult:
+    """Authenticate expected-occurrence evidence before canonical ingress."""
+
+    try:
+        if record.get("eventSource") != "aws:sqs":
+            raise NormalizationError("NORMALIZER_SOURCE_SERVICE")
+        if record.get("eventSourceARN") != registration.source_queue_arn:
+            raise NormalizationError("NORMALIZER_SOURCE_QUEUE")
+        if record.get("awsRegion") != registration.region:
+            raise NormalizationError("NORMALIZER_SOURCE_REGION")
+        attributes = record.get("attributes")
+        if not isinstance(attributes, Mapping):
+            raise NormalizationError("NORMALIZER_SENDER_ROLE")
+        sender_id = attributes.get("SenderId")
+        if (
+            not isinstance(sender_id, str)
+            or not sender_id.startswith(f"{registration.materializer_role_id}:")
+            or sender_id == f"{registration.materializer_role_id}:"
+        ):
+            raise NormalizationError("NORMALIZER_SENDER_ROLE")
+        body = _body(record)
+        for field, expected in (
+            ("schema_version", "1.0.0"),
+            ("event_type", "occurrence.expected.v1"),
+            ("producer_id", "occurrence-materializer"),
+            ("job_id", registration.job_id),
+            ("config_version", registration.config_version),
+            ("schedule_generation", registration.schedule_generation),
+        ):
+            _assert_equal(body, field, expected)
+        scheduled_time = body.get("scheduled_time")
+        if not isinstance(scheduled_time, str):
+            raise NormalizationError("NORMALIZER_SCHEDULE_TIME_INVALID")
+        scheduled_time = _canonical_scheduled_time(scheduled_time)
+        _assert_equal(body, "scheduled_time", scheduled_time)
+        expected_occurrence = occurrence_id(
+            registration.job_id,
+            registration.schedule_generation,
+            _epoch_minute(scheduled_time),
+        )
+        _assert_equal(body, "occurrence_id", expected_occurrence)
+        expected_event_id = contract_materializer_producer_event_id(
+            registration.job_id,
+            registration.schedule_generation,
+            scheduled_time,
+            registration.config_version,
+            registration.owner_generation,
+        )
+        _assert_equal(body, "producer_event_id", expected_event_id)
+        payload = body.get("payload")
+        if not isinstance(payload, dict):
+            raise NormalizationError("NORMALIZER_PAYLOAD_INVALID")
+        _assert_equal(
+            body, "payload_hash", sha256(canonical_json_bytes(payload)).hexdigest()
+        )
+        schema_id = (
+            "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+        )
+        issues = validate_contract_instance(
+            schemas[schema_id], body, schema_registry, secret_policy=secret_policy
+        )
+        if issues:
+            raise NormalizationError("NORMALIZER_ENVELOPE_INVALID")
+        return NormalizationResult(
+            envelope=body, quarantine_record=None, rejection_code=None
+        )
+    except NormalizationError as error:
+        return _rejection(record, str(error))
+
+
 def process_scheduler_batch(
     records: list[Mapping[str, object]],
     registration: SchedulerRegistration,
@@ -251,6 +343,37 @@ def process_scheduler_batch(
             failures.append({"itemIdentifier": message_id})
             continue
         result = normalize_scheduler_record(
+            record, registration, schemas, schema_registry, secret_policy
+        )
+        if result.rejection_code is not None and on_permanent_rejection is not None:
+            on_permanent_rejection(result.rejection_code, record)
+        try:
+            if result.envelope is not None:
+                send_envelope(result.envelope)
+            elif result.quarantine_record is not None:
+                send_quarantine(result.quarantine_record)
+        except OSError, TransientTransportError:
+            failures.append({"itemIdentifier": message_id})
+    return {"batchItemFailures": failures}
+
+
+def process_materializer_batch(
+    records: list[Mapping[str, object]],
+    registration: MaterializerRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+    *,
+    send_envelope: Callable[[dict[str, object]], None],
+    send_quarantine: Callable[[dict[str, object]], None],
+    on_permanent_rejection: Callable[[str, Mapping[str, object]], None] | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    """Return Lambda's partial-batch response for materializer source records."""
+
+    failures: list[dict[str, str]] = []
+    for record in records:
+        message_id = str(record.get("messageId", ""))
+        result = normalize_materializer_record(
             record, registration, schemas, schema_registry, secret_policy
         )
         if result.rejection_code is not None and on_permanent_rejection is not None:

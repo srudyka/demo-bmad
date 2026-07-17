@@ -11,6 +11,8 @@ from tests.contract.support.contracts import (
     load_json_strict,
     occurrence_bytes,
     occurrence_id,
+    materializer_producer_event_bytes,
+    materializer_producer_event_id,
     scheduler_producer_event_bytes,
     scheduler_producer_event_id,
 )
@@ -90,3 +92,37 @@ def test_scheduler_producer_event_identity_exact_byte_vectors() -> None:
             )
             == case["expected_sha256"]
         )
+
+
+def test_materializer_producer_event_identity_exact_byte_vectors() -> None:
+    fixture = load_json_strict(FIXTURES_ROOT / "identity" / "materializer-v1.json")
+    for case in fixture["valid"]:
+        assert (
+            materializer_producer_event_bytes(
+                case["job_id"],
+                case["schedule_generation"],
+                case["scheduled_time"],
+                case["config_version"],
+                case["owner_generation"],
+            ).hex()
+            == case["expected_utf8_hex"]
+        )
+        assert (
+            materializer_producer_event_id(
+                case["job_id"],
+                case["schedule_generation"],
+                case["scheduled_time"],
+                case["config_version"],
+                case["owner_generation"],
+            )
+            == case["expected_sha256"]
+        )
+    for case in fixture["invalid"]:
+        with pytest.raises(ContractViolation, match=case["error_code"]):
+            materializer_producer_event_bytes(
+                case["job_id"],
+                case["schedule_generation"],
+                case["scheduled_time"],
+                case["config_version"],
+                case["owner_generation"],
+            )

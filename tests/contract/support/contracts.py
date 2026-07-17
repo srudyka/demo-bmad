@@ -687,6 +687,49 @@ def scheduler_producer_event_id(
     ).hexdigest()
 
 
+def materializer_producer_event_bytes(
+    job_id: str,
+    schedule_generation: str,
+    scheduled_time: str,
+    config_version: str,
+    owner_generation: int,
+) -> bytes:
+    """Return immutable bytes for one materialized expected occurrence."""
+
+    if JOB_ID_PATTERN.fullmatch(job_id) is None:
+        raise ContractViolation("MATERIALIZER_IDENTITY_JOB_ID_NONCANONICAL")
+    if SHA256_PATTERN.fullmatch(schedule_generation) is None:
+        raise ContractViolation("MATERIALIZER_IDENTITY_GENERATION_NONCANONICAL")
+    if SHA256_PATTERN.fullmatch(config_version) is None:
+        raise ContractViolation("MATERIALIZER_IDENTITY_CONFIG_NONCANONICAL")
+    if owner_generation < 1:
+        raise ContractViolation("MATERIALIZER_IDENTITY_OWNER_GENERATION_INVALID")
+    _parse_canonical_timestamp(scheduled_time)
+    return (
+        "materializer/v1\n"
+        f"{job_id}\n{schedule_generation}\n{scheduled_time}\n"
+        f"{config_version}\n{owner_generation}"
+    ).encode("ascii")
+
+
+def materializer_producer_event_id(
+    job_id: str,
+    schedule_generation: str,
+    scheduled_time: str,
+    config_version: str,
+    owner_generation: int,
+) -> str:
+    return hashlib.sha256(
+        materializer_producer_event_bytes(
+            job_id,
+            schedule_generation,
+            scheduled_time,
+            config_version,
+            owner_generation,
+        )
+    ).hexdigest()
+
+
 def validate_schedule_contract(schedule: dict[str, Any]) -> None:
     if set(schedule) != SCHEDULE_FIELDS:
         raise ContractViolation("SCHEDULE_FIELDS")

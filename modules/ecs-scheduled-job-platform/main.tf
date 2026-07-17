@@ -239,6 +239,26 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.cell
     }
+    materializer_ingress = {
+      arn          = aws_sqs_queue.materializer_ingress.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    materializer_dlq = {
+      arn          = aws_sqs_queue.materializer_dlq.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    occurrence_materializer = {
+      arn          = aws_lambda_function.occurrence_materializer.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["occurrence-materializer"]
+    }
+    materializer_tick = {
+      arn          = aws_cloudwatch_event_rule.materializer_tick.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["occurrence-materializer"]
+    }
     scheduler_schedule_group = {
       arn          = aws_scheduler_schedule_group.cell.arn
       owner        = "cell-root"
@@ -597,7 +617,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "ReadOnlyTheRegisteredSchedulerSource"
     effect    = "Allow"
     actions   = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
-    resources = [aws_sqs_queue.scheduler_ingress.arn]
+    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn]
   }
   statement {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
@@ -621,6 +641,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
       variable = "kms:EncryptionContext:aws:sqs:arn"
       values = [
         aws_sqs_queue.scheduler_ingress.arn,
+        aws_sqs_queue.materializer_ingress.arn,
         aws_sqs_queue.normalizer_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
       ]
@@ -683,6 +704,17 @@ resource "aws_lambda_function" "evidence_normalizer" {
         scheduler_role_id   = var.canary_normalizer_registration.scheduler_delivery_role_id
         source_queue_arn    = var.canary_normalizer_registration.source_queue_arn
       })
+      NORMALIZER_MATERIALIZER_REGISTRATION = jsonencode({
+        account_id           = var.canary_normalizer_registration.account_id
+        config_version       = var.canary_normalizer_registration.config_version
+        environment          = var.canary_normalizer_registration.environment
+        job_id               = var.canary_normalizer_registration.job_id
+        materializer_role_id = aws_iam_role.occurrence_materializer.unique_id
+        owner_generation     = var.canary_normalizer_registration.owner_generation
+        region               = var.canary_normalizer_registration.region
+        schedule_generation  = var.canary_normalizer_registration.schedule_generation
+        source_queue_arn     = aws_sqs_queue.materializer_ingress.arn
+      })
     }
   }
 
@@ -708,6 +740,253 @@ resource "aws_lambda_function" "evidence_normalizer" {
 
 resource "aws_lambda_event_source_mapping" "evidence_normalizer" {
   event_source_arn                   = aws_sqs_queue.scheduler_ingress.arn
+  function_name                      = aws_lambda_function.evidence_normalizer.arn
+  batch_size                         = var.normalizer.batch_size
+  maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+# The materializer is intentionally independent of EventBridge Scheduler. Its
+# minute tick only advances the CONFIG expectation watermark; it never launches tasks.
+resource "aws_sqs_queue" "materializer_dlq" {
+  name                      = "${local.name_prefix}-materializer-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "materializer_ingress" {
+  name                       = "${local.name_prefix}-materializer-ingress"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.materializer_dlq.arn
+    maxReceiveCount     = var.materializer.max_receive_count
+  })
+  tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds <= 43200
+      error_message = "MATERIALIZER_SOURCE_VISIBILITY_INVALID: visibility must not exceed the SQS maximum."
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_group" "occurrence_materializer" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/occurrence-materializer"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.materializer.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "occurrence_materializer_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "occurrence_materializer" {
+  name                 = "${local.name_prefix}-occurrence-materializer"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.occurrence_materializer_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+data "aws_iam_policy_document" "occurrence_materializer" {
+  statement {
+    sid       = "ReadOnlyTheRegisteredCanaryConfig"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:GetObjectVersion"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"]
+  }
+  statement {
+    sid       = "WriteOnlyImmutableMaterializationSnapshots"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.configuration_registry.arn, aws_dynamodb_table.namespace_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
+  }
+  statement {
+    sid       = "SendOnlyMaterializerEvidence"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.materializer_ingress.arn]
+  }
+  statement {
+    sid       = "UseOnlyTheConfigInboxKeyThroughS3"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${data.aws_region.current.region}.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:aws:s3:arn"
+      values   = [aws_s3_bucket.config_inbox.arn]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyBoundedMaterializerMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.occurrence_materializer.arn}:*"]
+  }
+  statement {
+    sid       = "UseOnlyConfigAndSourceQueueKeyContexts"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "kms:EncryptionContext:aws:sqs:arn"
+      values   = [aws_sqs_queue.materializer_ingress.arn]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "occurrence_materializer" {
+  name   = "${local.name_prefix}-occurrence-materializer"
+  role   = aws_iam_role.occurrence_materializer.id
+  policy = data.aws_iam_policy_document.occurrence_materializer.json
+}
+
+resource "aws_lambda_function" "occurrence_materializer" {
+  function_name                  = "${local.name_prefix}-occurrence-materializer"
+  filename                       = var.materializer.artifact_path
+  source_code_hash               = var.materializer.artifact_source_hash
+  handler                        = "occurrence_materializer.handler.lambda_handler"
+  role                           = aws_iam_role.occurrence_materializer.arn
+  runtime                        = "python3.14"
+  timeout                        = var.materializer.timeout_seconds
+  reserved_concurrent_executions = var.materializer.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+  environment { variables = {
+    MATERIALIZER_CONTRACTS_ROOT           = "/var/task/contracts/v1"
+    MATERIALIZER_CONFIG_BUCKET            = aws_s3_bucket.config_inbox.bucket
+    MATERIALIZER_CONFIG_KEY               = "jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"
+    MATERIALIZER_CONFIG_REGISTRY_TABLE    = aws_dynamodb_table.configuration_registry.name
+    MATERIALIZER_NAMESPACE_REGISTRY_TABLE = aws_dynamodb_table.namespace_registry.name
+    MATERIALIZER_SOURCE_QUEUE_URL         = aws_sqs_queue.materializer_ingress.url
+    MATERIALIZER_METRIC_NAMESPACE         = var.metric_namespace
+    MATERIALIZER_REGISTRATION = jsonencode({
+      account_id                 = var.canary_normalizer_registration.account_id
+      config_version             = var.canary_normalizer_registration.config_version
+      environment                = var.canary_normalizer_registration.environment
+      job_id                     = var.canary_normalizer_registration.job_id
+      owner_generation           = var.canary_normalizer_registration.owner_generation
+      region                     = var.canary_normalizer_registration.region
+      schedule_arn               = var.canary_normalizer_registration.schedule_arn
+      schedule_generation        = var.canary_normalizer_registration.schedule_generation
+      scheduler_delivery_role_id = var.canary_normalizer_registration.scheduler_delivery_role_id
+    })
+  } }
+  depends_on = [aws_cloudwatch_log_group.occurrence_materializer]
+  tags       = local.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "materializer_tick" {
+  name                = "${local.name_prefix}-materializer-tick"
+  description         = "Independent UTC materialization tick; never an ECS launch schedule."
+  schedule_expression = "rate(1 minute)"
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "materializer_tick" {
+  rule = aws_cloudwatch_event_rule.materializer_tick.name
+  arn  = aws_lambda_function.occurrence_materializer.arn
+
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 5
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.materializer_dlq.arn
+  }
+}
+
+data "aws_iam_policy_document" "materializer_queue" {
+  statement {
+    sid       = "AllowOnlyTheCellMaterializerRole"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.materializer_ingress.arn]
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.occurrence_materializer.arn]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "materializer_dlq_queue" {
+  statement {
+    sid       = "AllowOnlyThisMaterializerRuleDeadLetterDelivery"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.materializer_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.materializer_tick.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "materializer_ingress" {
+  queue_url = aws_sqs_queue.materializer_ingress.id
+  policy    = data.aws_iam_policy_document.materializer_queue.json
+}
+
+resource "aws_sqs_queue_policy" "materializer_dlq" {
+  queue_url = aws_sqs_queue.materializer_dlq.id
+  policy    = data.aws_iam_policy_document.materializer_dlq_queue.json
+}
+
+resource "aws_lambda_permission" "materializer_tick" {
+  statement_id  = "AllowEventBridgeMaterializerTick"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.occurrence_materializer.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.materializer_tick.arn
+}
+
+resource "aws_lambda_event_source_mapping" "materializer_normalizer" {
+  event_source_arn                   = aws_sqs_queue.materializer_ingress.arn
   function_name                      = aws_lambda_function.evidence_normalizer.arn
   batch_size                         = var.normalizer.batch_size
   maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds

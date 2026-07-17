@@ -15,9 +15,11 @@ from tests.contract.support.contracts import (
 )
 
 from .normalizer import (
+    MaterializerRegistration,
     SchedulerRegistration,
     TransientTransportError,
     process_scheduler_batch,
+    process_materializer_batch,
 )
 
 
@@ -49,14 +51,21 @@ def _required_environment(name: str) -> str:
 def _registration() -> SchedulerRegistration:
     try:
         parsed = json.loads(_required_environment("NORMALIZER_REGISTRATION"))
-    except json.JSONDecodeError as error:
-        raise RuntimeError("NORMALIZER_REGISTRATION_INVALID") from error
-    if not isinstance(parsed, dict):
-        raise RuntimeError("NORMALIZER_REGISTRATION_INVALID")
-    try:
+        if not isinstance(parsed, dict):
+            raise RuntimeError("NORMALIZER_REGISTRATION_INVALID")
         return SchedulerRegistration(**parsed)
-    except TypeError as error:
+    except (json.JSONDecodeError, TypeError) as error:
         raise RuntimeError("NORMALIZER_REGISTRATION_INVALID") from error
+
+
+def _materializer_registration() -> MaterializerRegistration:
+    try:
+        parsed = json.loads(
+            _required_environment("NORMALIZER_MATERIALIZER_REGISTRATION")
+        )
+        return MaterializerRegistration(**parsed)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError("NORMALIZER_MATERIALIZER_REGISTRATION_INVALID") from error
 
 
 def _clients() -> tuple[QueueClient, MetricsClient]:
@@ -93,6 +102,7 @@ def lambda_handler(
     schemas, registry = build_schema_registry(contracts_root / "schemas")
     secret_policy = load_json_strict(contracts_root / "catalogs" / "secret-safety.json")
     registration = _registration()
+    materializer_registration = _materializer_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
     namespace = _required_environment("NORMALIZER_METRIC_NAMESPACE")
@@ -134,16 +144,31 @@ def lambda_handler(
         except (BotoCoreError, ClientError, OSError) as error:
             raise TransientTransportError from error
 
-    response = process_scheduler_batch(
-        list(records),
-        registration,
-        schemas,
-        registry,
-        secret_policy,
-        send_envelope=send_envelope,
-        send_quarantine=send_quarantine,
-        on_permanent_rejection=_safe_log,
-    )
+    source_arns = {item.get("eventSourceARN") for item in records}
+    if source_arns == {materializer_registration.source_queue_arn}:
+        response = process_materializer_batch(
+            list(records),
+            materializer_registration,
+            schemas,
+            registry,
+            secret_policy,
+            send_envelope=send_envelope,
+            send_quarantine=send_quarantine,
+            on_permanent_rejection=_safe_log,
+        )
+    elif source_arns == {registration.source_queue_arn}:
+        response = process_scheduler_batch(
+            list(records),
+            registration,
+            schemas,
+            registry,
+            secret_policy,
+            send_envelope=send_envelope,
+            send_quarantine=send_quarantine,
+            on_permanent_rejection=_safe_log,
+        )
+    else:
+        raise RuntimeError("NORMALIZER_SOURCE_QUEUE_MIXED_OR_UNKNOWN")
     for failure in response["batchItemFailures"]:
         _safe_log("NORMALIZER_TRANSPORT_RETRY", failure)
     return response

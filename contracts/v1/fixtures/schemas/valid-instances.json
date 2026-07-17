@@ -75,7 +75,9 @@
             "time_zone": "America/Chicago",
             "tzdb_version": "2026b"
           },
+          "schedule_arn": "arn:aws:scheduler:us-east-1:111111111111:schedule/prod-platform/daily-summary",
           "schedule_generation": "2f01977b5be7c62678324998464a4c6971d51fe6497ce70abaf42c0f11d9f852",
+          "scheduler_delivery_role_id": "AROASCHEDULEREXAMPLE",
           "secret_references": [
             {
               "arn": "arn:aws:secretsmanager:us-east-1:111111111111:secret:prod-reporting-db",
@@ -85,7 +87,7 @@
           ],
           "task_definition_arn": "arn:aws:ecs:us-east-1:111111111111:task-definition/prod-reporting:42"
         },
-        "config_version": "20af4f067e070c87bf4e71ba8fcdbecbf158a58fe27e57368c1e19d3deeae5e1",
+        "config_version": "a8ca5faf3df03e61afd382357c13ed7e4a2218cc8f6b38b5540544f1b2fb1ba9",
         "schema_version": "1.0.0"
       },
       "kind": "required-boundary",

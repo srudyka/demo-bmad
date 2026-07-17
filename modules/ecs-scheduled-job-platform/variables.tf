@@ -233,3 +233,31 @@ variable "normalizer" {
     error_message = "normalizer must use the published artifact, Lambda, SQS redrive, and log-retention bounds."
   }
 }
+
+variable "materializer" {
+  description = "Explicit trusted Occurrence Materializer artifact and Lambda/SQS controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    max_receive_count    = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+
+  validation {
+    condition = (
+      length(var.materializer.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.materializer.artifact_source_hash)) &&
+      var.materializer.batch_size >= 1 && var.materializer.batch_size <= 10 &&
+      var.materializer.batch_window_seconds >= 0 && var.materializer.batch_window_seconds <= 300 &&
+      var.materializer.timeout_seconds >= 1 && var.materializer.timeout_seconds <= 900 &&
+      var.materializer.reserved_concurrency >= 2 && var.materializer.reserved_concurrency <= 1000 &&
+      var.materializer.max_receive_count >= 5 && var.materializer.max_receive_count <= 1000 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.materializer.log_retention_days)
+    )
+    error_message = "materializer must use a published artifact and bounded Lambda/SQS controls."
+  }
+}

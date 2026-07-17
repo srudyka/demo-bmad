@@ -32,12 +32,12 @@
     },
     {
       "compatibility_version": "1.0.0",
-      "consumer": "occurrence-materializer",
-      "evidence_type": "occurrence.launch.v1",
-      "integration": "canonical-evidence-ingress",
+      "consumer": "evidence-normalizer",
+      "evidence_type": "occurrence.expected.v1",
+      "integration": "materializer-ingress-queue",
       "lifecycle_owner": "platform-engineering",
-      "producer": "evidence-normalizer",
-      "resource_arn_shape": "arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress",
+      "producer": "occurrence-materializer",
+      "resource_arn_shape": "arn:aws:sqs:<region>:<account>:<cell>-materializer-ingress",
       "terraform_owner": "ecs-scheduled-job-platform"
     },
     {

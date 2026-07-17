@@ -152,8 +152,15 @@
           ],
           "type": "object"
         },
+        "schedule_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
         "schedule_generation": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "scheduler_delivery_role_id": {
+          "pattern": "^AROA[A-Z0-9]+$",
+          "type": "string"
         },
         "secret_references": {
           "items": {
@@ -169,7 +176,9 @@
         "job_id",
         "owner_generation",
         "schedule",
+        "schedule_arn",
         "schedule_generation",
+        "scheduler_delivery_role_id",
         "task_definition_arn",
         "cluster_arn",
         "network",

@@ -5,7 +5,7 @@
     "environment": "dev",
     "region": "us-east-1"
   },
-  "checksum": "3a9a8828b268497cc010767c998b322f1250e44cf274dd936c5d6f8e9d259326",
+  "checksum": "2793f4fe48de5e26489769f49f55fba48088483a3c7dece6645096a9765bae6f",
   "contract_version": "1.0.0",
   "discovery_path": "/platform/ecs-scheduled-jobs/dev/us-east-1/contract",
   "encryption": {
@@ -32,6 +32,21 @@
       "owner": "cell-root",
       "schema_range": ">=1.0.0,<2.0.0"
     },
+    "materializer_dlq": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-materializer-dlq",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "materializer_ingress": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-materializer-ingress",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "materializer_tick": {
+      "arn": "arn:aws:events:us-east-1:111111111111:rule/dev-platform-materializer-tick",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
     "namespace_registry": {
       "arn": "arn:aws:dynamodb:us-east-1:111111111111:table/dev-platform-namespace-registry",
       "owner": "cell-root",
@@ -44,6 +59,11 @@
     },
     "normalizer_quarantine": {
       "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-evidence-quarantine",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "occurrence_materializer": {
+      "arn": "arn:aws:lambda:us-east-1:111111111111:function:dev-platform-occurrence-materializer",
       "owner": "cell-root",
       "schema_range": ">=1.0.0,<2.0.0"
     },

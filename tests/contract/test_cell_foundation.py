@@ -103,10 +103,15 @@ def test_cell_contract_includes_the_new_cell_owned_canary_integrations() -> None
         "normalizer_ingress = {",
         "normalizer_quarantine = {",
         "evidence_normalizer = {",
+        "materializer_ingress = {",
+        "materializer_dlq = {",
+        "occurrence_materializer = {",
+        "materializer_tick = {",
     ):
         assert integration in contents
     assert "aws_iam_role.process_manager.arn" in contents
     assert "aws_sqs_queue.scheduler_ingress.arn" in contents
+    assert "aws_cloudwatch_event_rule.materializer_tick.arn" in contents
 
 
 def test_cell_foundation_storage_and_recovery_controls_are_explicit() -> None:
@@ -215,7 +220,7 @@ def test_generated_cell_foundation_contract_has_independent_jcs_proof() -> None:
     body = dict(cell_contract)
     body.pop("checksum")
     assert cell_contract["checksum"] == (
-        "3a9a8828b268497cc010767c998b322f1250e44cf274dd936c5d6f8e9d259326"
+        "2793f4fe48de5e26489769f49f55fba48088483a3c7dece6645096a9765bae6f"
     )
     assert (
         cell_contract["checksum"]

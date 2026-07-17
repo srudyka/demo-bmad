@@ -77,18 +77,26 @@
       "authority": [
         "registered_config_version",
         "schedule_generation",
-        "materializer_role_id"
+        "materializer_role_id",
+        "source_queue_arn"
       ],
       "authority_metadata": [
         "registered_config_version",
         "schedule_generation",
-        "materializer_role_id"
+        "materializer_role_id",
+        "source_queue_arn"
       ],
       "event_types": [
-        "occurrence.expected.v1",
-        "occurrence.launch.v1"
+        "occurrence.expected.v1"
       ],
-      "payload_coordinates": "assertions-only"
+      "payload_coordinates": "assertions-only",
+      "raw_shape": {
+        "body": "RFC8785 evidence-envelope",
+        "required_system_attributes": [
+          "SenderId"
+        ],
+        "source": "aws:sqs"
+      }
     },
     "process-manager": {
       "authority": [

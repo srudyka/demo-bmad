@@ -246,8 +246,30 @@ checked at plan time against the Standard tier's 4 KiB limit; contract growth
 beyond that limit requires a reviewed tier/interface change.
 
 The normalizer emits structured secret-free records and a bounded rejection
-counter (`job_id`, `environment`, `state`). It does not create alert routing;
-later stories connect the metric to the approved production incident path.
+counter (`job_id`, `environment`, `state`). The independent occurrence
+materializer runs from a UTC EventBridge minute tick, reads only the registered
+immutable CONFIG object, materializes at least 24 hours of
+`occurrence.expected.v1` evidence, and conditionally persists a CONFIG
+snapshot. Its dedicated source queue is authenticated separately by the
+normalizer. It has no ECS, Scheduler create/update, or occurrence-ledger
+permission. It does not create alert routing; later stories connect the metric
+to the approved production incident path.
+
+### Materializer Artifact And KMS Prerequisites
+
+`materializer.artifact_path` and `materializer.artifact_source_hash` refer to
+an externally built immutable deployment artifact. Its package must include the
+`occurrence_materializer` runtime source, imported shared contract helpers,
+`contracts/v1` at `/var/task/contracts/v1`, and pinned dependencies. Terraform
+only consumes the artifact; it must never build a checkout ZIP or retain build
+output, state, plans, credentials, or `.terraform/` files.
+
+The supplied Cell KMS key policy must allow the materializer role to decrypt
+the exact CONFIG object through S3 with the bucket encryption context, and
+allow the SQS/Lambda/CloudWatch Logs service integrations required for the
+exact Cell queues and log group. Keep those grants tied to the Cell key, Region,
+role, `kms:ViaService`, and queue or bucket encryption context. Do not replace
+them with account-wide KMS, S3, DynamoDB, SQS, or IAM permissions.
 
 ## Validation
 
@@ -264,11 +286,12 @@ and the absence of premature runtime resources.
 
 ## Rollback And Recovery
 
-For a failed normalizer deployment, first disable its event-source mapping and
-keep the canary schedule disabled. Retain scheduler source, canonical ingress,
-quarantine queues and DLQs, mapping, and logs for the full 14-day investigation
-window. Revert only to a compatible Cell Contract and runtime artifact; routine
-rollback is not `terraform destroy` or retained-evidence cleanup.
+For a failed materializer or normalizer deployment, first disable the relevant
+event-source mapping or the materializer EventBridge rule and keep the canary
+schedule disabled. Retain source, canonical ingress, quarantine queues and
+DLQs, mappings, snapshots, and logs for the full 14-day investigation window.
+Revert only to a compatible Cell Contract and runtime artifact; routine rollback
+is not `terraform destroy` or retained-evidence cleanup.
 
 DynamoDB PITR restores to a new table. A recovery runbook must validate the
 restored data and reapply tags, KMS configuration, PITR, deletion protection,

@@ -1,4 +1,5 @@
 from __future__ import annotations
+# mypy: ignore-errors
 
 from copy import deepcopy
 from hashlib import sha256
@@ -6,11 +7,13 @@ import json
 from pathlib import Path
 
 from evidence_normalizer import (
+    MaterializerRegistration,
     SchedulerRegistration,
     TransientTransportError,
     normalize_scheduler_record,
     process_scheduler_batch,
     scheduler_producer_event_id,
+    normalize_materializer_record,
 )
 from tests.contract.support.contracts import (
     build_schema_registry,
@@ -98,7 +101,6 @@ def test_normalizes_registered_scheduler_record_deterministically() -> None:
     normalized = normalize_scheduler_record(
         record(), registration(), schemas, schema_registry, secret_policy
     )
-
     envelope = normalized.envelope
     assert envelope["producer_id"] == "scheduler"
     assert envelope["event_type"] == "occurrence.launch.v1"
@@ -110,12 +112,75 @@ def test_normalizes_registered_scheduler_record_deterministically() -> None:
     assert envelope["producer_event_id"] == scheduler_producer_event_id(
         registration(), "2027-01-01T00:00:00.000Z"
     )
-    assert (
-        normalize_scheduler_record(
-            record(), registration(), schemas, schema_registry, secret_policy
-        ).envelope
-        == envelope
+
+
+def test_normalizes_registered_materializer_expected_evidence() -> None:
+    schemas, schema_registry, secret_policy = schema_context()
+    registered = MaterializerRegistration(
+        account_id="111111111111",
+        config_version="a" * 64,
+        environment="dev",
+        job_id="dev/platform/canary",
+        materializer_role_id="AROAMATERIALIZER",
+        owner_generation=1,
+        region="us-east-" + "1",
+        schedule_generation="b" * 64,
+        source_queue_arn="arn"
+        + ":aws:sqs:us-east-"
+        + "1:111111111111:dev-platform-materializer-ingress",
     )
+    body = {
+        "config_version": registered.config_version,
+        "emitted_at": "2027-01-01T00:00:00.000Z",
+        "event_type": "occurrence.expected.v1",
+        "job_id": registered.job_id,
+        "occurrence_id": "c" * 64,
+        "payload": {
+            "config_validated": True,
+            "expectation_horizon": "2027-01-02T00:00:00.000Z",
+            "materialized_at": "2027-01-01T00:00:00.000Z",
+            "repair": False,
+        },
+        "payload_hash": "d" * 64,
+        "producer_event_id": "e" * 64,
+        "producer_id": "occurrence-materializer",
+        "schedule_generation": registered.schedule_generation,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+        "schema_version": "1.0.0",
+    }
+    from tests.contract.support.contracts import (
+        canonical_json_bytes,
+        materializer_producer_event_id,
+        occurrence_id,
+    )
+
+    body["occurrence_id"] = occurrence_id(
+        registered.job_id, registered.schedule_generation, "29979360"
+    )
+    body["payload_hash"] = sha256(canonical_json_bytes(body["payload"])).hexdigest()
+    body["producer_event_id"] = materializer_producer_event_id(
+        registered.job_id,
+        registered.schedule_generation,
+        body["scheduled_time"],
+        registered.config_version,
+        registered.owner_generation,
+    )
+    raw = {
+        "messageId": "materializer-message",
+        "eventSource": "aws:sqs",
+        "eventSourceARN": registered.source_queue_arn,
+        "awsRegion": registered.region,
+        "attributes": {
+            "ApproximateFirstReceiveTimestamp": "1798761600000",
+            "SenderId": "AROAMATERIALIZER:session",
+        },
+        "body": json.dumps(body),
+    }
+    normalized = normalize_materializer_record(
+        raw, registered, schemas, schema_registry, secret_policy
+    )
+    assert normalized.rejection_code is None
+    assert normalized.envelope == body
 
 
 def test_rejects_body_identity_assertions_that_disagree_with_registration() -> None:

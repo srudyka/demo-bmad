@@ -3,6 +3,10 @@
     "accepted": {"detail": {"clusterArn": "arn:aws:ecs:us-east-1:111122223333:cluster/fake", "lastStatus": "STOPPED", "newAwsManagedField": "ignored", "taskArn": "arn:aws:ecs:us-east-1:111122223333:task/fake/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "resources": ["arn:aws:ecs:us-east-1:111122223333:task/fake/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "source": "aws.ecs"},
     "rejected_missing_authority": {"detail": {"lastStatus": "STOPPED", "taskArn": "asserted-only"}, "resources": [], "source": "aws.ecs"}
   },
+  "occurrence-materializer": {
+    "body": "RFC8785 evidence-envelope",
+    "system_attributes": {"SenderId": "AROAMATERIALIZER:session"}
+  },
   "scheduler": {
     "occurrence_time_source": "<aws.scheduler.scheduled-time>",
     "system_attributes": {"SenderId": "AROAEXACT:session"}

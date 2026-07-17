@@ -57,7 +57,8 @@ RFC 8785-compatible SHA-256 of its secret-free body and the Terraform object
 has `prevent_destroy`.
 
 The CONFIG body includes the task revision, cluster, disabled private network,
-role ARNs, Scheduler generation, completion window, log group, test topic, and
+role ARNs, immutable Scheduler delivery role ID, exact schedule ARN, Scheduler
+generation, completion window, log group, test topic, and
 Deployment Identity. It remains `PUBLISHED`; it never writes a configuration
 registry, ledger, acknowledgement, materialization, completion, or enabled
 state.
@@ -83,6 +84,16 @@ code must eventually emit `JOB_COMPLETED_SUCCESSFULLY` with occurrence-aware
 metadata; that marker is configured only as a secret-free task environment
 contract here.
 
+## Materializer Boundary
+
+The Cell materializer, not this fixture, independently evaluates the disabled
+canary CONFIG on a UTC minute tick. It authenticates its evidence through a
+dedicated source queue and only materializes expectations after the CONFIG hash,
+Cell identity, namespace ownership, exact Scheduler ARN, and immutable delivery
+role ID agree with Cell registration. Local tests prove contract behavior only;
+they do not establish live EventBridge delivery, queue processing, occurrence
+state, ECS launch, or alarm delivery.
+
 ## Validation
 
 Run the credential-free repository gate:
@@ -98,7 +109,7 @@ account with the exact inputs and CI OIDC identity described above.
 ## Rollback And Teardown
 
 Keep the schedule disabled. If normalizer investigation is needed, disable its
-event-source mapping before changing the fixture and retain source, canonical
+event-source mapping and the materializer EventBridge rule before changing the fixture and retain source, canonical
 ingress, quarantine, and DLQ evidence for 14 days. Rollback restores a
 compatible fixture/Cell Contract/runtime version; it does not replay arbitrary
 quarantine bodies or delete retained evidence. Do not run routine `terraform

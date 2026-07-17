@@ -15,4 +15,5 @@ module "platform" {
   canary_reservation             = var.canary_reservation
   canary_normalizer_registration = var.canary_normalizer_registration
   normalizer                     = var.normalizer
+  materializer                   = var.materializer
 }

@@ -111,7 +111,7 @@ def test_canary_config_is_content_addressed_and_secret_free() -> None:
         "config_version = sha256(jsonencode(local.config_body))",
         'sha256("schedule/v1\\n${jsonencode(local.schedule_contract)}")',
         'key                    = "jobs/${var.job_id}/config/${local.config_version}.json"',
-        "secret_references   = []",
+        "secret_references",
         'server_side_encryption = "aws:kms"',
         "CONFIG_VERSION_INVALID",
     ):
@@ -185,7 +185,9 @@ def test_canary_config_and_deployment_identity_use_strict_contract_helpers() -> 
             "task": "arn:aws:iam::111111111111:role/dev-platform-canary-task",
         },
         "schedule": schedule,
+        "schedule_arn": "arn:aws:scheduler:us-east-1:111111111111:schedule/dev-platform-scheduler/dev-platform-canary",
         "schedule_generation": schedule_generation(schedule),
+        "scheduler_delivery_role_id": "AROASCHEDULEREXAMPLE",
         "secret_references": [],
         "task_definition_arn": task_definition_arn,
     }

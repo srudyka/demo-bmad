@@ -1,3 +1,9 @@
 """Typed package boundary for occurrence materialization."""
 
-__all__: tuple[str, ...] = ()
+from .materializer import (
+    MaterializerRegistration,
+    MaterializationResult,
+    materialize_config,
+)
+
+__all__ = ("MaterializerRegistration", "MaterializationResult", "materialize_config")

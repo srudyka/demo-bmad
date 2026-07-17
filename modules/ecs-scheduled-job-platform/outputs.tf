@@ -72,6 +72,17 @@ output "evidence_normalizer" {
   }
 }
 
+output "occurrence_materializer" {
+  description = "Independent expected-occurrence materializer identifiers and authenticated source queue."
+  value = {
+    function_arn = aws_lambda_function.occurrence_materializer.arn
+    queue_arn    = aws_sqs_queue.materializer_ingress.arn
+    dlq_arn      = aws_sqs_queue.materializer_dlq.arn
+    role_arn     = aws_iam_role.occurrence_materializer.arn
+    rule_arn     = aws_cloudwatch_event_rule.materializer_tick.arn
+  }
+}
+
 output "canary_registration" {
   description = "Immutable platform-owned bootstrap canary reservation and its narrowly scoped CONFIG publisher role."
   value = {
