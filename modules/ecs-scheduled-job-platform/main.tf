@@ -811,7 +811,18 @@ data "aws_iam_policy_document" "occurrence_materializer" {
     sid       = "WriteOnlyImmutableMaterializationSnapshots"
     effect    = "Allow"
     actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.configuration_registry.arn, aws_dynamodb_table.namespace_registry.arn]
+    resources = [aws_dynamodb_table.configuration_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
+  }
+  statement {
+    sid       = "ReadOnlyNamespaceRegistry"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.namespace_registry.arn]
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"

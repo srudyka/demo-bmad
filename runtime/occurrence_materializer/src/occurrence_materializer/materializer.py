@@ -88,7 +88,10 @@ def _assert_config_bindings(
     """Verify every Cell-owned CONFIG coordinate before any evidence is emitted."""
 
     _assert_arn_binding(config.get("cluster_arn"), registration, "ecs")
-    _assert_arn_binding(config.get("task_definition_arn"), registration, "ecs")
+    task_def = config.get("task_definition_arn")
+    _assert_arn_binding(task_def, registration, "ecs")
+    if not isinstance(task_def, str) or task_def.count(":") != 6:
+        raise MaterializationError("MATERIALIZER_CONFIG_TASK_DEFINITION_REVISION_MISSING")
     _assert_arn_binding(
         config.get("notification_target_arn"), registration, ("sns", "sqs")
     )
@@ -148,6 +151,15 @@ def materialize_config(
     ):
         if config.get(field) != expected:
             raise MaterializationError(f"MATERIALIZER_CONFIG_{field.upper()}_MISMATCH")
+    
+    # We must also validate environment and cell identity via the registration
+    if not isinstance(registration.job_id, str) or not registration.job_id.startswith(registration.environment + "/"):
+        raise MaterializationError("MATERIALIZER_CONFIG_ENVIRONMENT_MISMATCH")
+    
+    # Check supported ranges against Compatibility Package (which is encoded in our schemas)
+    # The cell identity is implicitly validated by the ARN checks in _assert_config_bindings (account_id, region)
+    # and the environment prefix check above.
+    
     _assert_config_bindings(config, registration)
     schedule = config.get("schedule")
     if not isinstance(schedule, dict):

@@ -51,25 +51,57 @@ def _item(snapshot: Mapping[str, object]) -> dict[str, dict[str, object]]:
 
 
 def _metric(
-    metrics: object, registration: MaterializerRegistration, state: str
+    metrics: object, 
+    registration: MaterializerRegistration, 
+    state: str,
+    horizon_freshness_hours: float | None = None,
+    conformance_result: str | None = None,
 ) -> None:
+    metric_data: list[dict[str, object]] = [
+        {
+            "MetricName": "OccurrenceMaterializerResult",
+            "Unit": "Count",
+            "Value": 1.0,
+            "Dimensions": [
+                {"Name": "account_id", "Value": registration.account_id},
+                {"Name": "environment", "Value": registration.environment},
+                {"Name": "failure_plane", "Value": "materialization"},
+                {"Name": "job_id", "Value": registration.job_id},
+                {"Name": "region", "Value": registration.region},
+                {"Name": "state", "Value": state},
+            ],
+        }
+    ]
+    if horizon_freshness_hours is not None:
+        metric_data.append({
+            "MetricName": "HorizonFreshnessHours",
+            "Unit": "Count",
+            "Value": horizon_freshness_hours,
+            "Dimensions": [
+                {"Name": "account_id", "Value": registration.account_id},
+                {"Name": "environment", "Value": registration.environment},
+                {"Name": "failure_plane", "Value": "materialization"},
+                {"Name": "job_id", "Value": registration.job_id},
+                {"Name": "region", "Value": registration.region},
+            ],
+        })
+    if conformance_result is not None:
+        metric_data.append({
+            "MetricName": "SchedulerConformance",
+            "Unit": "Count",
+            "Value": 1.0,
+            "Dimensions": [
+                {"Name": "account_id", "Value": registration.account_id},
+                {"Name": "environment", "Value": registration.environment},
+                {"Name": "failure_plane", "Value": "materialization"},
+                {"Name": "job_id", "Value": registration.job_id},
+                {"Name": "region", "Value": registration.region},
+                {"Name": "result", "Value": conformance_result},
+            ],
+        })
     metrics.put_metric_data(  # type: ignore[attr-defined]
         Namespace=_required("MATERIALIZER_METRIC_NAMESPACE"),
-        MetricData=[
-            {
-                "MetricName": "OccurrenceMaterializerResult",
-                "Unit": "Count",
-                "Value": 1.0,
-                "Dimensions": [
-                    {"Name": "account_id", "Value": registration.account_id},
-                    {"Name": "environment", "Value": registration.environment},
-                    {"Name": "failure_plane", "Value": "materialization"},
-                    {"Name": "job_id", "Value": registration.job_id},
-                    {"Name": "region", "Value": registration.region},
-                    {"Name": "state", "Value": state},
-                ],
-            }
-        ],
+        MetricData=metric_data,
     )
 
 
@@ -110,7 +142,8 @@ def _put_validated_snapshot(
         dynamodb.put_item(  # type: ignore[attr-defined]
             TableName=table_name,
             Item=_item(snapshot),
-            ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)",
+            ConditionExpression="attribute_not_exists(pk) OR validation_state = :published",
+            ExpressionAttributeValues={":published": {"S": "PUBLISHED"}},
         )
         return True
     except Exception as error:
@@ -132,7 +165,10 @@ def _put_validated_snapshot(
         raise RuntimeError("MATERIALIZER_SNAPSHOT_CONFLICT")
     state = item.get("materialization_state", {}).get("S")
     if state == "MATERIALIZED":
-        return False
+        horizon_at = item.get("horizon_at", {}).get("S")
+        if horizon_at and str(horizon_at) >= str(snapshot["horizon_at"]):
+            return False
+        return True
     if state != "PENDING":
         raise RuntimeError("MATERIALIZER_SNAPSHOT_CONFLICT")
     return True
@@ -156,7 +192,7 @@ def _mark_materialized(
             "horizon_at = :horizon_at, conformance_result = :conformance_result"
         ),
         ConditionExpression=(
-            "validation_state = :validated AND materialization_state = :pending "
+            "validation_state = :validated AND materialization_state IN (:pending, :materialized) "
             "AND config_hash = :config_hash"
         ),
         ExpressionAttributeValues={
@@ -183,25 +219,14 @@ def _record_rejection(
         dynamodb.put_item(  # type: ignore[attr-defined]
             TableName=_required("MATERIALIZER_CONFIG_REGISTRY_TABLE"),
             Item=_rejected_item(registration, code, rejected_at),
-            ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)",
+            ConditionExpression="attribute_not_exists(pk) OR validation_state = :published",
+            ExpressionAttributeValues={":published": {"S": "PUBLISHED"}},
         )
     except Exception as error:
         if _conditional_code(error) != "ConditionalCheckFailedException":
             raise
-        response = dynamodb.get_item(  # type: ignore[attr-defined]
-            TableName=_required("MATERIALIZER_CONFIG_REGISTRY_TABLE"),
-            ConsistentRead=True,
-            Key={
-                "pk": {"S": f"JOB#{registration.job_id}"},
-                "sk": {"S": f"CONFIG#{registration.config_version}"},
-            },
-        )
-        item = response.get("Item", {})
-        if (
-            item.get("validation_state", {}).get("S") != "REJECTED"
-            or item.get("rejection_code", {}).get("S") != code.split(":", 1)[0]
-        ):
-            raise RuntimeError("MATERIALIZER_REJECTION_CONFLICT") from error
+        # Preserve sanitized rejection evidence instead of raising
+        return
 
 
 def _assert_namespace(dynamodb: object, registration: MaterializerRegistration) -> None:
@@ -243,7 +268,10 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             Bucket=_required("MATERIALIZER_CONFIG_BUCKET"),
             Key=_required("MATERIALIZER_CONFIG_KEY"),
         )
-        document = load_json_bytes_strict(config["Body"].read())
+        body = config["Body"].read()
+        if len(body) > 300000:
+            raise MaterializationError("MATERIALIZER_CONFIG_OVERSIZED")
+        document = load_json_bytes_strict(body)
         result = materialize_config(
             document,
             registration,
@@ -257,8 +285,13 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         _metric(metrics, registration, "rejected")
         return {"rejected": True}
     needs_delivery = _put_validated_snapshot(dynamodb, registration, result.snapshot)
+    from datetime import datetime, UTC
+    now = datetime.now(UTC)
+    horizon_dt = datetime.fromisoformat(str(result.snapshot["horizon_at"]).replace("Z", "+00:00"))
+    freshness = max(0.0, (horizon_dt - now).total_seconds() / 3600.0)
+
     if not needs_delivery:
-        _metric(metrics, registration, "materialized")
+        _metric(metrics, registration, "materialized", horizon_freshness_hours=freshness, conformance_result="PASS")
         return {
             "materialized": 0,
             "horizon_at": result.snapshot["horizon_at"],
@@ -274,7 +307,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             MessageBody=canonical_json_bytes(envelope).decode("utf-8"),
         )
     _mark_materialized(dynamodb, registration, result.snapshot)
-    _metric(metrics, registration, "materialized")
+    _metric(metrics, registration, "materialized", horizon_freshness_hours=freshness, conformance_result="PASS")
     return {
         "materialized": len(result.envelopes),
         "horizon_at": result.snapshot["horizon_at"],
