@@ -28,7 +28,7 @@ owned by the other module.
 
 - Terraform compatible with `>= 1.10, < 2.0` (tested seed: 1.15.8)
 - Python compatible with `>= 3.14, < 3.15` (tested seed: 3.14.6)
-- uv 0.11.28
+- uv 0.11.29
 - Network access to the Terraform registry and Python package index, or approved
   internal mirrors containing the locked dependencies
 
@@ -118,7 +118,7 @@ checks.
 | Terraform | 1.15.8 | `>= 1.10, < 2.0` |
 | AWS provider | 6.54.0 | `>= 6.0, < 7.0` |
 | Python | 3.14.6 | `>= 3.14, < 3.15` |
-| uv | 0.11.28 | exact repository tool pin |
+| uv | 0.11.29 | exact repository tool pin |
 | Checkov | 3.3.8 | exact direct dependency |
 | jsonschema | 4.26.0 | exact direct contract dependency |
 | mypy | 2.3.0 | exact direct dependency |
