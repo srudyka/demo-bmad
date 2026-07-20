@@ -56,7 +56,7 @@ development_status:
   1-5-authenticate-and-normalize-platform-evidence: done
   1-6-materialize-future-expected-occurrences: done
   1-7-record-deterministic-occurrence-state: done
-  1-8-launch-exactly-one-canary-task-per-occurrence: backlog
+  1-8-launch-exactly-one-canary-task-per-occurrence: ready-for-dev
   1-9-correlate-ecs-state-and-completion-evidence: backlog
   1-10-detect-missed-and-overdue-occurrences: backlog
   1-11-deliver-occurrence-alerts-reliably: backlog
