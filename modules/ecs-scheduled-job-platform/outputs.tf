@@ -43,10 +43,22 @@ output "metric_namespace" {
 }
 
 output "process_manager" {
-  description = "Stable Cell-major Process Manager principal shell; it has no launch authority in this phase."
+  description = "Cell-owned deterministic occurrence Process Manager identifiers."
   value = {
-    arn = aws_iam_role.process_manager.arn
-    id  = aws_iam_role.process_manager.unique_id
+    arn                  = aws_iam_role.process_manager.arn
+    function_arn         = aws_lambda_function.process_manager.arn
+    id                   = aws_iam_role.process_manager.unique_id
+    log_group_name       = aws_cloudwatch_log_group.process_manager.name
+    occurrence_table_arn = aws_dynamodb_table.occurrence_ledger.arn
+    mapping_uuid         = aws_lambda_event_source_mapping.process_manager.uuid
+  }
+}
+
+output "occurrence_ledger" {
+  description = "Encrypted occurrence ledger table identifiers."
+  value = {
+    arn  = aws_dynamodb_table.occurrence_ledger.arn
+    name = aws_dynamodb_table.occurrence_ledger.name
   }
 }
 

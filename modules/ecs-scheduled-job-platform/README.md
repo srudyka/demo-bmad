@@ -286,6 +286,19 @@ and the absence of premature runtime resources.
 
 ## Rollback And Recovery
 
+Story 1.7 adds the encrypted occurrence ledger and the Process Manager mapping.
+The Process Manager accepts only authenticated materializer `occurrence.expected.v1`
+records, reads the exact verified CONFIG snapshot, and writes the processed-event
+and occurrence records in one conditional transaction. It has no ECS, Scheduler,
+CONFIG mutation, alert, task-attempt, or operator-command permissions. The ledger
+uses the canonical `JOB#.../OCCURRENCE#...` and
+`EVENT#occurrence-materializer/...` keys and has no secondary indexes in this phase.
+
+For rollback, disable the Process Manager event-source mapping first, then restore a
+compatible immutable artifact. Preserve the ledger and its PITR evidence; do not
+delete or manually edit occurrence records while investigating duplicates or
+conditional-write conflicts.
+
 For a failed materializer or normalizer deployment, first disable the relevant
 event-source mapping or the materializer EventBridge rule and keep the canary
 schedule disabled. Retain source, canonical ingress, quarantine queues and

@@ -365,6 +365,7 @@ def process_materializer_batch(
     secret_policy: dict[str, object],
     *,
     send_envelope: Callable[[dict[str, object]], None],
+    send_process_manager_envelope: Callable[[dict[str, object]], None] | None = None,
     send_quarantine: Callable[[dict[str, object]], None],
     on_permanent_rejection: Callable[[str, Mapping[str, object]], None] | None = None,
 ) -> dict[str, list[dict[str, str]]]:
@@ -381,6 +382,8 @@ def process_materializer_batch(
         try:
             if result.envelope is not None:
                 send_envelope(result.envelope)
+                if send_process_manager_envelope is not None:
+                    send_process_manager_envelope(result.envelope)
             elif result.quarantine_record is not None:
                 send_quarantine(result.quarantine_record)
         except OSError, TransientTransportError:

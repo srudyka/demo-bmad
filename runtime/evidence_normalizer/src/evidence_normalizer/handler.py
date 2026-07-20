@@ -104,6 +104,7 @@ def lambda_handler(
     registration = _registration()
     materializer_registration = _materializer_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
+    process_manager_url = _required_environment("NORMALIZER_PROCESS_MANAGER_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
     namespace = _required_environment("NORMALIZER_METRIC_NAMESPACE")
     queues, metrics = _clients()
@@ -144,6 +145,15 @@ def lambda_handler(
         except (BotoCoreError, ClientError, OSError) as error:
             raise TransientTransportError from error
 
+    def send_process_manager_envelope(envelope: dict[str, object]) -> None:
+        try:
+            queues.send_message(
+                QueueUrl=process_manager_url,
+                MessageBody=_canonical_message(envelope),
+            )
+        except (BotoCoreError, ClientError, OSError) as error:
+            raise TransientTransportError from error
+
     source_arns = {item.get("eventSourceARN") for item in records}
     if source_arns == {materializer_registration.source_queue_arn}:
         response = process_materializer_batch(
@@ -153,6 +163,7 @@ def lambda_handler(
             registry,
             secret_policy,
             send_envelope=send_envelope,
+            send_process_manager_envelope=send_process_manager_envelope,
             send_quarantine=send_quarantine,
             on_permanent_rejection=_safe_log,
         )

@@ -16,4 +16,5 @@ module "platform" {
   canary_normalizer_registration = var.canary_normalizer_registration
   normalizer                     = var.normalizer
   materializer                   = var.materializer
+  process_manager                = var.process_manager
 }

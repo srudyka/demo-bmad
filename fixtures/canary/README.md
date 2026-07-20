@@ -7,7 +7,9 @@ Scheduler schedule that targets the Cell Scheduler queue, one secret-free
 `PUBLISHED` CONFIG candidate, and an encrypted SQS notification-evidence sink.
 
 It does not create a Cell, mutate Cell resources, write either DynamoDB
-registry, consume a queue, create an occurrence, or launch an ECS task. The
+registry, or launch an ECS task. The Cell Process Manager can consume its
+materialized canonical ingress and create a queryable expected occurrence, but
+the fixture does not enable Scheduler or launch authority. The
 public `modules/ecs-scheduled-job` module remains resource-free until Epic 2.
 
 ## Required Inputs
@@ -78,8 +80,8 @@ schedule/group, generation, CONFIG version, and immutable Scheduler role ID
 match its explicit registration. The fixture output exposes the delivery role
 ID, schedule ARN, and generation as reviewed wiring evidence, not remote state.
 
-No successful completion, occurrence, task launch, or Scheduler delivery is
-claimed until disposable-account evidence exists in later stories. Application
+No successful completion, task launch, or Scheduler delivery is claimed until
+disposable-account evidence exists in later stories. Application
 code must eventually emit `JOB_COMPLETED_SUCCESSFULLY` with occurrence-aware
 metadata; that marker is configured only as a secret-free task environment
 contract here.

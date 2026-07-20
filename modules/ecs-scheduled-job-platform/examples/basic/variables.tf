@@ -128,6 +128,28 @@ variable "canary_normalizer_registration" {
   }
 }
 
+variable "process_manager" {
+  description = "Fictitious Process Manager artifact controls for validation only."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+  default = {
+    artifact_path        = "process-manager.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    batch_size           = 10
+    batch_window_seconds = 5
+    log_retention_days   = 365
+    reserved_concurrency = 2
+    timeout_seconds      = 30
+  }
+}
+
 variable "normalizer" {
   description = "Fictitious external artifact and bounded normalizer controls for local configuration validation only."
   type = object({

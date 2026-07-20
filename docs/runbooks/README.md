@@ -37,6 +37,21 @@ retain CONFIG snapshots, queues, DLQs, and logs for at least 14 days. Revert
 only to a compatible Cell Contract and runtime artifact. Do not delete evidence
 or enable a Scheduler schedule as a recovery action.
 
+## Process Manager Investigation
+
+The Process Manager consumes only canonical ingress records authenticated as
+materializer `occurrence.expected.v1` evidence. It strongly reads the immutable
+CONFIG snapshot and atomically writes one processed-event record plus one
+`EXPECTED` occurrence. Query the occurrence ledger for state, scheduled time,
+deadline, CONFIG version, bounded evidence IDs, and last reduction time; raw
+CONFIG and evidence are intentionally unavailable from this operational view.
+
+Same-digest delivery is a no-op. A changed body with the same producer event ID
+is a stable conflict and must not overwrite state. Deterministic contract
+failures are record-local; only storage/transport failures appear in
+`batchItemFailures`. For rollback, disable the Process Manager mapping first,
+restore a compatible artifact, and preserve the encrypted ledger/PITR evidence.
+
 ## Evidence Normalizer Investigation
 
 The Cell Evidence Normalizer consumes the Scheduler and materializer source

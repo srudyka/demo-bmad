@@ -261,3 +261,29 @@ variable "materializer" {
     error_message = "materializer must use a published artifact and bounded Lambda/SQS controls."
   }
 }
+
+variable "process_manager" {
+  description = "Explicit trusted Process Manager artifact and bounded Lambda/event-source controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+
+  validation {
+    condition = (
+      length(var.process_manager.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.process_manager.artifact_source_hash)) &&
+      var.process_manager.batch_size >= 1 && var.process_manager.batch_size <= 10 &&
+      var.process_manager.batch_window_seconds >= 0 && var.process_manager.batch_window_seconds <= 300 &&
+      var.process_manager.timeout_seconds >= 1 && var.process_manager.timeout_seconds <= 900 &&
+      var.process_manager.reserved_concurrency >= 2 && var.process_manager.reserved_concurrency <= 1000 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.process_manager.log_retention_days)
+    )
+    error_message = "process_manager must use a published artifact and bounded Lambda/event-source controls."
+  }
+}

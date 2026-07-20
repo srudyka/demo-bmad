@@ -1,3 +1,15 @@
 """Typed package boundary for occurrence processing."""
 
-__all__: tuple[str, ...] = ()
+from .domain import (
+    ConfigSnapshot,
+    ContractRejection,
+    PreparedAcceptance,
+    prepare_expected,
+)
+
+__all__ = [
+    "ConfigSnapshot",
+    "ContractRejection",
+    "PreparedAcceptance",
+    "prepare_expected",
+]

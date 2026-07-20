@@ -229,6 +229,11 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges["process-manager"]
     }
+    occurrence_ledger = {
+      arn          = aws_dynamodb_table.occurrence_ledger.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
     scheduler_ingress = {
       arn          = aws_sqs_queue.scheduler_ingress.arn
       owner        = "cell-root"
@@ -271,6 +276,11 @@ locals {
     }
     normalizer_ingress = {
       arn          = aws_sqs_queue.normalizer_ingress.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    process_manager_ingress = {
+      arn          = aws_sqs_queue.process_manager_ingress.arn
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.evidence
     }
@@ -470,6 +480,156 @@ resource "aws_iam_role" "process_manager" {
   tags                 = local.common_tags
 }
 
+resource "aws_dynamodb_table" "occurrence_ledger" {
+  name                        = "${local.name_prefix}-occurrence-ledger"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "pk"
+  range_key                   = "sk"
+  deletion_protection_enabled = var.enable_recovery_protection
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
+  }
+
+  lifecycle {
+    precondition {
+      condition     = split(":", var.kms_key_arn)[3] == data.aws_region.current.region
+      error_message = "KMS_KEY_REGION_MISMATCH: kms_key_arn must be in the Cell provider Region."
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "process_manager" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/process-manager"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.process_manager.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "process_manager" {
+  statement {
+    sid       = "ConsumeOnlyCanonicalIngress"
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    resources = [aws_sqs_queue.process_manager_ingress.arn]
+  }
+  statement {
+    sid       = "QuarantineOnlyRejectedEvidence"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.normalizer_quarantine.arn]
+  }
+  statement {
+    sid       = "ReadOnlyVerifiedConfig"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.configuration_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyOccurrenceLedgerRecords"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:TransactWriteItems"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}", "EVENT#occurrence-materializer"]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyBoundedMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.process_manager.arn}:*"]
+  }
+  statement {
+    sid       = "UseOnlyIngressAndLedgerKeyContexts"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "kms:EncryptionContext:aws:sqs:arn"
+      values   = [aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "process_manager" {
+  name   = "${local.name_prefix}-process-manager"
+  role   = aws_iam_role.process_manager.id
+  policy = data.aws_iam_policy_document.process_manager.json
+}
+
+resource "aws_lambda_function" "process_manager" {
+  function_name                  = "${local.name_prefix}-process-manager"
+  filename                       = var.process_manager.artifact_path
+  source_code_hash               = var.process_manager.artifact_source_hash
+  handler                        = "process_manager.handler.lambda_handler"
+  role                           = aws_iam_role.process_manager.arn
+  runtime                        = "python3.14"
+  timeout                        = var.process_manager.timeout_seconds
+  reserved_concurrent_executions = var.process_manager.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
+  environment {
+    variables = {
+      PROCESS_MANAGER_CONFIG_TABLE_NAME     = aws_dynamodb_table.configuration_registry.name
+      PROCESS_MANAGER_DEPLOYMENT_IDENTITY   = "${var.cell_id}:process-manager:v1"
+      PROCESS_MANAGER_ENVIRONMENT           = var.environment
+      PROCESS_MANAGER_INGRESS_QUEUE_ARN     = aws_sqs_queue.process_manager_ingress.arn
+      PROCESS_MANAGER_QUARANTINE_QUEUE_URL  = aws_sqs_queue.normalizer_quarantine.url
+      PROCESS_MANAGER_OWNER_GENERATION      = tostring(var.canary_normalizer_registration.owner_generation)
+      PROCESS_MANAGER_METRIC_NAMESPACE      = var.metric_namespace
+      PROCESS_MANAGER_OCCURRENCE_TABLE_NAME = aws_dynamodb_table.occurrence_ledger.name
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.process_manager]
+  tags       = local.common_tags
+}
+
+resource "aws_lambda_event_source_mapping" "process_manager" {
+  event_source_arn                   = aws_sqs_queue.process_manager_ingress.arn
+  function_name                      = aws_lambda_function.process_manager.arn
+  batch_size                         = var.process_manager.batch_size
+  maximum_batching_window_in_seconds = var.process_manager.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+  enabled                            = true
+}
+
 data "aws_iam_policy_document" "canary_config_publisher_assume_role" {
   statement {
     effect  = "Allow"
@@ -576,6 +736,39 @@ resource "aws_sqs_queue" "normalizer_ingress" {
   tags = local.common_tags
 }
 
+resource "aws_sqs_queue" "process_manager_ingress_dlq" {
+  name                      = "${local.name_prefix}-process-manager-ingress-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "process_manager_ingress" {
+  name                       = "${local.name_prefix}-process-manager-ingress"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.process_manager.timeout_seconds + var.process_manager.batch_window_seconds
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.process_manager_ingress_dlq.arn
+    maxReceiveCount     = 5
+  })
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue_policy" "process_manager_ingress" {
+  queue_url = aws_sqs_queue.process_manager_ingress.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowOnlyCellNormalizer"
+      Effect    = "Allow"
+      Principal = { AWS = aws_iam_role.evidence_normalizer.arn }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.process_manager_ingress.arn
+    }]
+  })
+}
+
 resource "aws_sqs_queue" "normalizer_quarantine_dlq" {
   name                      = "${local.name_prefix}-evidence-quarantine-dlq"
   kms_master_key_id         = var.kms_key_arn
@@ -623,7 +816,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
     effect    = "Allow"
     actions   = ["sqs:SendMessage"]
-    resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+    resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
   }
   statement {
     sid       = "WriteOnlyOwnStructuredLogs"
@@ -643,6 +836,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
         aws_sqs_queue.scheduler_ingress.arn,
         aws_sqs_queue.materializer_ingress.arn,
         aws_sqs_queue.normalizer_ingress.arn,
+        aws_sqs_queue.process_manager_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
       ]
     }
@@ -687,10 +881,11 @@ resource "aws_lambda_function" "evidence_normalizer" {
 
   environment {
     variables = {
-      NORMALIZER_CONTRACTS_ROOT       = "/var/task/contracts/v1"
-      NORMALIZER_INGRESS_QUEUE_URL    = aws_sqs_queue.normalizer_ingress.url
-      NORMALIZER_METRIC_NAMESPACE     = var.metric_namespace
-      NORMALIZER_QUARANTINE_QUEUE_URL = aws_sqs_queue.normalizer_quarantine.url
+      NORMALIZER_CONTRACTS_ROOT            = "/var/task/contracts/v1"
+      NORMALIZER_INGRESS_QUEUE_URL         = aws_sqs_queue.normalizer_ingress.url
+      NORMALIZER_PROCESS_MANAGER_QUEUE_URL = aws_sqs_queue.process_manager_ingress.url
+      NORMALIZER_METRIC_NAMESPACE          = var.metric_namespace
+      NORMALIZER_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
       NORMALIZER_REGISTRATION = jsonencode({
         account_id          = var.canary_normalizer_registration.account_id
         config_version      = var.canary_normalizer_registration.config_version
