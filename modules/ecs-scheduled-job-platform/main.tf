@@ -299,6 +299,16 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges["evidence-normalizer"]
     }
+    ecs_event_source = {
+      arn          = aws_sqs_queue.ecs_event_source.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    completion_source = {
+      arn          = aws_sqs_queue.completion_source.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
   }
   cell_contract_body = {
     cell = {
@@ -717,6 +727,81 @@ resource "aws_sqs_queue" "scheduler_dlq" {
   }
 }
 
+resource "aws_sqs_queue" "ecs_event_source_dlq" {
+  name                      = "${local.name_prefix}-ecs-events-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "ecs_event_source" {
+  name                       = "${local.name_prefix}-ecs-events"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.normalizer.timeout_seconds + var.normalizer.batch_window_seconds
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.ecs_event_source_dlq.arn
+    maxReceiveCount     = var.normalizer.max_receive_count
+  })
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "completion_source_dlq" {
+  name                      = "${local.name_prefix}-completion-events-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "completion_source" {
+  name                       = "${local.name_prefix}-completion-events"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.log_ingestor.timeout_seconds + var.log_ingestor.batch_window_seconds
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.completion_source_dlq.arn
+    maxReceiveCount     = var.normalizer.max_receive_count
+  })
+  tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = 6 * var.log_ingestor.timeout_seconds + var.log_ingestor.batch_window_seconds <= 43200
+      error_message = "LOG_INGESTOR_SOURCE_VISIBILITY_INVALID: completion source visibility must not exceed the SQS maximum."
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "ecs_task_state" {
+  name           = "${local.name_prefix}-ecs-task-state"
+  event_bus_name = "default"
+  event_pattern = jsonencode({
+    source        = ["aws.ecs"]
+    "detail-type" = ["ECS Task State Change"]
+    account       = [data.aws_caller_identity.current.account_id]
+    region        = [data.aws_region.current.region]
+    detail = {
+      clusterArn = [var.ecs_cluster_arn]
+    }
+  })
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "ecs_task_state" {
+  rule      = aws_cloudwatch_event_rule.ecs_task_state.name
+  target_id = "ecs-event-source"
+  arn       = aws_sqs_queue.ecs_event_source.arn
+
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 5
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.ecs_event_source_dlq.arn
+  }
+}
+
 resource "aws_sqs_queue" "scheduler_ingress" {
   name                       = "${local.name_prefix}-scheduler-ingress"
   kms_master_key_id          = var.kms_key_arn
@@ -833,13 +918,30 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "ReadOnlyTheRegisteredSchedulerSource"
     effect    = "Allow"
     actions   = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
-    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn]
+    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn, aws_sqs_queue.ecs_event_source.arn]
   }
   statement {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
     effect    = "Allow"
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+  }
+  statement {
+    sid       = "ReadOnlyOccurrenceTaskIndex"
+    effect    = "Allow"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.occurrence_ledger.arn}/index/task-arn"]
+  }
+  statement {
+    sid       = "ReadOnlyMappedOccurrence"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
   }
   statement {
     sid       = "WriteOnlyOwnStructuredLogs"
@@ -858,6 +960,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
       values = [
         aws_sqs_queue.scheduler_ingress.arn,
         aws_sqs_queue.materializer_ingress.arn,
+        aws_sqs_queue.ecs_event_source.arn,
         aws_sqs_queue.normalizer_ingress.arn,
         aws_sqs_queue.process_manager_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
@@ -909,6 +1012,14 @@ resource "aws_lambda_function" "evidence_normalizer" {
       NORMALIZER_PROCESS_MANAGER_QUEUE_URL = aws_sqs_queue.process_manager_ingress.url
       NORMALIZER_METRIC_NAMESPACE          = var.metric_namespace
       NORMALIZER_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
+      NORMALIZER_OCCURRENCE_TABLE_NAME     = aws_dynamodb_table.occurrence_ledger.name
+      NORMALIZER_ECS_REGISTRATION = jsonencode({
+        account_id       = data.aws_caller_identity.current.account_id
+        environment      = var.environment
+        region           = data.aws_region.current.region
+        cluster_arn      = var.ecs_cluster_arn
+        source_queue_arn = aws_sqs_queue.ecs_event_source.arn
+      })
       NORMALIZER_REGISTRATION = jsonencode({
         account_id          = var.canary_normalizer_registration.account_id
         config_version      = var.canary_normalizer_registration.config_version
@@ -961,6 +1072,124 @@ resource "aws_lambda_event_source_mapping" "evidence_normalizer" {
   function_name                      = aws_lambda_function.evidence_normalizer.arn
   batch_size                         = var.normalizer.batch_size
   maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+resource "aws_lambda_event_source_mapping" "evidence_normalizer_ecs" {
+  event_source_arn                   = aws_sqs_queue.ecs_event_source.arn
+  function_name                      = aws_lambda_function.evidence_normalizer.arn
+  batch_size                         = var.normalizer.batch_size
+  maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+data "aws_iam_policy_document" "log_ingestor_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_group" "log_ingestor" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/log-ingestor"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.log_ingestor.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "log_ingestor" {
+  statement {
+    sid       = "ReadOnlyCompletionSource"
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    resources = [aws_sqs_queue.completion_source.arn]
+  }
+  statement {
+    sid       = "ReadOnlyTaskIndex"
+    effect    = "Allow"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.occurrence_ledger.arn}/index/task-arn"]
+  }
+  statement {
+    sid       = "ReadOnlyMappedOccurrence"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyCanonicalCompletions"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.log_ingestor.arn}:*"]
+  }
+  statement {
+    sid       = "UseOnlyCompletionAndIngressQueueKeys"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "kms:EncryptionContext:aws:sqs:arn"
+      values   = [aws_sqs_queue.completion_source.arn, aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+    }
+  }
+}
+
+resource "aws_iam_role" "log_ingestor" {
+  name                 = "${local.name_prefix}-log-ingestor"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.log_ingestor_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "log_ingestor" {
+  name   = "${local.name_prefix}-log-ingestor"
+  role   = aws_iam_role.log_ingestor.id
+  policy = data.aws_iam_policy_document.log_ingestor.json
+}
+
+resource "aws_lambda_function" "log_ingestor" {
+  function_name                  = "${local.name_prefix}-log-ingestor"
+  filename                       = var.log_ingestor.artifact_path
+  source_code_hash               = var.log_ingestor.artifact_source_hash
+  handler                        = "log_ingestor.handler.lambda_handler"
+  role                           = aws_iam_role.log_ingestor.arn
+  runtime                        = "python3.14"
+  timeout                        = var.log_ingestor.timeout_seconds
+  reserved_concurrent_executions = var.log_ingestor.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+  environment {
+    variables = {
+      LOG_INGESTOR_OCCURRENCE_TABLE_NAME     = aws_dynamodb_table.occurrence_ledger.name
+      LOG_INGESTOR_PROCESS_MANAGER_QUEUE_URL = aws_sqs_queue.process_manager_ingress.url
+      LOG_INGESTOR_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.log_ingestor]
+  tags       = local.common_tags
+}
+
+resource "aws_lambda_event_source_mapping" "log_ingestor" {
+  event_source_arn                   = aws_sqs_queue.completion_source.arn
+  function_name                      = aws_lambda_function.log_ingestor.arn
+  batch_size                         = var.log_ingestor.batch_size
+  maximum_batching_window_in_seconds = var.log_ingestor.batch_window_seconds
   function_response_types            = ["ReportBatchItemFailures"]
 }
 
@@ -1258,6 +1487,39 @@ resource "aws_sqs_queue_policy" "scheduler_ingress" {
 resource "aws_sqs_queue_policy" "scheduler_dlq" {
   queue_url = aws_sqs_queue.scheduler_dlq.id
   policy    = data.aws_iam_policy_document.scheduler_queue.json
+}
+
+data "aws_iam_policy_document" "ecs_event_source" {
+  statement {
+    sid       = "AllowOnlyThisCellEcsRule"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.ecs_event_source.arn, aws_sqs_queue.ecs_event_source_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.ecs_task_state.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "ecs_event_source" {
+  queue_url = aws_sqs_queue.ecs_event_source.id
+  policy    = data.aws_iam_policy_document.ecs_event_source.json
+}
+
+resource "aws_sqs_queue_policy" "ecs_event_source_dlq" {
+  queue_url = aws_sqs_queue.ecs_event_source_dlq.id
+  policy    = data.aws_iam_policy_document.ecs_event_source.json
 }
 
 resource "aws_s3_bucket" "config_inbox" {

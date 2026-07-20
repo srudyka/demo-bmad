@@ -11,11 +11,19 @@ the narrow, platform-owned canary bootstrap prerequisites:
   ledger authority; and
 - an encrypted Scheduler source queue, DLQ, and schedule group; and
 - a Cell-owned Evidence Normalizer with canonical ingress and sanitized quarantine queues.
+- encrypted ECS task-state and completion source queues/DLQs, an exact-cluster
+  EventBridge capture rule, and the least-privilege log ingestor path.
 
 It deliberately does not create a general Registrar, ECS task definitions, job
 resource roles, alarms, notification targets, or later completion/deadline/alert
 consumers. The Process Manager may assume only the explicitly registered canary
 launch role; the job-owned launch role retains `RunTask` and `PassRole` authority.
+
+ECS and completion capture are evidence-only paths. The normalizer reads the
+task-ARN index and publishes canonical evidence; only Process Manager writes the
+occurrence ledger. Rollback disables the relevant EventBridge or Lambda source
+mapping and preserves queues, DLQs, logs, and ledger evidence. It does not stop
+or relaunch tasks automatically.
 
 The module makes no runtime behavior claim for those deferred components.
 

@@ -111,3 +111,23 @@ Do not use routine destructive cleanup. The Terraform reservation and CONFIG
 object intentionally use `prevent_destroy`; pilot retirement or evidence
 deletion needs a separately reviewed procedure after investigation and rollback
 requirements have elapsed.
+
+## ECS And Completion Evidence Investigation
+
+ECS task-state capture is restricted to the Cell account, Region, and exact
+registered cluster. The normalizer resolves the AWS task ARN through the
+occurrence task-ARN index; an absent mapping is retried as bounded orphan work.
+Do not use application assertions to identify a job or occurrence.
+
+Completion records arrive through the exact canary log-group subscription and
+retain AWS log-group/log-stream metadata. Malformed, secret-bearing, wrong-task,
+or unsupported records are acknowledged only after a stable sanitized rejection
+path. A success requires authoritative `RUNNING`, one accepted success marker,
+and essential-container exit code zero. A stopped task or non-zero essential exit
+is terminal failure, and a later marker cannot overwrite it.
+
+For rollback, disable the exact ECS EventBridge rule and completion Lambda source
+mapping/subscription, then preserve encrypted queues, DLQs, task-index evidence,
+and logs for their retention window. Do not stop tasks, relaunch attempts, or
+delete orphan/conflict evidence as a rollback action. Local validation proves
+neither live AWS delivery timing nor IAM behavior.

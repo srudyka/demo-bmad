@@ -62,12 +62,24 @@ class MaterializerRegistration:
 
 
 @dataclass(frozen=True)
+class EcsRegistration:
+    """Cell-owned binding for AWS ECS task-state events."""
+
+    account_id: str
+    environment: str
+    region: str
+    cluster_arn: str
+    source_queue_arn: str
+
+
+@dataclass(frozen=True)
 class NormalizationResult:
     """Either a canonical envelope or a sanitized permanent rejection."""
 
     envelope: dict[str, object] | None
     quarantine_record: dict[str, object] | None
     rejection_code: str | None
+    retryable: bool = False
 
 
 def scheduler_producer_event_id(
@@ -114,6 +126,7 @@ def _body(record: Mapping[str, object]) -> dict[str, object]:
 _SCHEDULER_TIMESTAMP = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$"
 )
+_ARN = re.compile(r"^arn:[A-Za-z0-9-]+:[A-Za-z0-9-]+:[A-Za-z0-9-]*:[0-9]{12}:.+$")
 
 
 def _canonical_scheduled_time(timestamp: str) -> str:
@@ -321,6 +334,135 @@ def normalize_materializer_record(
         return _rejection(record, str(error))
 
 
+def normalize_ecs_event(
+    record: Mapping[str, object],
+    registration: EcsRegistration,
+    *,
+    task_lookup: Callable[[str], Mapping[str, object] | None],
+) -> NormalizationResult:
+    """Normalize one EventBridge ECS task-state event from AWS-owned fields."""
+
+    try:
+        if record.get("source") != "aws.ecs":
+            raise NormalizationError("ECS_EVENT_SOURCE_INVALID")
+        if record.get("detail-type") != "ECS Task State Change":
+            raise NormalizationError("ECS_EVENT_TYPE_INVALID")
+        if record.get("account") != registration.account_id:
+            raise NormalizationError("ECS_EVENT_ACCOUNT_INVALID")
+        if record.get("region") != registration.region:
+            raise NormalizationError("ECS_EVENT_REGION_INVALID")
+        detail = record.get("detail")
+        resources = record.get("resources")
+        if not isinstance(detail, Mapping) or not isinstance(resources, list):
+            raise NormalizationError("ECS_EVENT_SHAPE_INVALID")
+        task_arn = detail.get("taskArn")
+        cluster_arn = detail.get("clusterArn")
+        status = detail.get("lastStatus")
+        if (
+            not isinstance(task_arn, str)
+            or not isinstance(cluster_arn, str)
+            or _ARN.fullmatch(task_arn) is None
+            or _ARN.fullmatch(cluster_arn) is None
+            or cluster_arn != registration.cluster_arn
+            or task_arn not in resources
+            or status not in {"PENDING", "RUNNING", "STOPPED"}
+        ):
+            raise NormalizationError("ECS_EVENT_AUTHORITY_INVALID")
+        binding = task_lookup(task_arn)
+        if binding is None:
+            return NormalizationResult(
+                envelope=None,
+                quarantine_record={
+                    "record_type": "ORPHAN_ECS_EVENT",
+                    "task_arn_hash": sha256(task_arn.encode("utf-8")).hexdigest(),
+                    "source_event_id_hash": sha256(
+                        canonical_json_bytes(dict(record))
+                    ).hexdigest(),
+                    "cluster_arn": registration.cluster_arn,
+                },
+                rejection_code="ECS_TASK_MAPPING_PENDING",
+                retryable=True,
+            )
+        required_binding = (
+            "job_id",
+            "config_version",
+            "schedule_generation",
+            "occurrence_id",
+            "scheduled_time",
+        )
+        if any(not isinstance(binding.get(key), str) for key in required_binding):
+            raise NormalizationError("ECS_TASK_BINDING_INVALID")
+        event_time = record.get("time")
+        if not isinstance(event_time, str):
+            raise NormalizationError("ECS_EVENT_TIME_INVALID")
+        event_time = _canonical_scheduled_time(event_time)
+        containers = detail.get("containers", [])
+        if not isinstance(containers, list):
+            raise NormalizationError("ECS_EVENT_CONTAINERS_INVALID")
+        normalized_containers: list[dict[str, object]] = []
+        for container in containers:
+            if not isinstance(container, Mapping) or not isinstance(
+                container.get("name"), str
+            ):
+                raise NormalizationError("ECS_EVENT_CONTAINERS_INVALID")
+            normalized_containers.append(
+                {
+                    "name": container["name"],
+                    "essential": bool(container.get("essential", False)),
+                    "exit_code": container.get("exitCode"),
+                }
+            )
+            if not isinstance(container.get("exitCode"), (int, type(None))) or isinstance(
+                container.get("exitCode"), bool
+            ):
+                raise NormalizationError("ECS_EVENT_EXIT_CODE_INVALID")
+        if not normalized_containers:
+            raise NormalizationError("ECS_EVENT_CONTAINERS_INVALID")
+        payload: dict[str, object] = {
+            "task_arn": task_arn,
+            "cluster_arn": cluster_arn,
+            "last_status": status,
+            "event_time": event_time,
+            "containers": normalized_containers,
+            "stop_code": detail.get("stopCode"),
+            "stopped_reason": detail.get("stoppedReason"),
+        }
+        if any(
+            not isinstance(value, (str, type(None)))
+            for value in (payload["stop_code"], payload["stopped_reason"])
+        ):
+            raise NormalizationError("ECS_EVENT_REASON_INVALID")
+        if any(
+            isinstance(value, str) and len(value) > 1024
+            for value in (payload["stop_code"], payload["stopped_reason"])
+        ):
+            raise NormalizationError("ECS_EVENT_REASON_TOO_LARGE")
+        if any(
+            marker in canonical_json_bytes(payload).decode("utf-8").lower()
+            for marker in ("password", "secret", "access_key", "token")
+        ):
+            raise NormalizationError("ECS_EVENT_SECRET_CONTENT")
+        raw_event = canonical_json_bytes(dict(record))
+        event_id = sha256(b"ecs-task-state/v1\n" + raw_event).hexdigest()
+        envelope = {
+            "schema_version": "1.0.0",
+            "event_type": "task.state.v1",
+            "producer_id": "ecs",
+            "producer_event_id": event_id,
+            "job_id": binding["job_id"],
+            "config_version": binding["config_version"],
+            "schedule_generation": binding["schedule_generation"],
+            "occurrence_id": binding["occurrence_id"],
+            "scheduled_time": binding["scheduled_time"],
+            "emitted_at": event_time,
+            "payload": payload,
+            "payload_hash": sha256(canonical_json_bytes(payload)).hexdigest(),
+        }
+        return NormalizationResult(envelope, None, None)
+    except NormalizationError as error:
+        return _rejection(record, str(error))
+
+
 def process_scheduler_batch(
     records: list[Mapping[str, object]],
     registration: SchedulerRegistration,
@@ -387,5 +529,47 @@ def process_materializer_batch(
             elif result.quarantine_record is not None:
                 send_quarantine(result.quarantine_record)
         except OSError, TransientTransportError:
+            failures.append({"itemIdentifier": message_id})
+    return {"batchItemFailures": failures}
+
+
+def process_ecs_batch(
+    records: list[Mapping[str, object]],
+    registration: EcsRegistration,
+    *,
+    task_lookup: Callable[[str], Mapping[str, object] | None],
+    send_envelope: Callable[[dict[str, object]], None],
+    send_quarantine: Callable[[dict[str, object]], None],
+    on_permanent_rejection: Callable[[str, Mapping[str, object]], None] | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    """Normalize EventBridge ECS records with bounded orphan retries."""
+
+    failures: list[dict[str, str]] = []
+    for record in records:
+        message_id = str(record.get("messageId", ""))
+        try:
+            body = _body(record)
+        except NormalizationError as error:
+            rejection = _rejection(record, str(error))
+            if on_permanent_rejection is not None:
+                on_permanent_rejection(str(error), record)
+            try:
+                if rejection.quarantine_record is not None:
+                    send_quarantine(rejection.quarantine_record)
+            except (OSError, TransientTransportError):
+                failures.append({"itemIdentifier": message_id})
+            continue
+        try:
+            result = normalize_ecs_event(body, registration, task_lookup=task_lookup)
+            if result.retryable:
+                failures.append({"itemIdentifier": message_id})
+                continue
+            if result.rejection_code is not None and on_permanent_rejection is not None:
+                on_permanent_rejection(result.rejection_code, record)
+            if result.envelope is not None:
+                send_envelope(result.envelope)
+            elif result.quarantine_record is not None:
+                send_quarantine(result.quarantine_record)
+        except (OSError, TransientTransportError):
             failures.append({"itemIdentifier": message_id})
     return {"batchItemFailures": failures}

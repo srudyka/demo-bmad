@@ -14,7 +14,9 @@ module "platform" {
   tags                           = var.tags
   canary_reservation             = var.canary_reservation
   canary_normalizer_registration = var.canary_normalizer_registration
+  ecs_cluster_arn                = var.ecs_cluster_arn
   normalizer                     = var.normalizer
   materializer                   = var.materializer
   process_manager                = var.process_manager
+  log_ingestor                   = var.log_ingestor
 }

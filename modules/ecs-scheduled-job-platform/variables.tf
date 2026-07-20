@@ -208,6 +208,16 @@ variable "canary_normalizer_registration" {
   }
 }
 
+variable "ecs_cluster_arn" {
+  description = "Exact Cell ECS cluster ARN accepted by the ECS task-state EventBridge rule."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:ecs:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:cluster/[A-Za-z0-9_-]{1,255}$", var.ecs_cluster_arn))
+    error_message = "ecs_cluster_arn must be an exact ECS cluster ARN in the provider account and Region."
+  }
+}
+
 variable "normalizer" {
   description = "Explicit trusted Evidence Normalizer artifact and Lambda/SQS controls."
   type = object({
@@ -233,6 +243,32 @@ variable "normalizer" {
       contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.normalizer.log_retention_days)
     )
     error_message = "normalizer must use the published artifact, Lambda, SQS redrive, and log-retention bounds."
+  }
+}
+
+variable "log_ingestor" {
+  description = "Explicit trusted completion log-ingestor artifact and bounded Lambda controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+
+  validation {
+    condition = (
+      length(var.log_ingestor.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.log_ingestor.artifact_source_hash)) &&
+      var.log_ingestor.batch_size >= 1 && var.log_ingestor.batch_size <= 10 &&
+      var.log_ingestor.batch_window_seconds >= 0 && var.log_ingestor.batch_window_seconds <= 300 &&
+      var.log_ingestor.timeout_seconds >= 1 && var.log_ingestor.timeout_seconds <= 900 &&
+      var.log_ingestor.reserved_concurrency >= 2 && var.log_ingestor.reserved_concurrency <= 1000 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_ingestor.log_retention_days)
+    )
+    error_message = "log_ingestor must use a published artifact and bounded Lambda controls."
   }
 }
 

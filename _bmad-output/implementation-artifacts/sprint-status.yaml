@@ -1,5 +1,5 @@
 # generated: 2026-07-14T17:04:01-0500
-# last_updated: 2026-07-16T09:23:33-0500
+# last_updated: 2026-07-20T00:00:00-0500
 # project: demo-bmad
 # project_key: NOKEY
 # tracking_system: file-system
@@ -57,7 +57,7 @@ development_status:
   1-6-materialize-future-expected-occurrences: done
   1-7-record-deterministic-occurrence-state: done
   1-8-launch-exactly-one-canary-task-per-occurrence: done
-  1-9-correlate-ecs-state-and-completion-evidence: ready-for-dev
+  1-9-correlate-ecs-state-and-completion-evidence: done
   1-10-detect-missed-and-overdue-occurrences: backlog
   1-11-deliver-occurrence-alerts-reliably: backlog
   1-12-monitor-cell-health-with-the-canary: backlog

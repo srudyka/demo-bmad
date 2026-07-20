@@ -137,6 +137,13 @@ class PreparedLaunch:
     client_token: str
 
 
+@dataclass(frozen=True)
+class PreparedCorrelation:
+    processed_event: dict[str, Any]
+    envelope_digest: str
+    payload: dict[str, Any]
+
+
 def prepare_expected(
     envelope: Mapping[str, Any],
     snapshot_item: Mapping[str, Any] | None,
@@ -527,3 +534,98 @@ def prepare_launch(
         "processor_deployment_identity_id": processor_identity,
     }
     return PreparedLaunch(attempt, processed, digest, token)
+
+
+def prepare_correlation(
+    envelope: Mapping[str, Any],
+    snapshot_item: Mapping[str, Any] | None,
+    *,
+    processor_identity: str,
+    expected_owner_generation: int | None = None,
+) -> PreparedCorrelation:
+    """Validate ECS/completion evidence before ledger mutation."""
+
+    if not isinstance(envelope, Mapping) or snapshot_item is None:
+        raise ContractRejection("CORRELATION_ENVELOPE_INVALID")
+    required = {
+        "schema_version",
+        "event_type",
+        "producer_id",
+        "producer_event_id",
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+        "scheduled_time",
+        "payload",
+        "payload_hash",
+        "emitted_at",
+    }
+    if set(envelope) - (required | {"trace_context"}) or any(
+        key not in envelope for key in required
+    ):
+        raise ContractRejection("CORRELATION_ENVELOPE_INVALID")
+    if envelope["schema_version"] != "1.0.0":
+        raise ContractRejection("UNSUPPORTED_SCHEMA_VERSION")
+    expected_producer = {
+        "task.state.v1": "ecs",
+        "completion.observed.v1": "log-ingestor",
+    }
+    event_type = envelope.get("event_type")
+    if event_type not in expected_producer or envelope.get("producer_id") != expected_producer[event_type]:
+        raise ContractRejection("CORRELATION_PRODUCER_INVALID")
+    for field in (
+        "producer_event_id",
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+        "scheduled_time",
+        "emitted_at",
+        "payload_hash",
+    ):
+        if not isinstance(envelope[field], str) or not envelope[field]:
+            raise ContractRejection("CORRELATION_ENVELOPE_INVALID")
+    payload = envelope["payload"]
+    if not isinstance(payload, dict) or hashlib.sha256(canonical_json_bytes(payload)).hexdigest() != envelope["payload_hash"]:
+        raise ContractRejection("CORRELATION_PAYLOAD_HASH_MISMATCH")
+    scheduled_at = _timestamp(envelope["scheduled_time"], "CORRELATION_TIME_INVALID")
+    _timestamp(envelope["emitted_at"], "CORRELATION_TIME_INVALID")
+    expected_id = occurrence_id(
+        str(envelope["job_id"]),
+        str(envelope["schedule_generation"]),
+        str(int(scheduled_at.timestamp() // 60)),
+    )
+    if envelope["occurrence_id"] != expected_id:
+        raise ContractRejection("OCCURRENCE_ID_MISMATCH")
+    snapshot = ConfigSnapshot.from_item(snapshot_item)
+    if snapshot.materialization_state != "MATERIALIZED" or snapshot.config_hash != snapshot.config_version:
+        raise ContractRejection("CONFIG_NOT_MATERIALIZED")
+    config = snapshot.config()
+    if (
+        snapshot.job_id != envelope["job_id"]
+        or snapshot.config_version != envelope["config_version"]
+        or snapshot.schedule_generation != envelope["schedule_generation"]
+        or config.get("job_id") != envelope["job_id"]
+        or config.get("schedule_generation") != envelope["schedule_generation"]
+    ):
+        raise ContractRejection("CONFIG_IDENTITY_MISMATCH")
+    if expected_owner_generation is not None and snapshot.owner_generation != expected_owner_generation:
+        raise ContractRejection("CONFIG_OWNER_GENERATION_MISMATCH")
+    digest = hashlib.sha256(canonical_json_bytes(dict(envelope))).hexdigest()
+    processed = {
+        "pk": f"EVENT#{envelope['producer_id']}",
+        "sk": str(envelope["producer_event_id"]),
+        "record_type": "PROCESSED_EVENT",
+        "schema_version": "1.0.0",
+        "producer_id": envelope["producer_id"],
+        "producer_event_id": envelope["producer_event_id"],
+        "event_digest": digest,
+        "event_type": event_type,
+        "job_id": envelope["job_id"],
+        "occurrence_id": envelope["occurrence_id"],
+        "accepted_at": envelope["emitted_at"],
+        "disposition": "ACCEPTED",
+        "processor_deployment_identity_id": processor_identity,
+    }
+    return PreparedCorrelation(processed, digest, payload)

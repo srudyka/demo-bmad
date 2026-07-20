@@ -14,7 +14,9 @@ from .contracts import canonical_json_bytes
 from .domain import (
     ContractRejection,
     PreparedAcceptance,
+    PreparedCorrelation,
     PreparedLaunch,
+    prepare_correlation,
     prepare_expected,
     prepare_launch,
 )
@@ -142,7 +144,20 @@ def lambda_handler(
                 if envelope.get("event_type") == "occurrence.launch.v1"
                 else None
             )
-            if prepared is None and launch_prepared is None:
+            correlation_prepared: PreparedCorrelation | None = (
+                prepare_correlation(
+                    envelope,
+                    item if isinstance(item, Mapping) else None,
+                    processor_identity=identity,
+                    expected_owner_generation=int(
+                        _required("PROCESS_MANAGER_OWNER_GENERATION")
+                    ),
+                )
+                if envelope.get("event_type")
+                in {"task.state.v1", "completion.observed.v1"}
+                else None
+            )
+            if prepared is None and launch_prepared is None and correlation_prepared is None:
                 raise ContractRejection("UNAUTHORIZED_PRODUCER")
             if launch_prepared is not None:
                 _process_launch(
@@ -152,6 +167,11 @@ def lambda_handler(
                     metrics,
                     identity,
                     now,
+                )
+                continue
+            if correlation_prepared is not None:
+                _process_correlation(
+                    envelope, correlation_prepared, ledger, now
                 )
                 continue
             assert prepared is not None
@@ -227,6 +247,118 @@ def lambda_handler(
             if isinstance(message_id, str):
                 failures.append({"itemIdentifier": message_id})
     return {"batchItemFailures": failures}
+
+
+def _process_correlation(
+    envelope: Mapping[str, Any],
+    prepared: PreparedCorrelation,
+    ledger: Ledger,
+    now: str,
+) -> None:
+    """Reduce one authenticated task-state or completion fact."""
+
+    occurrence_key = {
+        "pk": f"JOB#{envelope['job_id']}",
+        "sk": f"OCCURRENCE#{envelope['occurrence_id']}",
+    }
+    occurrence_item = ledger.get(occurrence_key)
+    if occurrence_item is None:
+        raise RuntimeError("CORRELATION_OCCURRENCE_PENDING")
+    occurrence = plain_item(occurrence_item)
+    processed_key = {
+        "pk": f"EVENT#{envelope['producer_id']}",
+        "sk": envelope["producer_event_id"],
+    }
+    existing = ledger.get(processed_key)
+    if existing is not None:
+        if existing.get("event_digest") == {"S": prepared.envelope_digest}:
+            return
+        raise ContractRejection("PROCESSED_EVENT_CONFLICT")
+    payload = prepared.payload
+    state = str(occurrence.get("state", "EXPECTED"))
+    changes: dict[str, Any] = {}
+    if envelope["event_type"] == "task.state.v1":
+        task_arn = payload.get("task_arn")
+        if task_arn != occurrence.get("task_arn") and occurrence.get("task_arn"):
+            state = "AMBIGUOUS"
+        changes["task_arn"] = task_arn
+        if payload.get("last_status") == "RUNNING":
+            state = "STARTED" if state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"} else state
+            changes["started_at"] = payload["event_time"]
+        elif payload.get("last_status") == "STOPPED":
+            containers = payload.get("containers", [])
+            essential = [
+                item for item in containers if isinstance(item, Mapping) and item.get("essential")
+            ]
+            nonzero = [
+                item for item in essential
+                if item.get("exit_code") is not None and item.get("exit_code") != 0
+            ]
+            if nonzero:
+                state = "FAILED" if state != "AMBIGUOUS" else state
+                changes["error_code"] = "ECS_ESSENTIAL_EXIT_NONZERO"
+                changes["exit_code"] = nonzero[0].get("exit_code")
+            elif state == "EXPECTED":
+                state = "FAILED"
+                changes["error_code"] = "ECS_STOPPED_BEFORE_RUNNING"
+            elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"}:
+                state = "STARTED"
+            if state == "STARTED":
+                zero_exit = [
+                    item for item in essential
+                    if item.get("exit_code") == 0
+                ]
+                if zero_exit:
+                    changes["exit_code"] = 0
+            if (
+                state == "STARTED"
+                and occurrence.get("started_at")
+                and occurrence.get("completion_status") == "SUCCESS"
+                and occurrence.get("completion_exit_code") == 0
+                and (occurrence.get("exit_code") == 0 or changes.get("exit_code") == 0)
+            ):
+                state = "SUCCEEDED"
+                changes["completed_at"] = occurrence.get("completion_completed_at")
+    else:
+        completion = payload.get("completion")
+        if not isinstance(completion, Mapping):
+            raise ContractRejection("COMPLETION_PAYLOAD_INVALID")
+        task_arn = completion.get("asserted_task_arn")
+        if occurrence.get("task_arn") and task_arn != occurrence.get("task_arn"):
+            state = "AMBIGUOUS"
+        marker_status = completion.get("marker_status")
+        exit_code = completion.get("exit_code_assertion")
+        changes.update(
+            {
+                "task_arn": task_arn,
+                "completion_status": marker_status,
+                "completion_exit_code": exit_code,
+                "completion_completed_at": completion.get("completed_at"),
+            }
+        )
+        if marker_status == "FAILURE":
+            state = "FAILED" if state != "AMBIGUOUS" else state
+            changes["error_code"] = completion.get("error_code") or "COMPLETION_FAILURE"
+            changes["completed_at"] = completion.get("completed_at")
+        elif (
+            marker_status == "SUCCESS"
+            and exit_code == 0
+            and occurrence.get("exit_code") == 0
+            and occurrence.get("started_at")
+            and state not in {"FAILED", "AMBIGUOUS"}
+        ):
+            state = "SUCCEEDED"
+            changes["completed_at"] = completion.get("completed_at")
+        elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"}:
+            state = state if state == "STARTED" else "EXPECTED"
+    evidence_id = prepared.envelope_digest
+    ledger.reduce_evidence(
+        occurrence,
+        prepared.processed_event,
+        state=state,
+        evidence_id=evidence_id,
+        changes=changes,
+    )
 
 
 def _process_launch(

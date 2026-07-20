@@ -130,6 +130,12 @@ variable "canary_normalizer_registration" {
   }
 }
 
+variable "ecs_cluster_arn" {
+  description = "Fictitious Cell ECS cluster ARN for local module validation."
+  type        = string
+  default     = "arn:aws:ecs:us-east-1:000000000000:cluster/dev-platform"
+}
+
 variable "process_manager" {
   description = "Fictitious Process Manager artifact controls for validation only."
   type = object({
@@ -197,5 +203,27 @@ variable "materializer" {
     max_receive_count    = 5
     reserved_concurrency = 2
     timeout_seconds      = 60
+  }
+}
+
+variable "log_ingestor" {
+  description = "Fictitious completion log-ingestor artifact and controls for local validation."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    batch_size           = number
+    batch_window_seconds = number
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+  default = {
+    artifact_path        = "/tmp/log-ingestor.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    batch_size           = 1
+    batch_window_seconds = 0
+    log_retention_days   = 365
+    reserved_concurrency = 2
+    timeout_seconds      = 30
   }
 }

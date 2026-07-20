@@ -7,6 +7,8 @@ provider "aws" {
   }
 }
 
+data "aws_partition" "current" {}
+
 provider "aws" {
   alias               = "config_publisher"
   region              = var.region
@@ -171,6 +173,22 @@ resource "aws_cloudwatch_log_group" "canary" {
   retention_in_days = var.log_retention_days
   kms_key_id        = var.cell_kms_key_arn
   tags              = local.common_tags
+}
+
+resource "aws_lambda_permission" "completion_log_subscription" {
+  statement_id  = "AllowExactCanaryCompletionLogGroup"
+  action        = "lambda:InvokeFunction"
+  function_name = var.cell_log_ingestor_function_arn
+  principal     = "logs.${data.aws_partition.current.dns_suffix}"
+  source_arn    = "${aws_cloudwatch_log_group.canary.arn}:*"
+}
+
+resource "aws_cloudwatch_log_subscription_filter" "completion" {
+  name            = "${local.name_prefix}-completion"
+  log_group_name  = aws_cloudwatch_log_group.canary.name
+  filter_pattern  = "{ $.marker_status = * }"
+  destination_arn = var.cell_log_ingestor_function_arn
+  depends_on      = [aws_lambda_permission.completion_log_subscription]
 }
 
 resource "aws_ecs_task_definition" "canary" {

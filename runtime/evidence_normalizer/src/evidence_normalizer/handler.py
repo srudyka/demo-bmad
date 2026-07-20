@@ -17,9 +17,11 @@ from tests.contract.support.contracts import (
 from .normalizer import (
     MaterializerRegistration,
     SchedulerRegistration,
+    EcsRegistration,
     TransientTransportError,
     process_scheduler_batch,
     process_materializer_batch,
+    process_ecs_batch,
 )
 
 
@@ -39,6 +41,12 @@ class MetricsClient(Protocol):
     def put_metric_data(
         self, *, Namespace: str, MetricData: list[dict[str, object]]
     ) -> object: ...
+
+
+class DynamoClient(Protocol):
+    def query(self, **kwargs: object) -> Mapping[str, object]: ...
+
+    def get_item(self, **kwargs: object) -> Mapping[str, object]: ...
 
 
 def _required_environment(name: str) -> str:
@@ -68,11 +76,21 @@ def _materializer_registration() -> MaterializerRegistration:
         raise RuntimeError("NORMALIZER_MATERIALIZER_REGISTRATION_INVALID") from error
 
 
-def _clients() -> tuple[QueueClient, MetricsClient]:
+def _ecs_registration() -> EcsRegistration:
+    try:
+        parsed = json.loads(_required_environment("NORMALIZER_ECS_REGISTRATION"))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("NORMALIZER_ECS_REGISTRATION_INVALID")
+        return EcsRegistration(**parsed)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError("NORMALIZER_ECS_REGISTRATION_INVALID") from error
+
+
+def _clients() -> tuple[QueueClient, MetricsClient, DynamoClient]:
     # boto3 stays inside this adapter so unit tests and parsing need no AWS SDK.
     import boto3  # type: ignore[import-untyped]
 
-    return boto3.client("sqs"), boto3.client("cloudwatch")
+    return boto3.client("sqs"), boto3.client("cloudwatch"), boto3.client("dynamodb")
 
 
 def _safe_log(code: str, record: Mapping[str, object]) -> None:
@@ -103,11 +121,58 @@ def lambda_handler(
     secret_policy = load_json_strict(contracts_root / "catalogs" / "secret-safety.json")
     registration = _registration()
     materializer_registration = _materializer_registration()
+    ecs_registration = _ecs_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
     process_manager_url = _required_environment("NORMALIZER_PROCESS_MANAGER_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
     namespace = _required_environment("NORMALIZER_METRIC_NAMESPACE")
-    queues, metrics = _clients()
+    queues, metrics, dynamodb = _clients()
+    ledger_table = _required_environment("NORMALIZER_OCCURRENCE_TABLE_NAME")
+
+    def task_lookup(task_arn: str) -> Mapping[str, object] | None:
+        response = dynamodb.query(
+            TableName=ledger_table,
+            IndexName="task-arn",
+            KeyConditionExpression="task_arn = :task",
+            ExpressionAttributeValues={":task": {"S": task_arn}},
+            Limit=10,
+        )
+        items = response.get("Items", [])
+        if not isinstance(items, list):
+            return None
+        def plain(value: Mapping[str, object]) -> dict[str, object]:
+            decoded: dict[str, object] = {}
+            for key, child in value.items():
+                if isinstance(child, Mapping) and len(child) == 1:
+                    kind, item = next(iter(child.items()))
+                    if kind == "S":
+                        decoded[key] = item
+                    elif kind == "N":
+                        decoded[key] = int(str(item))
+                    else:
+                        decoded[key] = item
+                else:
+                    decoded[key] = child
+            return decoded
+
+        occurrences: list[dict[str, object]] = []
+        for candidate in items:
+            if not isinstance(candidate, Mapping):
+                continue
+            pk = candidate.get("pk")
+            sk = candidate.get("sk")
+            if not isinstance(pk, Mapping) or not isinstance(sk, Mapping):
+                continue
+            base = dynamodb.get_item(
+                TableName=ledger_table,
+                Key={"pk": pk, "sk": sk},
+                ConsistentRead=True,
+            ).get("Item")
+            if isinstance(base, Mapping):
+                decoded = plain(base)
+                if decoded.get("record_type") == "OCCURRENCE":
+                    occurrences.append(decoded)
+        return occurrences[0] if len(occurrences) == 1 else None
 
     # Keep botocore within the AWS adapter; deterministic unit tests need no SDK.
     from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
@@ -175,6 +240,15 @@ def lambda_handler(
             registry,
             secret_policy,
             send_envelope=send_envelope,
+            send_quarantine=send_quarantine,
+            on_permanent_rejection=_safe_log,
+        )
+    elif source_arns == {ecs_registration.source_queue_arn}:
+        response = process_ecs_batch(
+            list(records),
+            ecs_registration,
+            task_lookup=task_lookup,
+            send_envelope=send_process_manager_envelope,
             send_quarantine=send_quarantine,
             on_permanent_rejection=_safe_log,
         )

@@ -211,11 +211,12 @@ class Ledger:
                     "Update": {
                         "TableName": self.table_name,
                         "Key": dynamodb_item(occurrence_key),
-                        "UpdateExpression": "SET #state = :state",
+                        "UpdateExpression": "SET #state = :state, task_arn = :task",
                         "ConditionExpression": "#state = :expected",
                         "ExpressionAttributeNames": {"#state": "state"},
                         "ExpressionAttributeValues": {
                             ":state": {"S": "STARTED"},
+                            ":task": {"S": task_arn},
                             ":expected": {"S": "EXPECTED"},
                         },
                     }
@@ -298,6 +299,74 @@ class Ledger:
                             ":state": {"S": "AMBIGUOUS"},
                             ":expected": {"S": "EXPECTED"},
                         },
+                    }
+                },
+            ]
+        )
+
+    def reduce_evidence(
+        self,
+        occurrence: Mapping[str, Any],
+        processed: Mapping[str, Any],
+        *,
+        state: str,
+        evidence_id: str,
+        changes: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Atomically retain one canonical evidence fact and reduce the occurrence."""
+
+        keys = occurrence.get("keys")
+        if not isinstance(keys, Mapping):
+            raise ValueError("OCCURRENCE_KEYS_INVALID")
+        changes = changes or {}
+        allowed = {
+            "started_at",
+            "completed_at",
+            "exit_code",
+            "error_code",
+            "operator_safe_error_reason",
+            "task_arn",
+            "completion_status",
+            "completion_exit_code",
+            "completion_completed_at",
+        }
+        if set(changes) - allowed:
+            raise ValueError("CORRELATION_CHANGE_INVALID")
+        names = {"#state": "state"}
+        values: dict[str, dict[str, Any]] = {
+            ":state": {"S": state},
+            ":evidence": {"L": [{"S": evidence_id}]},
+            ":job_id": {"S": str(occurrence["job_id"])},
+            ":occurrence_id": {"S": str(occurrence["occurrence_id"])},
+            ":config_version": {"S": str(occurrence["config_version"])},
+            ":generation": {"S": str(occurrence["schedule_generation"])},
+        }
+        sets = [
+            "#state = :state",
+            "evidence_ids = list_append(if_not_exists(evidence_ids, :empty), :evidence)",
+        ]
+        values[":empty"] = {"L": []}
+        for index, (name, value) in enumerate(changes.items()):
+            placeholder = f":change{index}"
+            sets.append(f"{name} = {placeholder}")
+            values[placeholder] = _attribute(value)
+        self.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Put": {
+                        "TableName": self.table_name,
+                        "Item": dynamodb_item(processed),
+                        "ConditionExpression": "attribute_not_exists(pk)",
+                    }
+                },
+                {
+                    "Update": {
+                        "TableName": self.table_name,
+                        "Key": dynamodb_item(keys),
+                        "UpdateExpression": "SET " + ", ".join(sets),
+                        "ConditionExpression": "job_id = :job_id AND occurrence_id = :occurrence_id AND config_version = :config_version AND schedule_generation = :generation",
+                        "ExpressionAttributeNames": names,
+                        "ExpressionAttributeValues": values,
                     }
                 },
             ]

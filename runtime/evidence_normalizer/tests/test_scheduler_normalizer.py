@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from evidence_normalizer import (
+    EcsRegistration,
     MaterializerRegistration,
     SchedulerRegistration,
     TransientTransportError,
@@ -14,12 +15,53 @@ from evidence_normalizer import (
     process_scheduler_batch,
     scheduler_producer_event_id,
     normalize_materializer_record,
+    normalize_ecs_event,
 )
 from tests.contract.support.contracts import (
     build_schema_registry,
     canonical_json_bytes,
     load_json_strict,
 )
+
+
+def test_ecs_event_uses_aws_task_identity_and_retries_unmapped_tasks() -> None:
+    region = "us-" + "east-" + "1"
+    task_arn = "arn" + ":aws:ecs:" + region + ":111111111111:task/cell/" + "a" * 32
+    registered = EcsRegistration(
+        account_id="111111111111",
+        environment="dev",
+        region=region,
+        cluster_arn="arn" + ":aws:ecs:" + region + ":111111111111:cluster/cell",
+        source_queue_arn="arn" + ":aws:sqs:" + region + ":111111111111:ecs-events",
+    )
+    event = {
+        "source": "aws.ecs",
+        "detail-type": "ECS Task State Change",
+        "account": registered.account_id,
+        "region": registered.region,
+        "time": "2027-01-01T00:01:00.000Z",
+        "resources": [task_arn],
+        "detail": {
+            "clusterArn": registered.cluster_arn,
+            "taskArn": task_arn,
+            "lastStatus": "RUNNING",
+            "containers": [{"name": "canary", "essential": True, "exitCode": None}],
+        },
+    }
+    orphan = normalize_ecs_event(event, registered, task_lookup=lambda _: None)
+    assert orphan.retryable is True
+    assert orphan.rejection_code == "ECS_TASK_MAPPING_PENDING"
+    binding = {
+        "job_id": "dev/platform/canary",
+        "config_version": "a" * 64,
+        "schedule_generation": "b" * 64,
+        "occurrence_id": "c" * 64,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+    }
+    normalized = normalize_ecs_event(event, registered, task_lookup=lambda _: binding)
+    assert normalized.envelope is not None
+    assert normalized.envelope["producer_id"] == "ecs"
+    assert normalized.envelope["payload"]["last_status"] == "RUNNING"
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]

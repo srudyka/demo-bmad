@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "4cacf57a951a620fe5f8c161c47865cde2e5a8c35199bd24cf9cdd875a794771"},
+    {"path": "releases/1.0.0.json", "sha256": "f799cb01f01f25babd296399fcb21398d3ba1f67e4f2630ad3a8deb4250914b8"},
     {"path": "v1/catalogs/commands.json", "sha256": "f0c00b6f60282d2f1eddf3fe0ab1aae0d9358ec923a70444bb2909ff3c370d18"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
     {"path": "v1/catalogs/event-types.json", "sha256": "e21655f62fef37ec463f6a221b779ad4f840946a9cbdc0a832a90bac95a29d57"},
@@ -52,7 +52,7 @@
     {"path": "v1/schemas/config.schema.json", "sha256": "a37b350b69ed848b744b8911e2693cd6b068d9e749d675806728f31be848442b"},
     {"path": "v1/schemas/deployment-identity.schema.json", "sha256": "4d358866e372b456ef361ef82ab7614393f7c7d0314021f77c0162c94dabfbfb"},
     {"path": "v1/schemas/evidence-envelope.schema.json", "sha256": "d2314390dbcd9bced1d845e2c669c61d18257a4762d6d3fb5e23494ce0f84d9e"},
-    {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "a2893bdab6e84d2f938b5f85b06ef95a7d1b61ca2acb418f9e497f9b6ac40990"},
+    {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "a4d61bfbb9f6b1728ed2bb2e2ac56315a143ef6e43a3163bbbe1bfc5b4b8b6ac"},
     {"path": "v1/schemas/payloads/command-authorized.schema.json", "sha256": "2c44f04410d67455e0708184a45d50329105e3dc73aecdfde8234b19c67f82ed"},
     {"path": "v1/schemas/payloads/completion-observed.schema.json", "sha256": "4c16610a6da68249d0e77b286d3fd8025c688e468627f1ea208d0f49d036fef5"},
     {"path": "v1/schemas/payloads/deadline-reached.schema.json", "sha256": "47b1a87e7768d49747f1320e55902bcfa7529ffe01a6341d52601843af5c7776"},

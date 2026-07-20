@@ -103,6 +103,15 @@ variable "cell_process_manager_role_arn" {
   type        = string
 }
 
+variable "cell_log_ingestor_function_arn" {
+  description = "Cell-owned log-ingestor Lambda ARN for the exact canary completion subscription."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:lambda:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:function/[A-Za-z0-9-_]+$", var.cell_log_ingestor_function_arn))
+    error_message = "cell_log_ingestor_function_arn must be the Cell log-ingestor Lambda ARN."
+  }
+}
+
 variable "enable_schedule" {
   description = "Explicit emergency-stop control; the canary schedule remains disabled unless an exact activation acknowledgement is supplied."
   type        = bool
