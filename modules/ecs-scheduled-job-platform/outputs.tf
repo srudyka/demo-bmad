@@ -50,6 +50,8 @@ output "process_manager" {
     id                   = aws_iam_role.process_manager.unique_id
     log_group_name       = aws_cloudwatch_log_group.process_manager.name
     occurrence_table_arn = aws_dynamodb_table.occurrence_ledger.arn
+    task_arn_index_name  = "task-arn"
+    launch_role_arn      = var.canary_normalizer_registration.canary_launch_role_arn
     mapping_uuid         = aws_lambda_event_source_mapping.process_manager.uuid
   }
 }

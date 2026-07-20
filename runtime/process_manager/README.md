@@ -1,20 +1,30 @@
 # Process Manager
 
-The Process Manager is the Cell-owned writer for the occurrence ledger. Story 1.7
-activates only authenticated `occurrence.expected.v1` evidence from the materializer.
-It validates the canonical envelope and strongly consistent CONFIG snapshot, then
-atomically records the immutable processed-event fact and the `EXPECTED` occurrence.
+The Process Manager is the Cell-owned writer for the occurrence ledger. It accepts
+authenticated `occurrence.expected.v1` and Scheduler `occurrence.launch.v1`
+evidence. Launch processing requires a `MATERIALIZED` CONFIG snapshot, reserves
+attempt zero transactionally, and derives one deterministic ECS client token.
 
 Duplicate delivery is a no-op when the immutable event digest matches. A conflicting
 digest is rejected without overwriting the accepted fact. Deterministic contract
 failures are acknowledged record-locally; DynamoDB transport failures are returned in
 Lambda's `batchItemFailures` response for SQS retry.
 
-The ledger stores bounded identifiers and operator-safe fields only. It does not store
-raw CONFIG, raw evidence, task attempts, deadlines indexes, alert records, or launch
-authority. Query output should expose state, scheduled time, deadline, CONFIG version,
-evidence IDs, and last reduction time, never secret values or Terraform state.
+The ledger stores bounded identifiers and operator-safe fields only. Attempt zero
+records retain the exact task definition, private network, launch role, token,
+Deployment Identity, retry deadline, and ECS task ARN. A task-ARN GSI supports
+correlation but is not correctness authority; the base table remains authoritative.
+Query output should expose state, scheduled time, deadline, CONFIG version, bounded
+evidence IDs, and launch outcome, never secret values or Terraform state.
 
-Rollback disables the event-source mapping or restores a compatible immutable Lambda
-artifact first. Do not destroy or edit the occurrence ledger; production PITR and
-deletion protection preserve the audit evidence during recovery.
+The launch role is the only role with `ecs:RunTask` and `iam:PassRole`. The Process
+Manager assumes only the registered launch role and uses `count=1`, private
+`awsvpc`, `assignPublicIp=DISABLED`, exact task revision, `startedBy`, and
+platform-owned tags. HTTP 200 `failures[]`, transport uncertainty, multiple task
+matches, parameter conflicts, and expired reconciliation windows are durable
+failure or `AMBIGUOUS` outcomes; they never create attempt one.
+
+Rollback disables the event-source mapping and canary schedule/launch intake or
+restores a compatible immutable Lambda artifact first. Preserve the occurrence and
+attempt ledger; do not automatically stop or relaunch an ECS task already accepted
+by AWS. Production PITR and deletion protection preserve the audit evidence.

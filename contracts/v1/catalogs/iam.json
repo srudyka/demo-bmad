@@ -80,7 +80,7 @@
       "trust": ["arn:aws:iam::<account>:role/github-plan"]
     },
     "process-manager": {
-      "actions": ["dynamodb:ConditionCheckItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "sts:AssumeRole"],
+      "actions": ["dynamodb:GetItem", "dynamodb:TransactWriteItems", "sts:AssumeRole"],
       "conditions": {"iam:PermissionsBoundary": "arn:aws:iam::<account>:policy/<cell>-job-launch-boundary"},
       "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:iam::<account>:role/<approved-job-id>-launch"],
       "trust": ["lambda.amazonaws.com"]

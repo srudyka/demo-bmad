@@ -59,3 +59,27 @@ def materializer_event_id(
             "ascii"
         )
     ).hexdigest()
+
+
+def scheduler_event_id(
+    schedule_arn: str, scheduled: str, config: str, owner: int
+) -> str:
+    """Return the contract-owned Scheduler producer event identity."""
+
+    return hashlib.sha256(
+        f"scheduler/v1\n{schedule_arn}\n{scheduled}\n{config}\n{owner}".encode("ascii")
+    ).hexdigest()
+
+
+def launch_client_token(
+    job_id: str, occurrence: str, config_version: str, attempt_no: int
+) -> str:
+    """Derive the stable ECS client token for one logical launch attempt."""
+
+    if attempt_no != 0:
+        raise ContractViolation("ATTEMPT_NO_MUST_BE_ZERO")
+    return hashlib.sha256(
+        f"ecs-launch/v1\n{job_id}\n{occurrence}\n{config_version}\n{attempt_no}".encode(
+            "ascii"
+        )
+    ).hexdigest()

@@ -186,6 +186,7 @@ variable "canary_normalizer_registration" {
     schedule_group_arn         = string
     scheduler_delivery_role_id = string
     source_queue_arn           = string
+    canary_launch_role_arn     = string
   })
 
   validation {
@@ -200,7 +201,8 @@ variable "canary_normalizer_registration" {
       can(regex("^AROA[A-Z0-9]+$", var.canary_normalizer_registration.scheduler_delivery_role_id)) &&
       can(regex("^arn:aws:sqs:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:[A-Za-z0-9_-]{1,80}$", var.canary_normalizer_registration.source_queue_arn)) &&
       can(regex("^arn:aws:scheduler:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:schedule-group/[A-Za-z0-9_-]{1,64}$", var.canary_normalizer_registration.schedule_group_arn)) &&
-      can(regex("^arn:aws:scheduler:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:schedule/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,64}$", var.canary_normalizer_registration.schedule_arn))
+      can(regex("^arn:aws:scheduler:[a-z]{2}(-gov)?-[a-z]+-[0-9]+:[0-9]{12}:schedule/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,64}$", var.canary_normalizer_registration.schedule_arn)) &&
+      can(regex("^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$", var.canary_normalizer_registration.canary_launch_role_arn))
     )
     error_message = "canary_normalizer_registration must contain canonical Cell, Scheduler, generation, and immutable role-ID values."
   }

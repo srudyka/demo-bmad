@@ -103,6 +103,27 @@ variable "cell_process_manager_role_arn" {
   type        = string
 }
 
+variable "enable_schedule" {
+  description = "Explicit emergency-stop control; the canary schedule remains disabled unless an exact activation acknowledgement is supplied."
+  type        = bool
+  default     = false
+}
+
+variable "activation_acknowledgement" {
+  description = "Cell acknowledgement required before enabling the canary schedule."
+  type = object({
+    acknowledged               = bool
+    config_version             = string
+    schedule_arn               = string
+    scheduler_delivery_role_id = string
+    owner_generation           = number
+    activation_start           = string
+    materialization_state      = string
+    horizon_at                 = string
+  })
+  default = null
+}
+
 variable "cell_scheduler_group_name" {
   description = "Cell-owned EventBridge Scheduler schedule-group name."
   type        = string

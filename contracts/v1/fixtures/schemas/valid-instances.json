@@ -167,6 +167,13 @@
         },
         "safe_retry_deadline": "2026-07-15T11:00:01.000Z",
         "schema_version": "1.0.0",
+        "schedule_generation": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "task_definition_arn": "arn:aws:ecs:us-east-1:111122223333:task-definition/prod-worker:1",
+        "launch_role_arn": "arn:aws:iam::111122223333:role/prod-launch",
+        "deployment_identity_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "platform_cell": "prod-cell",
+        "subnet_ids": ["subnet-1234abcd"],
+        "security_group_ids": ["sg-1234abcd"],
         "task_arn": null
       },
       "kind": "required-boundary",

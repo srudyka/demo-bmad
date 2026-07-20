@@ -229,6 +229,11 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges["process-manager"]
     }
+    task_arn_index = {
+      arn          = "${aws_dynamodb_table.occurrence_ledger.arn}/index/task-arn"
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
     occurrence_ledger = {
       arn          = aws_dynamodb_table.occurrence_ledger.arn
       owner        = "cell-root"
@@ -497,6 +502,17 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
     type = "S"
   }
 
+  attribute {
+    name = "task_arn"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "task-arn"
+    hash_key        = "task_arn"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
@@ -555,8 +571,14 @@ data "aws_iam_policy_document" "process_manager" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}", "EVENT#occurrence-materializer"]
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}", "EVENT#occurrence-materializer", "EVENT#scheduler"]
     }
+  }
+  statement {
+    sid       = "AssumeOnlyRegisteredCanaryLaunchRole"
+    effect    = "Allow"
+    actions   = ["sts:AssumeRole"]
+    resources = [var.canary_normalizer_registration.canary_launch_role_arn]
   }
   statement {
     sid       = "PublishOnlyBoundedMetrics"
@@ -607,14 +629,15 @@ resource "aws_lambda_function" "process_manager" {
 
   environment {
     variables = {
-      PROCESS_MANAGER_CONFIG_TABLE_NAME     = aws_dynamodb_table.configuration_registry.name
-      PROCESS_MANAGER_DEPLOYMENT_IDENTITY   = "${var.cell_id}:process-manager:v1"
-      PROCESS_MANAGER_ENVIRONMENT           = var.environment
-      PROCESS_MANAGER_INGRESS_QUEUE_ARN     = aws_sqs_queue.process_manager_ingress.arn
-      PROCESS_MANAGER_QUARANTINE_QUEUE_URL  = aws_sqs_queue.normalizer_quarantine.url
-      PROCESS_MANAGER_OWNER_GENERATION      = tostring(var.canary_normalizer_registration.owner_generation)
-      PROCESS_MANAGER_METRIC_NAMESPACE      = var.metric_namespace
-      PROCESS_MANAGER_OCCURRENCE_TABLE_NAME = aws_dynamodb_table.occurrence_ledger.name
+      PROCESS_MANAGER_CONFIG_TABLE_NAME      = aws_dynamodb_table.configuration_registry.name
+      PROCESS_MANAGER_DEPLOYMENT_IDENTITY    = "${var.cell_id}:process-manager:v1"
+      PROCESS_MANAGER_ENVIRONMENT            = var.environment
+      PROCESS_MANAGER_INGRESS_QUEUE_ARN      = aws_sqs_queue.process_manager_ingress.arn
+      PROCESS_MANAGER_QUARANTINE_QUEUE_URL   = aws_sqs_queue.normalizer_quarantine.url
+      PROCESS_MANAGER_OWNER_GENERATION       = tostring(var.canary_normalizer_registration.owner_generation)
+      PROCESS_MANAGER_METRIC_NAMESPACE       = var.metric_namespace
+      PROCESS_MANAGER_OCCURRENCE_TABLE_NAME  = aws_dynamodb_table.occurrence_ledger.name
+      PROCESS_MANAGER_CANARY_LAUNCH_ROLE_ARN = var.canary_normalizer_registration.canary_launch_role_arn
     }
   }
   depends_on = [aws_cloudwatch_log_group.process_manager]

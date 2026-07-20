@@ -74,8 +74,12 @@ def test_canary_roles_network_schedule_and_config_are_narrow_and_disabled() -> N
     assert 'variable = "aws:SourceArn"' in contents
     assert 'actions   = ["iam:PassRole"]' in contents
     assert 'variable = "iam:PassedToService"' in contents
-    assert "ecs:RunTask" not in contents
-    assert 'state                        = "DISABLED"' in contents
+    assert 'actions   = ["ecs:RunTask"]' in contents
+    assert (
+        'state                        = var.enable_schedule ? "ENABLED" : "DISABLED"'
+        in contents
+    )
+    assert "CANARY_ACTIVATION_ACK_INVALID" in contents
     assert "arn      = var.cell_scheduler_source_queue_arn" in contents
     assert 'mode = "OFF"' in contents
     assert 'assign_public_ip   = "DISABLED"' in contents

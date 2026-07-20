@@ -112,6 +112,7 @@ variable "canary_normalizer_registration" {
     schedule_group_arn         = string
     scheduler_delivery_role_id = string
     source_queue_arn           = string
+    canary_launch_role_arn     = string
   })
   default = {
     account_id                 = "000000000000"
@@ -125,6 +126,7 @@ variable "canary_normalizer_registration" {
     schedule_group_arn         = "arn:aws:scheduler:us-east-1:000000000000:schedule-group/dev-platform-scheduler"
     scheduler_delivery_role_id = "AROASCHEDULEREXAMPLE"
     source_queue_arn           = "arn:aws:sqs:us-east-1:000000000000:dev-platform-scheduler-ingress"
+    canary_launch_role_arn     = "arn:aws:iam::000000000000:role/dev-platform-canary-launch"
   }
 }
 

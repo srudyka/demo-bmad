@@ -7,14 +7,15 @@ the narrow, platform-owned canary bootstrap prerequisites:
 - an encrypted CONFIG candidate inbox; and
 - a separate encrypted CONFIG registry plus its SSM discovery contract;
 - one best-effort declarative canary reservation and CONFIG-publisher principal;
-- a stable Cell-major Process Manager role shell; and
+- a stable Cell-major Process Manager with deterministic occurrence and task-attempt
+  ledger authority; and
 - an encrypted Scheduler source queue, DLQ, and schedule group; and
 - a Cell-owned Evidence Normalizer with canonical ingress and sanitized quarantine queues.
 
-It deliberately does not create a general Registrar, runtime ledger, ECS
-resources, job schedules, alarms, notification targets, or later runtime
-consumers. The Process Manager role has no launch authority. Those runtime
-capabilities remain owned by later stories.
+It deliberately does not create a general Registrar, ECS task definitions, job
+resource roles, alarms, notification targets, or later completion/deadline/alert
+consumers. The Process Manager may assume only the explicitly registered canary
+launch role; the job-owned launch role retains `RunTask` and `PassRole` authority.
 
 The module makes no runtime behavior claim for those deferred components.
 
@@ -109,11 +110,12 @@ atomic conditional registration API; the canary fixture never writes the
 namespace table.
 
 The Process Manager role uses a stable Cell-major name/path and a supplied
-permissions boundary. It is trusted only by `lambda.amazonaws.com` and has no
-inline or attached authority in this phase, specifically no `ecs:RunTask`,
-`iam:PassRole`, registry, queue-consumption, Lambda, or self-modification
-permission. Creating this shell now prevents a later principal replacement
-from invalidating canary launch-role trust.
+permissions boundary. It is trusted only by `lambda.amazonaws.com`, consumes only
+the dedicated canonical ingress, reads verified CONFIG, writes the occurrence and
+attempt ledger, and assumes only the registered canary launch role. It has no
+direct ECS, `iam:PassRole`, Scheduler mutation, CONFIG mutation, or
+self-modification permission. Creating this stable principal prevents launch-role
+trust replacement during runtime upgrades.
 
 The standard Scheduler source queue and DLQ use the Cell KMS key, 14-day
 retention, and a redrive count of five. Queue policies allow

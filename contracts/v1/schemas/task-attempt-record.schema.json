@@ -45,8 +45,42 @@
     "first_request_at": {
       "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
     },
+    "failure_code": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Z0-9_:-]+$",
+      "type": "string"
+    },
     "job_id": {
       "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "schedule_generation": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "task_definition_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "launch_role_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "deployment_identity_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "platform_cell": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "subnet_ids": {
+      "items": {"type": "string", "pattern": "^subnet-[0-9a-f]+$"},
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "security_group_ids": {
+      "items": {"type": "string", "pattern": "^sg-[0-9a-f]+$"},
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
     },
     "launch_state": {
       "enum": [
@@ -129,7 +163,14 @@
     "safe_retry_deadline",
     "recovery",
     "task_arn",
-    "conflict_evidence_ids"
+    "conflict_evidence_ids",
+    "schedule_generation",
+    "task_definition_arn",
+    "launch_role_arn",
+    "deployment_identity_id",
+    "platform_cell",
+    "subnet_ids",
+    "security_group_ids"
   ],
   "title": "Task Attempt Ledger Record",
   "type": "object"

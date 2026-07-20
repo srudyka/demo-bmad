@@ -2,14 +2,16 @@
 
 This backend-free root is the single platform-owned, disposable
 non-production acceptance fixture for the first Cell. It creates a Fargate task
-definition, three job roles, bounded KMS-encrypted logs, a disabled EventBridge
-Scheduler schedule that targets the Cell Scheduler queue, one secret-free
+definition, three job roles, bounded KMS-encrypted logs, and an EventBridge
+Scheduler schedule that targets the Cell Scheduler queue. The schedule is
+disabled by default and can only be enabled with an exact Cell acknowledgement;
+one secret-free
 `PUBLISHED` CONFIG candidate, and an encrypted SQS notification-evidence sink.
 
 It does not create a Cell, mutate Cell resources, write either DynamoDB
-registry, or launch an ECS task. The Cell Process Manager can consume its
-materialized canonical ingress and create a queryable expected occurrence, but
-the fixture does not enable Scheduler or launch authority. The
+registry, or directly launch an ECS task. The Cell Process Manager can consume its
+materialized canonical ingress and launch exactly one task per eligible occurrence
+through the assumed launch role after acknowledgement. The
 public `modules/ecs-scheduled-job` module remains resource-free until Epic 2.
 
 ## Required Inputs
@@ -67,8 +69,10 @@ state.
 
 ## Disabled Schedule And Test Sink
 
-The schedule is permanently declared `DISABLED` in this phase, uses flexible
-window `OFF`, an explicit IANA time zone and future activation anchor, bounded
+The schedule is declared `DISABLED` unless `enable_schedule=true` and the
+acknowledgement exactly matches CONFIG hash, schedule ARN, Scheduler role ID,
+owner generation, activation anchor, `MATERIALIZED` state, and a sufficient
+horizon. It uses flexible window `OFF`, an explicit IANA time zone and future activation anchor, bounded
 retry/age, the Cell DLQ, and a body containing identity assertions plus literal
 Scheduler scheduled-time context. Its target is the Cell Scheduler source
 queue, never ECS. Scheduler provides the scheduled timestamp but cannot derive
@@ -80,8 +84,8 @@ schedule/group, generation, CONFIG version, and immutable Scheduler role ID
 match its explicit registration. The fixture output exposes the delivery role
 ID, schedule ARN, and generation as reviewed wiring evidence, not remote state.
 
-No successful completion, task launch, or Scheduler delivery is claimed until
-disposable-account evidence exists in later stories. Application
+No successful completion is claimed until disposable-account evidence exists in
+later stories. Launch evidence is durable in attempt zero; application
 code must eventually emit `JOB_COMPLETED_SUCCESSFULLY` with occurrence-aware
 metadata; that marker is configured only as a secret-free task environment
 contract here.

@@ -77,6 +77,32 @@ resource "aws_iam_role" "launch" {
 
 data "aws_iam_policy_document" "launch" {
   statement {
+    sid       = "RunOnlyTheReservedCanaryTask"
+    effect    = "Allow"
+    actions   = ["ecs:RunTask"]
+    resources = [aws_ecs_task_definition.canary.arn]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [var.ecs_cluster_arn]
+    }
+  }
+
+  statement {
+    sid       = "ReconcileOnlyTheReservedCanaryCluster"
+    effect    = "Allow"
+    actions   = ["ecs:DescribeTasks", "ecs:ListTasks"]
+    resources = ["*"]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [var.ecs_cluster_arn]
+    }
+  }
+
+  statement {
     sid       = "PassOnlyThisTasksRolesToEcs"
     effect    = "Allow"
     actions   = ["iam:PassRole"]
@@ -280,7 +306,24 @@ resource "aws_scheduler_schedule" "canary" {
   schedule_expression          = var.schedule_expression
   schedule_expression_timezone = var.schedule_time_zone
   start_date                   = var.activation_start
-  state                        = "DISABLED"
+  state                        = var.enable_schedule ? "ENABLED" : "DISABLED"
+
+  lifecycle {
+    precondition {
+      condition = !var.enable_schedule || try(
+        var.activation_acknowledgement.acknowledged &&
+        var.activation_acknowledgement.config_version == local.config_version &&
+        var.activation_acknowledgement.schedule_arn == local.schedule_arn &&
+        var.activation_acknowledgement.scheduler_delivery_role_id == aws_iam_role.scheduler_delivery.unique_id &&
+        var.activation_acknowledgement.owner_generation == var.ownership_generation &&
+        var.activation_acknowledgement.activation_start == var.activation_start &&
+        var.activation_acknowledgement.materialization_state == "MATERIALIZED" &&
+        timecmp(var.activation_acknowledgement.horizon_at, var.activation_start) >= 0,
+        false,
+      )
+      error_message = "CANARY_ACTIVATION_ACK_INVALID: enabling requires an exact CONFIG, Scheduler role, owner generation, activation anchor, MATERIALIZED state, and sufficient horizon acknowledgement."
+    }
+  }
 
   flexible_time_window {
     mode = "OFF"

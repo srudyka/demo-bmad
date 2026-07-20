@@ -52,6 +52,31 @@ failures are record-local; only storage/transport failures appear in
 `batchItemFailures`. For rollback, disable the Process Manager mapping first,
 restore a compatible artifact, and preserve the encrypted ledger/PITR evidence.
 
+## Canary Launch Investigation
+
+The canary schedule remains disabled unless the reviewed acknowledgement matches
+the exact CONFIG hash, schedule ARN, Scheduler delivery role ID, owner generation,
+activation anchor, `MATERIALIZED` state, and horizon watermark. The Scheduler target
+is always the Cell queue; it never calls ECS directly.
+
+For an eligible `EXPECTED` occurrence, inspect the attempt-zero item at
+`PK=JOB#<job_id>;SK=ATTEMPT#<occurrence_id>#0`. `PENDING` means the request is
+reserved but not authoritatively mapped. `STARTED` includes the ECS task ARN;
+`FAILED` means ECS returned a sanitized launch failure; `AMBIGUOUS` means the
+system could not prove exactly one task. Use the exact cluster, `startedBy`, Cell
+tags, and task definition revision for reconciliation. Never infer identity from
+application output and never create an automatic attempt one.
+
+If the Process Manager crashes after ECS accepts `RunTask`, retry with the same
+client token and reconcile before any further launch. Zero matches may retry only
+before the safe deadline. Multiple matches, token/parameter conflicts, or expiry
+must stop `RunTask` and require a separately authorized synthetic rerun.
+
+To roll back, disable the canary schedule and Process Manager event-source mapping,
+preserve the encrypted ledger, task-ARN index, queues, and logs, and restore a
+compatible immutable artifact. Do not routinely stop an accepted ECS task or
+delete launch evidence.
+
 ## Evidence Normalizer Investigation
 
 The Cell Evidence Normalizer consumes the Scheduler and materializer source

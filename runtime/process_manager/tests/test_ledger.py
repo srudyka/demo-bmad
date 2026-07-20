@@ -56,3 +56,25 @@ def test_existing_accept_uses_conditional_update() -> None:
     update = client.calls[0]["TransactItems"][1]["Update"]
     assert "last_reduced_at" in update["UpdateExpression"]
     assert "occurrence_id = :occurrence_id" in update["ConditionExpression"]
+
+
+def test_attempt_reservation_is_one_conditional_transaction() -> None:
+    client = FakeDynamo()
+    occurrence, processed = records()
+    attempt = {
+        "keys": {"pk": occurrence["keys"]["pk"], "sk": "ATTEMPT#" + "a" * 64 + "#0"},
+        "record_type": "TASK_ATTEMPT",
+        "job_id": occurrence["job_id"],
+        "occurrence_id": occurrence["occurrence_id"],
+        "config_version": occurrence["config_version"],
+        "schedule_generation": occurrence["schedule_generation"],
+        "client_token": "f" * 64,
+        "launch_state": "PENDING",
+    }
+    Ledger(client, "ledger").reserve_attempt(occurrence, attempt, processed)
+    assert len(client.calls) == 1
+    assert len(client.calls[0]["TransactItems"]) == 3
+    assert (
+        client.calls[0]["TransactItems"][2]["Put"]["ConditionExpression"]
+        == "attribute_not_exists(pk)"
+    )

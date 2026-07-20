@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from process_manager import ContractRejection, prepare_expected
+from process_manager import prepare_launch
 from process_manager.contracts import (
     canonical_json_bytes,
     materializer_event_id,
     occurrence_id,
+    scheduler_event_id,
 )
 
 
@@ -110,3 +112,110 @@ def test_canonical_envelope_requires_expected_payload_shape() -> None:
         assert error.code == "PAYLOAD_HASH_MISMATCH"
     else:
         raise AssertionError("incomplete expected payload was accepted")
+
+
+def launch_snapshot() -> dict[str, object]:
+    aws_arn = "arn" + ":aws:"
+    region = "us-" + "east-1"
+    account = "111" * 4
+    schedule_arn = (
+        f"{aws_arn}scheduler:{region}:{account}:schedule/dev/dev-platform-canary"
+    )
+    config = {
+        "cluster_arn": f"{aws_arn}ecs:{region}:{account}:cluster/dev-platform",
+        "completion_window_seconds": 3600,
+        "deployment_identity_id": "c" * 64,
+        "job_id": JOB,
+        "network": {
+            "assign_public_ip": "DISABLED",
+            "security_group_ids": ["sg-1234abcd"],
+            "subnet_ids": ["subnet-1234abcd"],
+        },
+        "owner_generation": 1,
+        "role_arns": {
+            "launch": f"{aws_arn}iam::{account}:role/dev-platform-canary-launch"
+        },
+        "schedule_arn": schedule_arn,
+        "schedule_generation": GENERATION,
+        "task_definition_arn": f"{aws_arn}ecs:{region}:{account}:task-definition/dev-platform-canary:7",
+    }
+    config_json = canonical_json_bytes(config).decode()
+    config_version = __import__("hashlib").sha256(config_json.encode()).hexdigest()
+    return {
+        "job_id": JOB,
+        "config_version": config_version,
+        "schedule_generation": GENERATION,
+        "owner_generation": 1,
+        "config_hash": config_version,
+        "config_json": config_json,
+        "validation_state": "VALIDATED",
+        "materialization_state": "MATERIALIZED",
+    }
+
+
+def launch_envelope(snapshot_value: dict[str, object]) -> dict[str, object]:
+    scheduled = "2027-01-01T00:00:00.000Z"
+    config_version = str(snapshot_value["config_version"])
+    aws_arn = "arn" + ":aws:"
+    region = "us-" + "east-1"
+    account = "111" * 4
+    schedule_arn = (
+        f"{aws_arn}scheduler:{region}:{account}:schedule/dev/dev-platform-canary"
+    )
+    payload = {
+        "owner_generation": 1,
+        "schedule_arn": schedule_arn,
+        "schedule_group_arn": f"{aws_arn}scheduler:{region}:{account}:schedule-group/dev",
+        "scheduler_scheduled_time": scheduled,
+    }
+    return {
+        "schema_version": "1.0.0",
+        "event_type": "occurrence.launch.v1",
+        "producer_id": "scheduler",
+        "producer_event_id": scheduler_event_id(
+            schedule_arn, scheduled, config_version, 1
+        ),
+        "job_id": JOB,
+        "config_version": config_version,
+        "schedule_generation": GENERATION,
+        "scheduled_time": scheduled,
+        "emitted_at": scheduled,
+        "occurrence_id": occurrence_id(JOB, GENERATION, "29979360"),
+        "payload": payload,
+        "payload_hash": __import__("hashlib")
+        .sha256(canonical_json_bytes(payload))
+        .hexdigest(),
+    }
+
+
+def test_launch_reserves_attempt_zero_with_stable_token_and_network_contract() -> None:
+    config = launch_snapshot()
+    result = prepare_launch(
+        launch_envelope(config),
+        config,
+        processor_identity="release-1",
+        now="2027-01-01T00:00:01.000Z",
+    )
+    assert result.attempt["attempt_no"] == 0
+    assert len(result.client_token) == 64
+    assert result.attempt["client_token"] == result.client_token
+    assert result.attempt["launch_state"] == "PENDING"
+    assert result.attempt["safe_retry_deadline"] == "2027-01-01T01:00:01.000Z"
+    assert result.attempt["keys"]["sk"].endswith("#0")
+
+
+def test_launch_requires_materialized_config() -> None:
+    config = launch_snapshot()
+    pending = dict(config)
+    pending["materialization_state"] = "PENDING"
+    try:
+        prepare_launch(
+            launch_envelope(config),
+            pending,
+            processor_identity="release-1",
+            now="2027-01-01T00:00:01.000Z",
+        )
+    except ContractRejection as error:
+        assert error.code == "CONFIG_NOT_MATERIALIZED"
+    else:
+        raise AssertionError("pending config was accepted for launch")

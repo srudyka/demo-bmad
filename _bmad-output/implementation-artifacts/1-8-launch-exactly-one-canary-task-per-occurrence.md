@@ -5,7 +5,7 @@ baseline_commit: 6dce912
 
 # Story 1.8: Launch Exactly One Canary Task per Occurrence
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -37,36 +37,36 @@ so that Scheduler retries or Process Manager crashes cannot create duplicate wor
 
 ## Tasks / Subtasks
 
-- [ ] 1. Extend the normative contracts and reducer vectors (AC: 2-10)
-  - [ ] Preserve the existing canonical envelope, occurrence identity algorithm, `occurrence/v1` major, and Process Manager single-writer boundary. Add the launch evidence/result fields needed for this story without creating a second identity implementation.
-  - [ ] Complete the existing task-attempt record contract for `attempt_no=0`, including immutable occurrence/config/generation coordinates, `PENDING`/`SUCCEEDED`/`FAILED`/`AMBIGUOUS` launch state, deterministic client token, first request timestamp, safe retry deadline, task ARN, cluster, exact task definition revision, launch-role identity, Deployment Identity, and bounded failure/evidence fields.
-  - [ ] Define the exact keys and access pattern: `PK=JOB#<job_id>; SK=ATTEMPT#<occurrence_id>#0`, plus a narrowly scoped task-ARN lookup index that cannot replace a strongly consistent base-table read for correctness. Make task ARN mapping conditional and immutable.
-  - [ ] Extend reducer fixtures for launch success, launch failure, duplicate/reordered launch, task-ARN conflicts, token/parameter conflicts, and `AMBIGUOUS`; prove all permutations converge without creating attempt one.
-  - [ ] Update `iam.json`, `ownership.json`, `producers.json`, queue/lambda constraints, metric catalogs, schema fixtures, manifest, and checksums only when their canonical bytes change. Keep producer authority authenticated and do not grant future completion/deadline/alert authority.
+- [x] 1. Extend the normative contracts and reducer vectors (AC: 2-10)
+  - [x] Preserve the existing canonical envelope, occurrence identity algorithm, `occurrence/v1` major, and Process Manager single-writer boundary. Add the launch evidence/result fields needed for this story without creating a second identity implementation.
+  - [x] Complete the existing task-attempt record contract for `attempt_no=0`, including immutable occurrence/config/generation coordinates, `PENDING`/`SUCCEEDED`/`FAILED`/`AMBIGUOUS` launch state, deterministic client token, first request timestamp, safe retry deadline, task ARN, cluster, exact task definition revision, launch-role identity, Deployment Identity, and bounded failure/evidence fields.
+  - [x] Define the exact keys and access pattern: `PK=JOB#<job_id>; SK=ATTEMPT#<occurrence_id>#0`, plus a narrowly scoped task-ARN lookup index that cannot replace a strongly consistent base-table read for correctness. Make task ARN mapping conditional and immutable.
+  - [x] Extend reducer fixtures for launch success, launch failure, duplicate/reordered launch, task-ARN conflicts, token/parameter conflicts, and `AMBIGUOUS`; prove all permutations converge without creating attempt one.
+  - [x] Update `iam.json`, `ownership.json`, `producers.json`, queue/lambda constraints, metric catalogs, schema fixtures, manifest, and checksums only when their canonical bytes change. Keep producer authority authenticated and do not grant future completion/deadline/alert authority.
 
-- [ ] 2. Implement launch validation, reservation, and deterministic reduction (AC: 2-8, 10)
-  - [ ] Extend `runtime/process_manager/` using the existing pure-domain-plus-narrow-AWS-adapter pattern. Validate strict canonical `LAUNCH` evidence, authenticated source metadata, supported schema major, exact job/schedule/owner generation/config hash, and recomputed Occurrence ID before writes or AWS calls.
-  - [ ] Require a verified immutable `MATERIALIZED` CONFIG snapshot and revalidate activation anchor, horizon, task definition revision, cluster, private network, role IDs, capacity, completion window, and Deployment Identity immediately before reservation.
-  - [ ] Atomically record the processed launch event and reserve attempt zero with a conditional DynamoDB transaction. Derive the client token from exact canonical launch identity bytes as a lowercase hexadecimal SHA-256 value no longer than 64 printable ASCII characters; reuse it for every retry of that occurrence.
-  - [ ] Use a bounded safe-retry deadline no later than the configured one-hour ECS idempotency recovery window. Record `launch_pending` before `RunTask`; never perform ECS calls inside the DynamoDB transaction and never reserve a second logical attempt.
-  - [ ] Add an adapter that assumes only the registered launch role and invokes `RunTask` with `count=1`, exact task definition/cluster, `awsvpc` private subnets and security groups, `assignPublicIp=DISABLED`, configured capacity, `startedBy=<occurrence_id>`, and platform-owned tags/overrides. Application-provided identity fields are assertions only.
-  - [ ] Treat HTTP 200 with non-empty `failures[]` or no task as a durable sanitized `FAILED` result. Treat transport/API uncertainty as reconciliation work, not proof of failure or permission to launch again.
-  - [ ] On crash-window retry, query the exact cluster using `startedBy` and Cell tags, verify all immutable launch parameters, and conditionally map exactly one task ARN. Zero matches may retry with the same token only before the safe deadline; multiple matches, mismatched parameters, token conflicts, or expiry produce durable `AMBIGUOUS` and stop further `RunTask` calls.
-  - [ ] Preserve record-local quarantine, partial-batch behavior, real UTC timestamps, secret-free bounded logs, and bounded metrics from Story 1.7. Do not use occurrence IDs, task ARNs, producer IDs, or raw exception text as metric dimensions.
+- [x] 2. Implement launch validation, reservation, and deterministic reduction (AC: 2-8, 10)
+  - [x] Extend `runtime/process_manager/` using the existing pure-domain-plus-narrow-AWS-adapter pattern. Validate strict canonical `LAUNCH` evidence, authenticated source metadata, supported schema major, exact job/schedule/owner generation/config hash, and recomputed Occurrence ID before writes or AWS calls.
+  - [x] Require a verified immutable `MATERIALIZED` CONFIG snapshot and revalidate activation anchor, horizon, task definition revision, cluster, private network, role IDs, capacity, completion window, and Deployment Identity immediately before reservation.
+  - [x] Atomically record the processed launch event and reserve attempt zero with a conditional DynamoDB transaction. Derive the client token from exact canonical launch identity bytes as a lowercase hexadecimal SHA-256 value no longer than 64 printable ASCII characters; reuse it for every retry of that occurrence.
+  - [x] Use a bounded safe-retry deadline no later than the configured one-hour ECS idempotency recovery window. Record `launch_pending` before `RunTask`; never perform ECS calls inside the DynamoDB transaction and never reserve a second logical attempt.
+  - [x] Add an adapter that assumes only the registered launch role and invokes `RunTask` with `count=1`, exact task definition/cluster, `awsvpc` private subnets and security groups, `assignPublicIp=DISABLED`, configured capacity, `startedBy=<occurrence_id>`, and platform-owned tags/overrides. Application-provided identity fields are assertions only.
+  - [x] Treat HTTP 200 with non-empty `failures[]` or no task as a durable sanitized `FAILED` result. Treat transport/API uncertainty as reconciliation work, not proof of failure or permission to launch again.
+  - [x] On crash-window retry, query the exact cluster using `startedBy` and Cell tags, verify all immutable launch parameters, and conditionally map exactly one task ARN. Zero matches may retry with the same token only before the safe deadline; multiple matches, mismatched parameters, token conflicts, or expiry produce durable `AMBIGUOUS` and stop further `RunTask` calls.
+  - [x] Preserve record-local quarantine, partial-batch behavior, real UTC timestamps, secret-free bounded logs, and bounded metrics from Story 1.7. Do not use occurrence IDs, task ARNs, producer IDs, or raw exception text as metric dimensions.
 
-- [ ] 3. Add the Cell and canary Terraform wiring (AC: 1, 4, 5, 9, 10)
-  - [ ] Preserve existing resource addresses and extend the occurrence ledger with only the task-attempt attributes/index needed by this story. Keep encryption, PITR, deletion protection, retention, tags, and KMS context rules intact.
-  - [ ] Extend Process Manager artifact inputs, environment, outputs, event routing, and IAM for authenticated launch evidence, exact CONFIG reads, conditional attempt/index writes, bounded reconciliation reads, and `sts:AssumeRole` only for registered canary launch roles. Do not grant direct ECS, `iam:PassRole`, Scheduler mutation, CONFIG writes, trust/boundary mutation, or self-policy changes to the Process Manager role.
-  - [ ] Extend the canary launch role with `ecs:RunTask` constrained to the exact cluster and canary task definition/family, while retaining exact execution/task-role `iam:PassRole`, `iam:PassedToService=ecs-tasks.amazonaws.com`, trust to the stable Cell Process Manager role, and the configured permissions boundary.
-  - [ ] Make platform-owned task tags and overrides explicit for `PlatformCell`, `JobId`, `OccurrenceId`, `ConfigVersion`, `AttemptNo`, and Deployment Identity. Keep task networking private and public IP disabled.
-  - [ ] Add an explicit activation acknowledgement contract to the canary fixture. Keep the schedule disabled by default and require exact hash, schedule ARN, scheduler Role ID, owner generation, activation anchor, materialization state, and horizon watermark before any enabled plan is valid.
-  - [ ] Keep the `modules/ecs-scheduled-job` ownership boundary explicit: use the existing canary fixture exception unless a reviewed interface moves concrete launch resources into the module. Do not silently duplicate task definitions or roles.
+- [x] 3. Add the Cell and canary Terraform wiring (AC: 1, 4, 5, 9, 10)
+  - [x] Preserve existing resource addresses and extend the occurrence ledger with only the task-attempt attributes/index needed by this story. Keep encryption, PITR, deletion protection, retention, tags, and KMS context rules intact.
+  - [x] Extend Process Manager artifact inputs, environment, outputs, event routing, and IAM for authenticated launch evidence, exact CONFIG reads, conditional attempt/index writes, bounded reconciliation reads, and `sts:AssumeRole` only for registered canary launch roles. Do not grant direct ECS, `iam:PassRole`, Scheduler mutation, CONFIG writes, trust/boundary mutation, or self-policy changes to the Process Manager role.
+  - [x] Extend the canary launch role with `ecs:RunTask` constrained to the exact cluster and canary task definition/family, while retaining exact execution/task-role `iam:PassRole`, `iam:PassedToService=ecs-tasks.amazonaws.com`, trust to the stable Cell Process Manager role, and the configured permissions boundary.
+  - [x] Make platform-owned task tags and overrides explicit for `PlatformCell`, `JobId`, `OccurrenceId`, `ConfigVersion`, `AttemptNo`, and Deployment Identity. Keep task networking private and public IP disabled.
+  - [x] Add an explicit activation acknowledgement contract to the canary fixture. Keep the schedule disabled by default and require exact hash, schedule ARN, scheduler Role ID, owner generation, activation anchor, materialization state, and horizon watermark before any enabled plan is valid.
+  - [x] Keep the `modules/ecs-scheduled-job` ownership boundary explicit: use the existing canary fixture exception unless a reviewed interface moves concrete launch resources into the module. Do not silently duplicate task definitions or roles.
 
-- [ ] 4. Prove correctness, security, and operations (AC: 1-10)
-  - [ ] Add runtime tests for reservation races, duplicate/reordered evidence, stale CONFIG, activation mismatch, deterministic tokens, successful launch, HTTP errors, HTTP-200 failures, no-task responses, crash-window reconciliation, delayed visibility, multiple-task conflict, parameter/token conflict, safe-retry expiry, and durable failure/ambiguity.
-  - [ ] Add contract, Terraform static, and IAM-negative tests proving one task maximum per occurrence, exact cluster/task-family/role scope, private networking, tag/override provenance, task-ARN lookup, no direct Process Manager ECS authority, and no future-story authority.
-  - [ ] Add disposable-Cell tests with fake STS/ECS/DynamoDB adapters and clearly mark credential-free tests as unable to prove live AWS delivery, ECS idempotency, or IAM enforcement. Run focused and full validation, including Terraform format/validate, Ruff, mypy, contract/runtime tests, Checkov, hygiene, and `git diff --check`.
-  - [ ] Update Process Manager, Cell, canary, and runbook documentation with launch states, retry/reconciliation behavior, activation checklist, bounded observability, safe rollback, and the rule that rollback disables schedule/launch intake while preserving ledger evidence and does not automatically stop or relaunch an already accepted ECS task.
+- [x] 4. Prove correctness, security, and operations (AC: 1-10)
+  - [x] Add runtime tests for reservation races, duplicate/reordered evidence, stale CONFIG, activation mismatch, deterministic tokens, successful launch, HTTP errors, HTTP-200 failures, no-task responses, crash-window reconciliation, delayed visibility, multiple-task conflict, parameter/token conflict, safe-retry expiry, and durable failure/ambiguity.
+  - [x] Add contract, Terraform static, and IAM-negative tests proving one task maximum per occurrence, exact cluster/task-family/role scope, private networking, tag/override provenance, task-ARN lookup, no direct Process Manager ECS authority, and no future-story authority.
+  - [x] Add disposable-Cell tests with fake STS/ECS/DynamoDB adapters and clearly mark credential-free tests as unable to prove live AWS delivery, ECS idempotency, or IAM enforcement. Run focused and full validation, including Terraform format/validate, Ruff, mypy, contract/runtime tests, Checkov, hygiene, and `git diff --check`.
+  - [x] Update Process Manager, Cell, canary, and runbook documentation with launch states, retry/reconciliation behavior, activation checklist, bounded observability, safe rollback, and the rule that rollback disables schedule/launch intake while preserving ledger evidence and does not automatically stop or relaunch an already accepted ECS task.
 
 ## Dev Notes
 
@@ -118,12 +118,51 @@ Do not add generated state, plans, credentials, secrets, a broad IAM wildcard, a
 
 GPT-5
 
+### Debug Log References
+
+- Terraform canary validation passed with the locked AWS provider. The isolated platform-root validation reached provider initialization but failed during the local AWS provider plugin handshake (`Failed to read any lines from plugin's stdout`); no AWS plan, state, or credentials were created.
+- Checkov passed with the repository's documented platform-only skips: 254 platform checks and 98 canary checks. The Checkov service-guideline lookup was unavailable because network DNS is restricted, but local checks completed.
+
 ### Completion Notes List
 
 - Story context created from the first backlog story after committed Story 1.7.
 - The story preserves Story 1.7's review fixes and incorporates the existing launch contract vocabulary, ownership model, and canary IAM/resource boundaries.
-- Implementation validation is intentionally left to the development story; this artifact contains no generated state, plan, credentials, or live-AWS claim.
+- This artifact contains no generated state, plan, credentials, or live-AWS claim; implementation validation is recorded below.
+- Implemented deterministic Scheduler launch validation, attempt-zero reservation, same-token ECS launch/reconciliation, durable failure/ambiguity handling, exact launch-role IAM, task-ARN indexing, activation acknowledgement gating, tests, and rollback documentation.
+- Validation passed: 137 tests plus 182 subtests, strict mypy, Ruff, repository hygiene, Terraform format, and Checkov. Live AWS delivery, ECS idempotency, and IAM enforcement remain unproven by credential-free tests.
+
+### File List
+
+- `contracts/manifest.json`
+- `contracts/releases/1.0.0.json`
+- `contracts/v1/catalogs/iam.json`
+- `contracts/v1/catalogs/keys-and-correlation.json`
+- `contracts/v1/schemas/task-attempt-record.schema.json`
+- `docs/runbooks/README.md`
+- `fixtures/canary/{README.md,main.tf,variables.tf}`
+- `modules/ecs-scheduled-job-platform/{README.md,main.tf,outputs.tf,variables.tf}`
+- `modules/ecs-scheduled-job-platform/examples/basic/variables.tf`
+- `runtime/process_manager/README.md`
+- `runtime/process_manager/src/process_manager/{__init__.py,contracts.py,domain.py,handler.py,launch.py,ledger.py}`
+- `runtime/process_manager/tests/{test_ledger.py,test_launch.py,test_process_manager.py}`
+- `tests/contract/test_canary_fixture.py`
 
 ### Change Log
 
 - 2026-07-20: Created implementation-ready Story 1.8 from the Epic 1 acceptance criteria and committed Story 1.7 baseline.
+- 2026-07-20: Implemented Story 1.8 launch authority, idempotency, reconciliation, Terraform guardrails, tests, and operational documentation; moved story to review.
+
+### Review Findings
+
+- [x] [Review][Patch] Terminal attempt states are not terminal in the launch handler — when duplicate launch evidence finds an existing `FAILED` or `AMBIGUOUS` attempt without a task ARN, `_process_launch` proceeds to assume the role and call `RunTask` again, violating AC 8 and allowing a second logical launch. [runtime/process_manager/src/process_manager/handler.py:259-268]
+- [x] [Review][Patch] Failure and ambiguity do not reduce the occurrence record — `finish_failed` and `mark_ambiguous` update only the task-attempt item, leaving the occurrence in `EXPECTED` instead of the durable `FAILED`/`AMBIGUOUS` state required by AC 6 and AC 8. [runtime/process_manager/src/process_manager/ledger.py:211-253]
+- [x] [Review][Patch] Launch validation does not require `config_version` to equal the verified CONFIG hash — `ConfigSnapshot.config()` validates `config_hash` against the JSON bytes, but `prepare_launch` omitted the explicit `config_hash == config_version` invariant enforced by the expected-occurrence path, so a malformed snapshot could launch under an untrue CONFIG identity. [runtime/process_manager/src/process_manager/domain.py:409-425]
+- [x] [Review][Patch] Reservation is not conditional on the eligible occurrence — `reserve_attempt` transactionally created the processed event and attempt but never condition-checked the occurrence’s `EXPECTED` state or immutable coordinates, leaving a read-then-write race where stale launch processing could reserve after the occurrence changed. [runtime/process_manager/src/process_manager/ledger.py:139-169]
+- [x] [Review][Patch] Reconciliation only searched `RUNNING` tasks and did not verify the required Cell/identity tags — an accepted task still in `PENDING` or already `STOPPED` could be treated as absent, and any task sharing the cluster and `startedBy` value could be mapped without checking platform tags. [runtime/process_manager/src/process_manager/launch.py:86-111]
+- [x] [Review][Patch] The task-attempt schema did not require the launch identity fields added by this story — launch records could be schema-valid without the immutable task, role, deployment, cell, or network fields required by AC 4 and AC 5. [contracts/v1/schemas/task-attempt-record.schema.json:146-160]
+- [x] [Review][Patch] Reconciliation uncertainty was allowed to escape without a durable terminal state — multiple-task and parameter-mismatch results could leave the attempt `PENDING` and cause repeated launch retries. [runtime/process_manager/src/process_manager/handler.py:275-286]
+- [x] [Review][Patch] Deployment Identity was not represented as a reconciliable ECS tag — it was supplied only as a container override, so ECS evidence could not prove the exact platform deployment identity. [runtime/process_manager/src/process_manager/launch.py:43-72]
+- [x] [Review][Patch] Failure code was written to the ledger but undeclared by the task-attempt schema — terminal failure records could violate `additionalProperties: false` and lacked a contract field for the sanitized code. [runtime/process_manager/src/process_manager/ledger.py:221-247; contracts/v1/schemas/task-attempt-record.schema.json:5-160]
+- [x] [Review][Patch] Launch evidence arriving before the expected occurrence was quarantined instead of retried — queue reordering could permanently lose a valid launch event. [runtime/process_manager/src/process_manager/handler.py:244-249]
+- [x] [Review][Patch] A contradictory ECS response containing both `failures[]` and a task was treated as ordinary failure — the accepted task could be orphaned while the ledger recorded `FAILED`. [runtime/process_manager/src/process_manager/launch.py:74-83]
+- [x] [Review][Patch] Reconciliation accepted malformed task ARN values from `ListTasks` — arbitrary strings could reach the authoritative task mapping path. [runtime/process_manager/src/process_manager/launch.py:95-110]

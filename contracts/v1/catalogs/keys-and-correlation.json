@@ -9,6 +9,13 @@
     "occurrence": "PK=JOB#<job_id>;SK=OCCURRENCE#<occurrence_id>",
     "processed_event": "PK=EVENT#<producer_id>;SK=<producer_event_id>"
   },
+  "task_arn_index": {
+    "name": "task-arn",
+    "partition_key": "task_arn",
+    "projection": "ALL",
+    "lookup_is_authoritative": false,
+    "lookup_record_type": "TASK_ATTEMPT"
+  },
   "metrics_forbidden_dimensions": [
     "occurrence_id"
   ],
