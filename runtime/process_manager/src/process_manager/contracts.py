@@ -71,6 +71,23 @@ def scheduler_event_id(
     ).hexdigest()
 
 
+def deadline_event_id(
+    job_id: str,
+    schedule_generation: str,
+    occurrence: str,
+    deadline_kind: str,
+    deadline_at: str,
+    config_version: str,
+) -> str:
+    """Return the contract-owned deadline producer identity."""
+
+    return hashlib.sha256(
+        f"deadline/v1\n{job_id}\n{schedule_generation}\n{occurrence}\n{deadline_kind}\n{deadline_at}\n{config_version}".encode(
+            "ascii"
+        )
+    ).hexdigest()
+
+
 def launch_client_token(
     job_id: str, occurrence: str, config_version: str, attempt_no: int
 ) -> str:

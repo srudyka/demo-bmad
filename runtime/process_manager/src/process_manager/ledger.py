@@ -329,6 +329,8 @@ class Ledger:
             "completion_status",
             "completion_exit_code",
             "completion_completed_at",
+            "deadline_at",
+            "deadline_kind",
         }
         if set(changes) - allowed:
             raise ValueError("CORRELATION_CHANGE_INVALID")
@@ -336,6 +338,9 @@ class Ledger:
         values: dict[str, dict[str, Any]] = {
             ":state": {"S": state},
             ":evidence": {"L": [{"S": evidence_id}]},
+            ":evidence_id": {"S": evidence_id},
+            ":max_evidence": {"N": "64"},
+            ":current_state": {"S": str(occurrence.get("state", "EXPECTED"))},
             ":job_id": {"S": str(occurrence["job_id"])},
             ":occurrence_id": {"S": str(occurrence["occurrence_id"])},
             ":config_version": {"S": str(occurrence["config_version"])},
@@ -364,7 +369,7 @@ class Ledger:
                         "TableName": self.table_name,
                         "Key": dynamodb_item(keys),
                         "UpdateExpression": "SET " + ", ".join(sets),
-                        "ConditionExpression": "job_id = :job_id AND occurrence_id = :occurrence_id AND config_version = :config_version AND schedule_generation = :generation",
+                        "ConditionExpression": "job_id = :job_id AND occurrence_id = :occurrence_id AND config_version = :config_version AND schedule_generation = :generation AND #state = :current_state AND (attribute_not_exists(evidence_ids) OR (size(evidence_ids) < :max_evidence AND NOT contains(evidence_ids, :evidence_id)))",
                         "ExpressionAttributeNames": names,
                         "ExpressionAttributeValues": values,
                     }

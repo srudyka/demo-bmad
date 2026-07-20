@@ -15,8 +15,10 @@ from .domain import (
     ContractRejection,
     PreparedAcceptance,
     PreparedCorrelation,
+    PreparedDeadline,
     PreparedLaunch,
     prepare_correlation,
+    prepare_deadline,
     prepare_expected,
     prepare_launch,
 )
@@ -157,7 +159,16 @@ def lambda_handler(
                 in {"task.state.v1", "completion.observed.v1"}
                 else None
             )
-            if prepared is None and launch_prepared is None and correlation_prepared is None:
+            deadline_prepared: PreparedDeadline | None = (
+                prepare_deadline(
+                    envelope,
+                    processor_identity=identity,
+                    now=now,
+                )
+                if envelope.get("event_type") == "occurrence.deadline-reached.v1"
+                else None
+            )
+            if prepared is None and launch_prepared is None and correlation_prepared is None and deadline_prepared is None:
                 raise ContractRejection("UNAUTHORIZED_PRODUCER")
             if launch_prepared is not None:
                 _process_launch(
@@ -173,6 +184,9 @@ def lambda_handler(
                 _process_correlation(
                     envelope, correlation_prepared, ledger, now
                 )
+                continue
+            if deadline_prepared is not None:
+                _process_deadline(envelope, deadline_prepared, ledger, now)
                 continue
             assert prepared is not None
             existing = ledger.get(
@@ -276,6 +290,7 @@ def _process_correlation(
         raise ContractRejection("PROCESSED_EVENT_CONFLICT")
     payload = prepared.payload
     state = str(occurrence.get("state", "EXPECTED"))
+    terminal_state = state in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}
     changes: dict[str, Any] = {}
     if envelope["event_type"] == "task.state.v1":
         task_arn = payload.get("task_arn")
@@ -294,14 +309,14 @@ def _process_correlation(
                 item for item in essential
                 if item.get("exit_code") is not None and item.get("exit_code") != 0
             ]
-            if nonzero:
+            if nonzero and not terminal_state:
                 state = "FAILED" if state != "AMBIGUOUS" else state
                 changes["error_code"] = "ECS_ESSENTIAL_EXIT_NONZERO"
                 changes["exit_code"] = nonzero[0].get("exit_code")
-            elif state == "EXPECTED":
+            elif state == "EXPECTED" and not terminal_state:
                 state = "FAILED"
                 changes["error_code"] = "ECS_STOPPED_BEFORE_RUNNING"
-            elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"}:
+            elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS", "MISSED", "OVERDUE"}:
                 state = "STARTED"
             if state == "STARTED":
                 zero_exit = [
@@ -336,7 +351,7 @@ def _process_correlation(
                 "completion_completed_at": completion.get("completed_at"),
             }
         )
-        if marker_status == "FAILURE":
+        if marker_status == "FAILURE" and not terminal_state:
             state = "FAILED" if state != "AMBIGUOUS" else state
             changes["error_code"] = completion.get("error_code") or "COMPLETION_FAILURE"
             changes["completed_at"] = completion.get("completed_at")
@@ -345,11 +360,11 @@ def _process_correlation(
             and exit_code == 0
             and occurrence.get("exit_code") == 0
             and occurrence.get("started_at")
-            and state not in {"FAILED", "AMBIGUOUS"}
+            and state not in {"FAILED", "AMBIGUOUS", "MISSED", "OVERDUE"}
         ):
             state = "SUCCEEDED"
             changes["completed_at"] = completion.get("completed_at")
-        elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"}:
+        elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS", "MISSED", "OVERDUE"}:
             state = state if state == "STARTED" else "EXPECTED"
     evidence_id = prepared.envelope_digest
     ledger.reduce_evidence(
@@ -358,6 +373,64 @@ def _process_correlation(
         state=state,
         evidence_id=evidence_id,
         changes=changes,
+    )
+
+
+def _process_deadline(
+    envelope: Mapping[str, Any],
+    prepared: PreparedDeadline,
+    ledger: Ledger,
+    _now: str,
+) -> None:
+    occurrence_key = {
+        "pk": f"JOB#{envelope['job_id']}",
+        "sk": f"OCCURRENCE#{envelope['occurrence_id']}",
+    }
+    raw = ledger.get(occurrence_key)
+    if raw is None:
+        raise RuntimeError("DEADLINE_OCCURRENCE_PENDING")
+    occurrence = plain_item(raw)
+    coordinate_fields = (
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+    )
+    if any(envelope[field] != occurrence.get(field) for field in coordinate_fields):
+        raise ContractRejection("DEADLINE_COORDINATE_MISMATCH")
+    if (
+        occurrence.get("deadline_at") is not None
+        and prepared.payload["deadline_at"] != occurrence.get("deadline_at")
+    ):
+        raise ContractRejection("DEADLINE_TIME_MISMATCH")
+    if (
+        occurrence.get("deadline_kind") is not None
+        and prepared.payload["deadline_kind"] != occurrence.get("deadline_kind")
+    ):
+        raise ContractRejection("DEADLINE_KIND_MISMATCH")
+    existing = ledger.get(
+        {"pk": prepared.processed_event["pk"], "sk": prepared.processed_event["sk"]}
+    )
+    if existing is not None:
+        if existing.get("event_digest") == {"S": prepared.envelope_digest}:
+            return
+        raise ContractRejection("PROCESSED_EVENT_CONFLICT")
+    current = str(occurrence.get("state", "EXPECTED"))
+    if current in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}:
+        state = current
+    elif prepared.payload["deadline_kind"] == "START":
+        state = "MISSED" if current == "EXPECTED" else "OVERDUE"
+    else:
+        state = "OVERDUE" if current in {"STARTED", "EXPECTED"} and occurrence.get("task_arn") else "MISSED"
+    ledger.reduce_evidence(
+        occurrence,
+        prepared.processed_event,
+        state=state,
+        evidence_id=prepared.envelope_digest,
+        changes={
+            "deadline_at": prepared.payload["deadline_at"],
+            "deadline_kind": prepared.payload["deadline_kind"],
+        },
     )
 
 

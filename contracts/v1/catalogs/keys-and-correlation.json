@@ -16,6 +16,25 @@
     "lookup_is_authoritative": false,
     "lookup_record_type": "TASK_ATTEMPT"
   },
+  "deadline_index": {
+    "name": "deadlines",
+    "partition_key": "deadline_key",
+    "sort_key": "deadline_sort",
+    "partition_key_pattern": "DEADLINE#<shard>#<bucket_start_utc>",
+    "sort_key_pattern": "<deadline_at>#<occurrence_id>#<deadline_kind>",
+    "bucket_seconds": 60,
+    "lookup_is_authoritative": false,
+    "base_table_read": "strongly_consistent_get_item",
+    "reconciliation_lookback_seconds": 900,
+    "maximum_lateness_seconds": 900,
+    "nonterminal_reconciliation_required": true
+  },
+  "scanner_checkpoint": {
+    "record_key": "PK=CELL#<cell_id>;SK=CHECKPOINT#deadline",
+    "fields": ["watermark", "position"],
+    "update": "conditional_monotonic_after_successful_emission",
+    "encryption": "server_side_kms"
+  },
   "metrics_forbidden_dimensions": [
     "occurrence_id"
   ],

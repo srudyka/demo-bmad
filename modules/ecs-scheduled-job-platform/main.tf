@@ -234,6 +234,26 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.evidence
     }
+    deadline_index = {
+      arn          = "${aws_dynamodb_table.occurrence_ledger.arn}/index/deadlines"
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    deadline_scanner = {
+      arn          = aws_lambda_function.deadline_scanner.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    deadline_source = {
+      arn          = aws_sqs_queue.deadline_source.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    deadline_checkpoint = {
+      arn          = aws_dynamodb_table.deadline_checkpoint.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
     occurrence_ledger = {
       arn          = aws_dynamodb_table.occurrence_ledger.arn
       owner        = "cell-root"
@@ -517,9 +537,26 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
     type = "S"
   }
 
+  attribute {
+    name = "deadline_key"
+    type = "S"
+  }
+
+  attribute {
+    name = "deadline_sort"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "task-arn"
     hash_key        = "task_arn"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "deadlines"
+    hash_key        = "deadline_key"
+    range_key       = "deadline_sort"
     projection_type = "ALL"
   }
 
@@ -547,6 +584,251 @@ resource "aws_cloudwatch_log_group" "process_manager" {
   kms_key_id        = var.kms_key_arn
   retention_in_days = var.process_manager.log_retention_days
   tags              = local.common_tags
+}
+
+resource "aws_dynamodb_table" "deadline_checkpoint" {
+  name                        = "${local.name_prefix}-deadline-checkpoint"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "pk"
+  range_key                   = "sk"
+  deletion_protection_enabled = var.enable_recovery_protection
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "deadline_source_dlq" {
+  name                      = "${local.name_prefix}-deadline-events-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "deadline_source" {
+  name                       = "${local.name_prefix}-deadline-events"
+  kms_master_key_id          = var.kms_key_arn
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 6 * var.deadline_scanner.timeout_seconds + var.deadline_scanner.batch_window_seconds
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.deadline_source_dlq.arn
+    maxReceiveCount     = var.deadline_scanner.max_receive_count
+  })
+  tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = 6 * var.deadline_scanner.timeout_seconds + var.deadline_scanner.batch_window_seconds <= 43200
+      error_message = "DEADLINE_SOURCE_VISIBILITY_INVALID: deadline source visibility must not exceed the SQS maximum."
+    }
+  }
+}
+
+data "aws_iam_policy_document" "deadline_scanner_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "deadline_scanner" {
+  name                 = "${local.name_prefix}-deadline-scanner"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.deadline_scanner_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "deadline_scanner" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/deadline-scanner"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.deadline_scanner.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "deadline_scanner" {
+  statement {
+    sid       = "ReadOnlyDeadlineProjection"
+    effect    = "Allow"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.occurrence_ledger.arn}/index/deadlines"]
+  }
+  statement {
+    sid       = "ReadOnlyAuthoritativeOccurrences"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+    }
+  }
+  statement {
+    sid       = "UpdateOnlyScannerCheckpoint"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.deadline_checkpoint.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["CELL#${var.cell_id}"]
+    }
+  }
+  statement {
+    sid       = "SendOnlyDeadlineEvidence"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.deadline_source.arn]
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.deadline_scanner.arn}:*"]
+  }
+  statement {
+    sid       = "UseOnlyDeadlineQueueKeyContext"
+    effect    = "Allow"
+    actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:aws:sqs:arn"
+      values   = [aws_sqs_queue.deadline_source.arn]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyBoundedScannerMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "deadline_scanner" {
+  name   = "${local.name_prefix}-deadline-scanner"
+  role   = aws_iam_role.deadline_scanner.id
+  policy = data.aws_iam_policy_document.deadline_scanner.json
+}
+
+resource "aws_lambda_function" "deadline_scanner" {
+  function_name                  = "${local.name_prefix}-deadline-scanner"
+  filename                       = var.deadline_scanner.artifact_path
+  source_code_hash               = var.deadline_scanner.artifact_source_hash
+  handler                        = "deadline_scanner.handler.lambda_handler"
+  role                           = aws_iam_role.deadline_scanner.arn
+  runtime                        = "python3.14"
+  timeout                        = var.deadline_scanner.timeout_seconds
+  reserved_concurrent_executions = var.deadline_scanner.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
+  environment {
+    variables = {
+      DEADLINE_SCANNER_OCCURRENCE_TABLE_NAME = aws_dynamodb_table.occurrence_ledger.name
+      DEADLINE_SCANNER_INDEX_NAME            = "deadlines"
+      DEADLINE_SCANNER_SOURCE_QUEUE_URL      = aws_sqs_queue.deadline_source.url
+      DEADLINE_SCANNER_CHECKPOINT_TABLE_NAME = aws_dynamodb_table.deadline_checkpoint.name
+      DEADLINE_SCANNER_CHECKPOINT_PK         = "CELL#${var.cell_id}"
+      DEADLINE_SCANNER_LOOKBACK_SECONDS      = tostring(var.deadline_scanner.lookback_seconds)
+      DEADLINE_SCANNER_MAX_LATENESS_SECONDS  = tostring(var.deadline_scanner.maximum_lateness_seconds)
+      DEADLINE_SCANNER_PAGE_SIZE             = tostring(var.deadline_scanner.page_size)
+      DEADLINE_SCANNER_SHARD                 = "0"
+      DEADLINE_SCANNER_METRIC_NAMESPACE      = var.metric_namespace
+      DEADLINE_SCANNER_ENVIRONMENT           = var.environment
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.deadline_scanner]
+  tags       = local.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "deadline_scanner_tick" {
+  name                = "${local.name_prefix}-deadline-scanner-tick"
+  description         = "Minute-cadence deadline reconciliation; detection only."
+  schedule_expression = "rate(1 minute)"
+  tags                = local.common_tags
+}
+
+resource "aws_sqs_queue" "deadline_scanner_tick_dlq" {
+  name                      = "${local.name_prefix}-deadline-scanner-tick-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+data "aws_iam_policy_document" "deadline_scanner_tick_dlq" {
+  statement {
+    sid       = "AllowOnlyDeadlineScannerRuleDeadLetterDelivery"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.deadline_scanner_tick_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.deadline_scanner_tick.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "deadline_scanner_tick_dlq" {
+  queue_url = aws_sqs_queue.deadline_scanner_tick_dlq.id
+  policy    = data.aws_iam_policy_document.deadline_scanner_tick_dlq.json
+}
+
+resource "aws_cloudwatch_event_target" "deadline_scanner_tick" {
+  rule = aws_cloudwatch_event_rule.deadline_scanner_tick.name
+  arn  = aws_lambda_function.deadline_scanner.arn
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 5
+  }
+  dead_letter_config {
+    arn = aws_sqs_queue.deadline_scanner_tick_dlq.arn
+  }
+}
+
+resource "aws_lambda_permission" "deadline_scanner_tick" {
+  statement_id  = "AllowEventBridgeDeadlineScannerTick"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.deadline_scanner.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.deadline_scanner_tick.arn
 }
 
 data "aws_iam_policy_document" "process_manager" {
@@ -918,7 +1200,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "ReadOnlyTheRegisteredSchedulerSource"
     effect    = "Allow"
     actions   = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
-    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn, aws_sqs_queue.ecs_event_source.arn]
+    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn, aws_sqs_queue.ecs_event_source.arn, aws_sqs_queue.deadline_source.arn]
   }
   statement {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
@@ -961,6 +1243,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
         aws_sqs_queue.scheduler_ingress.arn,
         aws_sqs_queue.materializer_ingress.arn,
         aws_sqs_queue.ecs_event_source.arn,
+        aws_sqs_queue.deadline_source.arn,
         aws_sqs_queue.normalizer_ingress.arn,
         aws_sqs_queue.process_manager_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
@@ -1044,6 +1327,15 @@ resource "aws_lambda_function" "evidence_normalizer" {
         schedule_generation  = var.canary_normalizer_registration.schedule_generation
         source_queue_arn     = aws_sqs_queue.materializer_ingress.arn
       })
+      NORMALIZER_DEADLINE_REGISTRATION = jsonencode({
+        account_id              = data.aws_caller_identity.current.account_id
+        cell_id                 = var.cell_id
+        environment             = var.environment
+        region                  = data.aws_region.current.region
+        scanner_role_id         = aws_iam_role.deadline_scanner.unique_id
+        source_queue_arn        = aws_sqs_queue.deadline_source.arn
+        registered_deadline_key = "DEADLINE#0#"
+      })
     }
   }
 
@@ -1077,6 +1369,14 @@ resource "aws_lambda_event_source_mapping" "evidence_normalizer" {
 
 resource "aws_lambda_event_source_mapping" "evidence_normalizer_ecs" {
   event_source_arn                   = aws_sqs_queue.ecs_event_source.arn
+  function_name                      = aws_lambda_function.evidence_normalizer.arn
+  batch_size                         = var.normalizer.batch_size
+  maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+resource "aws_lambda_event_source_mapping" "evidence_normalizer_deadline" {
+  event_source_arn                   = aws_sqs_queue.deadline_source.arn
   function_name                      = aws_lambda_function.evidence_normalizer.arn
   batch_size                         = var.normalizer.batch_size
   maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds

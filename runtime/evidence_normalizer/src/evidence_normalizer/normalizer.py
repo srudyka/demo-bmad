@@ -73,6 +73,19 @@ class EcsRegistration:
 
 
 @dataclass(frozen=True)
+class DeadlineRegistration:
+    """Cell-owned binding for the deadline scanner source queue."""
+
+    account_id: str
+    cell_id: str
+    environment: str
+    region: str
+    scanner_role_id: str
+    source_queue_arn: str
+    registered_deadline_key: str
+
+
+@dataclass(frozen=True)
 class NormalizationResult:
     """Either a canonical envelope or a sanitized permanent rejection."""
 
@@ -461,6 +474,96 @@ def normalize_ecs_event(
         return NormalizationResult(envelope, None, None)
     except NormalizationError as error:
         return _rejection(record, str(error))
+
+
+def normalize_deadline_record(
+    record: Mapping[str, object],
+    registration: DeadlineRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+    *,
+    deadline_lookup: Callable[[str, str], Mapping[str, object] | None] | None = None,
+) -> NormalizationResult:
+    """Authenticate scanner metadata before accepting its canonical envelope."""
+
+    try:
+        if record.get("eventSource") != "aws:sqs":
+            raise NormalizationError("DEADLINE_SOURCE_SERVICE")
+        if record.get("eventSourceARN") != registration.source_queue_arn:
+            raise NormalizationError("DEADLINE_SOURCE_QUEUE")
+        if record.get("awsRegion") != registration.region:
+            raise NormalizationError("DEADLINE_SOURCE_REGION")
+        attributes = record.get("attributes")
+        sender_id = attributes.get("SenderId") if isinstance(attributes, Mapping) else None
+        if not isinstance(sender_id, str) or not sender_id.startswith(f"{registration.scanner_role_id}:"):
+            raise NormalizationError("DEADLINE_SCANNER_ROLE")
+        body = _body(record)
+        if body.get("schema_version") != "1.0.0":
+            raise NormalizationError("DEADLINE_SCHEMA_MAJOR")
+        if body.get("event_type") != "occurrence.deadline-reached.v1" or body.get("producer_id") != "deadline-scanner":
+            raise NormalizationError("DEADLINE_EVENT_TYPE")
+        payload = body.get("payload")
+        if not isinstance(payload, dict) or set(payload) != {"deadline_kind", "deadline_at", "scanner_watermark"}:
+            raise NormalizationError("DEADLINE_PAYLOAD")
+        if not isinstance(body.get("job_id"), str) or not isinstance(body.get("occurrence_id"), str):
+            raise NormalizationError("DEADLINE_COORDINATES")
+        if body.get("source_queue_arn") not in {None, registration.source_queue_arn}:
+            raise NormalizationError("DEADLINE_QUEUE_ASSERTION")
+        asserted_key = body.get("x-deadline-key")
+        if not isinstance(asserted_key, str) or not asserted_key.startswith(registration.registered_deadline_key):
+            raise NormalizationError("DEADLINE_KEY_UNREGISTERED")
+        if deadline_lookup is not None:
+            authoritative = deadline_lookup(str(body["job_id"]), str(body["occurrence_id"]))
+            if authoritative is None:
+                raise NormalizationError("DEADLINE_OCCURRENCE_NOT_FOUND")
+            for field in ("job_id", "config_version", "schedule_generation", "occurrence_id", "scheduled_time"):
+                if body.get(field) != authoritative.get(field):
+                    raise NormalizationError("DEADLINE_COORDINATE_MISMATCH")
+            if payload["deadline_at"] != authoritative.get("deadline_at"):
+                raise NormalizationError("DEADLINE_TIME_MISMATCH")
+        schema_id = "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+        issues = validate_contract_instance(schemas[schema_id], body, schema_registry, secret_policy=secret_policy)
+        if issues:
+            raise NormalizationError("DEADLINE_ENVELOPE_INVALID")
+        return NormalizationResult(body, None, None)
+    except NormalizationError as error:
+        return _rejection(record, str(error))
+
+
+def process_deadline_batch(
+    records: list[Mapping[str, object]],
+    registration: DeadlineRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+    *,
+    send_envelope: Callable[[dict[str, object]], None],
+    send_quarantine: Callable[[dict[str, object]], None],
+    deadline_lookup: Callable[[str, str], Mapping[str, object] | None] | None = None,
+    on_permanent_rejection: Callable[[str, Mapping[str, object]], None] | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    failures: list[dict[str, str]] = []
+    for record in records:
+        message_id = str(record.get("messageId", ""))
+        result = normalize_deadline_record(
+            record,
+            registration,
+            schemas,
+            schema_registry,
+            secret_policy,
+            deadline_lookup=deadline_lookup,
+        )
+        if result.rejection_code and on_permanent_rejection:
+            on_permanent_rejection(result.rejection_code, record)
+        try:
+            if result.envelope:
+                send_envelope(result.envelope)
+            elif result.quarantine_record:
+                send_quarantine(result.quarantine_record)
+        except (OSError, TransientTransportError):
+            failures.append({"itemIdentifier": message_id})
+    return {"batchItemFailures": failures}
 
 
 def process_scheduler_batch(

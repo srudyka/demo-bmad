@@ -227,3 +227,33 @@ variable "log_ingestor" {
     timeout_seconds      = 30
   }
 }
+
+variable "deadline_scanner" {
+  description = "Fictitious deadline scanner artifact and controls for local validation."
+  type = object({
+    artifact_path            = string
+    artifact_source_hash     = string
+    batch_size               = number
+    batch_window_seconds     = number
+    lookback_seconds         = number
+    maximum_lateness_seconds = number
+    max_receive_count        = number
+    page_size                = number
+    reserved_concurrency     = number
+    timeout_seconds          = number
+    log_retention_days       = number
+  })
+  default = {
+    artifact_path            = "/tmp/deadline-scanner.zip"
+    artifact_source_hash     = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    batch_size               = 1
+    batch_window_seconds     = 0
+    lookback_seconds         = 900
+    maximum_lateness_seconds = 900
+    max_receive_count        = 5
+    page_size                = 25
+    reserved_concurrency     = 2
+    timeout_seconds          = 30
+    log_retention_days       = 365
+  }
+}

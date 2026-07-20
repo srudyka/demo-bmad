@@ -131,3 +131,28 @@ mapping/subscription, then preserve encrypted queues, DLQs, task-index evidence,
 and logs for their retention window. Do not stop tasks, relaunch attempts, or
 delete orphan/conflict evidence as a rollback action. Local validation proves
 neither live AWS delivery timing nor IAM behavior.
+
+## Deadline Scanner Investigation
+
+The deadline scanner runs on a one-minute Cell rule and queries only the
+encrypted `deadlines` projection. A GSI result is only a candidate: the scanner
+strongly reads the occurrence base item before emitting
+`occurrence.deadline-reached.v1`. Inspect the scanner log group, deadline source
+queue/DLQ, checkpoint item at `PK=CELL#<cell_id>;SK=CHECKPOINT#deadline`, and
+bounded watermark/lag metrics. Never use an absent GSI result as proof that an
+occurrence does not exist.
+
+The checkpoint advances conditionally and only after source-queue sends. A
+crash or duplicate scan should replay the bounded page; the deterministic
+deadline producer event ID makes that replay idempotent. The Process Manager is
+the only writer of occurrence state: no launch at a start deadline becomes
+`MISSED`, while a launched occurrence without valid completion at its completion
+deadline becomes `OVERDUE`. The scanner never stops, cancels, extends, or
+relaunches an ECS task.
+
+For rollback, disable the exact deadline EventBridge rule and normalizer source
+mapping, preserve the encrypted checkpoint, queues, DLQ, ledger, and logs, and
+restore a compatible scanner artifact/Cell Contract. Replay only after the
+registration and contract are corrected. Do not delete deadline evidence or
+stop healthy/overdue tasks as a rollback action. Local tests do not prove live
+AWS propagation timing, IAM enforcement, or the five-minute production SLO.

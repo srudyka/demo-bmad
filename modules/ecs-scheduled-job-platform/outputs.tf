@@ -64,6 +64,19 @@ output "occurrence_ledger" {
   }
 }
 
+output "deadline_scanner" {
+  description = "Cell-owned deadline scanner, source queue, DLQ, checkpoint, and deadline-index identifiers."
+  value = {
+    function_arn        = aws_lambda_function.deadline_scanner.arn
+    role_arn            = aws_iam_role.deadline_scanner.arn
+    source_queue_arn    = aws_sqs_queue.deadline_source.arn
+    source_dlq_arn      = aws_sqs_queue.deadline_source_dlq.arn
+    checkpoint_table    = aws_dynamodb_table.deadline_checkpoint.name
+    deadline_index_name = "deadlines"
+    tick_rule_arn       = aws_cloudwatch_event_rule.deadline_scanner_tick.arn
+  }
+}
+
 output "scheduler_ingress" {
   description = "Cell-owned EventBridge Scheduler ingress queue, DLQ, and schedule-group identifiers."
   value = {

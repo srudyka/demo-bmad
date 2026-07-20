@@ -325,3 +325,37 @@ variable "process_manager" {
     error_message = "process_manager must use a published artifact and bounded Lambda/event-source controls."
   }
 }
+
+variable "deadline_scanner" {
+  description = "Explicit trusted deadline scanner artifact and bounded Lambda/reconciliation controls."
+  type = object({
+    artifact_path            = string
+    artifact_source_hash     = string
+    batch_size               = number
+    batch_window_seconds     = number
+    lookback_seconds         = number
+    maximum_lateness_seconds = number
+    max_receive_count        = number
+    page_size                = number
+    reserved_concurrency     = number
+    timeout_seconds          = number
+    log_retention_days       = number
+  })
+
+  validation {
+    condition = (
+      length(var.deadline_scanner.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.deadline_scanner.artifact_source_hash)) &&
+      var.deadline_scanner.batch_size >= 1 && var.deadline_scanner.batch_size <= 10 &&
+      var.deadline_scanner.batch_window_seconds >= 0 && var.deadline_scanner.batch_window_seconds <= 300 &&
+      var.deadline_scanner.lookback_seconds >= 60 && var.deadline_scanner.lookback_seconds <= 86400 &&
+      var.deadline_scanner.maximum_lateness_seconds >= 60 && var.deadline_scanner.maximum_lateness_seconds <= 86400 &&
+      var.deadline_scanner.max_receive_count >= 5 && var.deadline_scanner.max_receive_count <= 1000 &&
+      var.deadline_scanner.page_size >= 1 && var.deadline_scanner.page_size <= 100 &&
+      var.deadline_scanner.reserved_concurrency >= 2 && var.deadline_scanner.reserved_concurrency <= 1000 &&
+      var.deadline_scanner.timeout_seconds >= 1 && var.deadline_scanner.timeout_seconds <= 900 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.deadline_scanner.log_retention_days)
+    )
+    error_message = "deadline_scanner must use bounded scanner, queue, checkpoint, and log controls."
+  }
+}

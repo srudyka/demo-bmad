@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from process_manager import ContractRejection, prepare_expected
+from process_manager import ContractRejection, prepare_deadline, prepare_expected, reduce_deadline_state
 from process_manager import prepare_launch
 from process_manager.contracts import (
     canonical_json_bytes,
+    deadline_event_id,
     materializer_event_id,
     occurrence_id,
     scheduler_event_id,
@@ -219,3 +220,40 @@ def test_launch_requires_materialized_config() -> None:
         assert error.code == "CONFIG_NOT_MATERIALIZED"
     else:
         raise AssertionError("pending config was accepted for launch")
+
+
+def test_deadline_evidence_is_validated_and_reduced_order_independently() -> None:
+    payload = {
+        "deadline_kind": "COMPLETION",
+        "deadline_at": "2027-01-01T01:00:00.000Z",
+        "scanner_watermark": "2027-01-01T01:00:01.000Z",
+    }
+    value = {
+        "schema_version": "1.0.0",
+        "event_type": "occurrence.deadline-reached.v1",
+        "producer_id": "deadline-scanner",
+        "producer_event_id": deadline_event_id(
+            JOB,
+            GENERATION,
+            occurrence_id(JOB, GENERATION, "29979360"),
+            "COMPLETION",
+            "2027-01-01T01:00:00.000Z",
+            CONFIG_VERSION,
+        ),
+        "job_id": JOB,
+        "config_version": CONFIG_VERSION,
+        "schedule_generation": GENERATION,
+        "occurrence_id": occurrence_id(JOB, GENERATION, "29979360"),
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+        "emitted_at": "2027-01-01T01:00:01.000Z",
+        "payload": payload,
+        "payload_hash": __import__("hashlib").sha256(canonical_json_bytes(payload)).hexdigest(),
+    }
+    prepared = prepare_deadline(value, processor_identity="release-1", now="2027-01-01T01:00:02.000Z")
+    assert prepared.processed_event["event_type"] == "occurrence.deadline-reached.v1"
+    evidence = [
+        {"kind": "DEADLINE", "deadline_at": "2027-01-01T01:00:00.000Z", "producer_id": "deadline-scanner", "producer_event_id": value["producer_event_id"], "digest": "1" * 64},
+        {"kind": "TASK_RUNNING", "task_arn": "task-1", "producer_id": "ecs", "producer_event_id": "e" * 64, "digest": "2" * 64},
+    ]
+    assert reduce_deadline_state("EXPECTED", evidence) == "OVERDUE"
+    assert reduce_deadline_state("EXPECTED", list(reversed(evidence))) == "OVERDUE"

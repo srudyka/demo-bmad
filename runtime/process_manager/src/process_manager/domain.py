@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from .contracts import (
     canonical_json_bytes,
+    deadline_event_id,
     launch_client_token,
     materializer_event_id,
     occurrence_id,
@@ -144,6 +145,120 @@ class PreparedCorrelation:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class PreparedDeadline:
+    processed_event: dict[str, Any]
+    envelope_digest: str
+    payload: dict[str, Any]
+
+
+def prepare_deadline(
+    envelope: Mapping[str, Any],
+    *,
+    processor_identity: str,
+    now: str,
+) -> PreparedDeadline:
+    """Validate authenticated deadline evidence before the ledger transaction."""
+
+    if not isinstance(envelope, Mapping) or envelope.get("schema_version") != "1.0.0":
+        raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
+    required = {
+        "schema_version", "event_type", "producer_id", "producer_event_id",
+        "job_id", "config_version", "schedule_generation", "occurrence_id",
+        "scheduled_time", "payload", "payload_hash", "emitted_at",
+    }
+    if set(envelope) - required - {"trace_context"} and not all(
+        isinstance(key, str) and key.startswith("x-") for key in set(envelope) - required - {"trace_context"}
+    ):
+        raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
+    if any(field not in envelope for field in required):
+        raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
+    if envelope.get("event_type") != "occurrence.deadline-reached.v1" or envelope.get("producer_id") != "deadline-scanner":
+        raise ContractRejection("UNAUTHORIZED_PRODUCER")
+    payload = envelope.get("payload")
+    if not isinstance(payload, dict) or set(payload) != {"deadline_kind", "deadline_at", "scanner_watermark"}:
+        raise ContractRejection("DEADLINE_PAYLOAD_INVALID")
+    if payload.get("deadline_kind") not in {"START", "COMPLETION"}:
+        raise ContractRejection("DEADLINE_KIND_INVALID")
+    if hashlib.sha256(canonical_json_bytes(payload)).hexdigest() != envelope.get("payload_hash"):
+        raise ContractRejection("PAYLOAD_HASH_MISMATCH")
+    for field in ("scheduled_time", "emitted_at"):
+        _timestamp(envelope[field], "DEADLINE_TIME_INVALID")
+    for field in ("deadline_at", "scanner_watermark"):
+        _timestamp(payload[field], "DEADLINE_TIME_INVALID")
+    expected_event_id = deadline_event_id(
+        str(envelope["job_id"]),
+        str(envelope["schedule_generation"]),
+        str(envelope["occurrence_id"]),
+        str(payload["deadline_kind"]),
+        str(payload["deadline_at"]),
+        str(envelope["config_version"]),
+    )
+    if envelope["producer_event_id"] != expected_event_id:
+        raise ContractRejection("DEADLINE_EVENT_ID_MISMATCH")
+    digest = hashlib.sha256(canonical_json_bytes(dict(envelope))).hexdigest()
+    processed = {
+        "pk": "EVENT#deadline-scanner",
+        "sk": str(envelope["producer_event_id"]),
+        "record_type": "PROCESSED_EVENT",
+        "schema_version": "1.0.0",
+        "producer_id": "deadline-scanner",
+        "producer_event_id": str(envelope["producer_event_id"]),
+        "event_digest": digest,
+        "event_type": "occurrence.deadline-reached.v1",
+        "job_id": str(envelope["job_id"]),
+        "occurrence_id": str(envelope["occurrence_id"]),
+        "accepted_at": _timestamp(now, "PROCESSOR_TIME_INVALID").isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "disposition": "ACCEPTED",
+        "processor_deployment_identity_id": processor_identity,
+    }
+    return PreparedDeadline(processed, digest, dict(payload))
+
+
+def reduce_deadline_state(
+    current_state: str,
+    evidence: list[Mapping[str, Any]],
+) -> str:
+    """Reduce a bounded immutable evidence set without relying on arrival order."""
+
+    deduplicated: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for item in evidence:
+        key = (str(item.get("producer_id")), str(item.get("producer_event_id")))
+        previous = deduplicated.get(key)
+        if previous is not None and previous.get("digest") != item.get("digest"):
+            return "AMBIGUOUS"
+        deduplicated[key] = item
+    facts = list(deduplicated.values())
+    task_facts = [item for item in facts if item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"}]
+    task_arns = {item.get("task_arn") for item in task_facts if item.get("task_arn")}
+    completions = [item for item in facts if item.get("kind") == "COMPLETION"]
+    if len(task_arns) > 1 or len(completions) > 1:
+        return "AMBIGUOUS"
+    failure = any(
+        item.get("kind") == "LAUNCH_FAILED"
+        or (item.get("kind") == "TASK_STOPPED" and item.get("exit_code") not in {None, 0})
+        or (item.get("kind") == "COMPLETION" and item.get("marker_status") == "FAILURE")
+        for item in facts
+    )
+    started = any(item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"} for item in facts)
+    success = any(item.get("kind") == "TASK_STOPPED" and item.get("exit_code") == 0 for item in facts) and any(
+        item.get("kind") == "COMPLETION" and item.get("marker_status") == "SUCCESS" for item in facts
+    )
+    deadline = next((item for item in facts if item.get("kind") == "DEADLINE"), None)
+    if deadline is not None:
+        completion = completions[0] if completions else None
+        if success and completion is not None and str(completion.get("fact_time", "")) <= str(deadline.get("deadline_at", "")):
+            return "SUCCEEDED"
+        if failure:
+            return "FAILED"
+        return "OVERDUE" if started else "MISSED"
+    if failure:
+        return "FAILED"
+    if success:
+        return "SUCCEEDED"
+    return "STARTED" if started else current_state
+
+
 def prepare_expected(
     envelope: Mapping[str, Any],
     snapshot_item: Mapping[str, Any] | None,
@@ -275,6 +390,7 @@ def prepare_expected(
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
+    deadline_bucket = deadline[:19] + ".000Z"
     reduced_at = _timestamp(now, "PROCESSOR_TIME_INVALID")
     reduced_at_string = reduced_at.isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
@@ -291,6 +407,9 @@ def prepare_expected(
         "occurrence_id": expected_id,
         "scheduled_time": scheduled,
         "deadline_at": deadline,
+        "deadline_kind": "COMPLETION",
+        "deadline_key": f"DEADLINE#0#{deadline_bucket}",
+        "deadline_sort": f"{deadline}#{expected_id}#COMPLETION",
         "state": "EXPECTED",
         "started_at": None,
         "completed_at": None,

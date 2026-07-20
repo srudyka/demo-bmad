@@ -18,10 +18,12 @@ from .normalizer import (
     MaterializerRegistration,
     SchedulerRegistration,
     EcsRegistration,
+    DeadlineRegistration,
     TransientTransportError,
     process_scheduler_batch,
     process_materializer_batch,
     process_ecs_batch,
+    process_deadline_batch,
 )
 
 
@@ -86,6 +88,16 @@ def _ecs_registration() -> EcsRegistration:
         raise RuntimeError("NORMALIZER_ECS_REGISTRATION_INVALID") from error
 
 
+def _deadline_registration() -> DeadlineRegistration:
+    try:
+        parsed = json.loads(_required_environment("NORMALIZER_DEADLINE_REGISTRATION"))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("NORMALIZER_DEADLINE_REGISTRATION_INVALID")
+        return DeadlineRegistration(**parsed)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError("NORMALIZER_DEADLINE_REGISTRATION_INVALID") from error
+
+
 def _clients() -> tuple[QueueClient, MetricsClient, DynamoClient]:
     # boto3 stays inside this adapter so unit tests and parsing need no AWS SDK.
     import boto3  # type: ignore[import-untyped]
@@ -122,6 +134,7 @@ def lambda_handler(
     registration = _registration()
     materializer_registration = _materializer_registration()
     ecs_registration = _ecs_registration()
+    deadline_registration = _deadline_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
     process_manager_url = _required_environment("NORMALIZER_PROCESS_MANAGER_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
@@ -174,6 +187,30 @@ def lambda_handler(
                     occurrences.append(decoded)
         return occurrences[0] if len(occurrences) == 1 else None
 
+    def deadline_lookup(job_id: str, occurrence_id: str) -> Mapping[str, object] | None:
+        response = dynamodb.get_item(
+            TableName=ledger_table,
+            Key={
+                "pk": {"S": f"JOB#{job_id}"},
+                "sk": {"S": f"OCCURRENCE#{occurrence_id}"},
+            },
+            ConsistentRead=True,
+        )
+        item = response.get("Item")
+        if not isinstance(item, Mapping):
+            return None
+        decoded: dict[str, object] = {}
+        for key, child in item.items():
+            if isinstance(child, Mapping) and len(child) == 1:
+                kind, value = next(iter(child.items()))
+                if kind == "S":
+                    decoded[key] = value
+                elif kind == "N":
+                    decoded[key] = int(str(value))
+            else:
+                decoded[key] = child
+        return decoded if decoded.get("record_type") == "OCCURRENCE" else None
+
     # Keep botocore within the AWS adapter; deterministic unit tests need no SDK.
     from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 
@@ -220,6 +257,17 @@ def lambda_handler(
             raise TransientTransportError from error
 
     source_arns = {item.get("eventSourceARN") for item in records}
+    if source_arns == {deadline_registration.source_queue_arn}:
+        return process_deadline_batch(
+            records,
+            deadline_registration,
+            schemas,
+            registry,
+            secret_policy,
+            send_envelope=send_process_manager_envelope,
+            send_quarantine=send_quarantine,
+            deadline_lookup=deadline_lookup,
+        )
     if source_arns == {materializer_registration.source_queue_arn}:
         response = process_materializer_batch(
             list(records),

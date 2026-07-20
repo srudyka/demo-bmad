@@ -13,10 +13,12 @@ the narrow, platform-owned canary bootstrap prerequisites:
 - a Cell-owned Evidence Normalizer with canonical ingress and sanitized quarantine queues.
 - encrypted ECS task-state and completion source queues/DLQs, an exact-cluster
   EventBridge capture rule, and the least-privilege log ingestor path.
+- an encrypted deadline source queue/DLQ, minute-cadence deadline scanner,
+  deadline projection, and encrypted monotonic scanner checkpoint.
 
 It deliberately does not create a general Registrar, ECS task definitions, job
-resource roles, alarms, notification targets, or later completion/deadline/alert
-consumers. The Process Manager may assume only the explicitly registered canary
+resource roles, alarms, notification targets, or alert consumers. The deadline
+scanner is detection-only and never stops or relaunches ECS tasks. The Process Manager may assume only the explicitly registered canary
 launch role; the job-owned launch role retains `RunTask` and `PassRole` authority.
 
 ECS and completion capture are evidence-only paths. The normalizer reads the
@@ -94,6 +96,11 @@ Required inputs:
   `semantic-version`, and `tzdata`).
 - `enable_recovery_protection` explicitly enables PITR and deletion protection;
   it is required for `prod`.
+- `deadline_scanner` supplies an immutable scanner artifact and bounded page,
+  lookback, lateness, retry, timeout, concurrency, and log-retention controls.
+  The scanner reads the deadline projection, strongly verifies base records,
+  emits to the exact encrypted source queue, and conditionally advances its
+  encrypted Cell checkpoint only after emission.
 - `incomplete_multipart_upload_days` is a bounded 1-365 day cleanup policy for
   incomplete uploads only. CONFIG object versions are retained until a later,
   registry-aware garbage collector proves them unreferenced.

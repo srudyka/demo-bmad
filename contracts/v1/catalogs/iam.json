@@ -25,9 +25,9 @@
       "trust": ["lambda.amazonaws.com"]
     },
     "deadline-scanner": {
-      "actions": ["dynamodb:Query", "sqs:SendMessage"],
-      "conditions": {"dynamodb:LeadingKeys": "DEADLINE#<shard>"},
-      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/index/deadlines", "arn:aws:sqs:<region>:<account>:<cell>-evidence"],
+      "actions": ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "logs:CreateLogStream", "logs:PutLogEvents", "sqs:SendMessage"],
+      "conditions": {"dynamodb:LeadingKeys": ["DEADLINE#<shard>", "CELL#<cell-id>"]},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/index/deadlines", "arn:aws:dynamodb:<region>:<account>:table/<cell>-deadline-checkpoint", "arn:aws:sqs:<region>:<account>:<cell>-deadline-events", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/deadline-scanner:*"] ,
       "trust": ["lambda.amazonaws.com"]
     },
     "execution": {
