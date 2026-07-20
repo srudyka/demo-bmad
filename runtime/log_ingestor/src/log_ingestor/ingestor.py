@@ -43,11 +43,17 @@ class CloudWatchLogBatch:
     messages: tuple[tuple[str, int], ...]
 
 
-_TIMESTAMP = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$")
+_TIMESTAMP = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$"
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_JOB_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}$")
+_JOB_ID = re.compile(
+    r"^[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}$"
+)
 _MACHINE_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
-_UUID_V7 = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+_UUID_V7 = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
 _ARN = re.compile(r"^arn:[A-Za-z0-9-]+:[A-Za-z0-9-]+:[A-Za-z0-9-]*:[0-9]{12}:.+$")
 
 
@@ -63,7 +69,10 @@ def decode_subscription_record(record: Mapping[str, Any]) -> CloudWatchLogBatch:
         if len(raw) > 1_048_576:
             raise LogIngestionError("LOG_SUBSCRIPTION_DATA_TOO_LARGE")
         envelope = json.loads(raw)
-        if not isinstance(envelope, dict) or envelope.get("messageType") != "DATA_MESSAGE":
+        if (
+            not isinstance(envelope, dict)
+            or envelope.get("messageType") != "DATA_MESSAGE"
+        ):
             raise LogIngestionError("LOG_SUBSCRIPTION_TYPE_INVALID")
         log_group = envelope.get("logGroup")
         log_stream = envelope.get("logStream")
@@ -77,7 +86,9 @@ def decode_subscription_record(record: Mapping[str, Any]) -> CloudWatchLogBatch:
             raise LogIngestionError("LOG_SUBSCRIPTION_SHAPE_INVALID")
         messages: list[tuple[str, int]] = []
         for event in events:
-            if not isinstance(event, Mapping) or not isinstance(event.get("message"), str):
+            if not isinstance(event, Mapping) or not isinstance(
+                event.get("message"), str
+            ):
                 raise LogIngestionError("LOG_EVENT_INVALID")
             timestamp = event.get("timestamp")
             if not isinstance(timestamp, int):
@@ -176,8 +187,12 @@ def build_completion_envelopes(
         ):
             raise LogIngestionError("COMPLETION_IDENTITY_MISMATCH")
         try:
-            completed_at = datetime.fromisoformat(value["completed_at"].replace("Z", "+00:00"))
-            scheduled_at = datetime.fromisoformat(binding.scheduled_time.replace("Z", "+00:00"))
+            completed_at = datetime.fromisoformat(
+                value["completed_at"].replace("Z", "+00:00")
+            )
+            scheduled_at = datetime.fromisoformat(
+                binding.scheduled_time.replace("Z", "+00:00")
+            )
         except ValueError as error:
             raise LogIngestionError("COMPLETION_TIME_INVALID") from error
         if completed_at.tzinfo != timezone.utc or completed_at < scheduled_at:
@@ -205,7 +220,9 @@ def build_completion_envelopes(
                 "scheduled_time": binding.scheduled_time,
                 "emitted_at": value["completed_at"],
                 "payload": payload,
-                "payload_hash": hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
+                "payload_hash": hashlib.sha256(
+                    canonical_json_bytes(payload)
+                ).hexdigest(),
             }
         )
     return envelopes

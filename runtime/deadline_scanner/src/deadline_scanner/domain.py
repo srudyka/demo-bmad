@@ -35,8 +35,8 @@ def _time(value: str) -> datetime:
 
 
 def timestamp(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace(
-        "+00:00", "Z"
+    return (
+        value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     )
 
 
@@ -58,8 +58,16 @@ class DeadlineCandidate:
     @classmethod
     def from_item(cls, item: Mapping[str, object]) -> "DeadlineCandidate":
         required = (
-            "job_id", "config_version", "schedule_generation", "occurrence_id",
-            "scheduled_time", "deadline_at", "deadline_kind", "state", "deadline_key", "deadline_sort",
+            "job_id",
+            "config_version",
+            "schedule_generation",
+            "occurrence_id",
+            "scheduled_time",
+            "deadline_at",
+            "deadline_kind",
+            "state",
+            "deadline_key",
+            "deadline_sort",
         )
         if any(not isinstance(item.get(field), str) for field in required):
             raise DeadlineRejection("DEADLINE_CANDIDATE_INVALID")
@@ -73,9 +81,15 @@ class DeadlineCandidate:
             raise DeadlineRejection("DEADLINE_STATE_INVALID")
         deadline_key = str(item["deadline_key"])
         key_parts = deadline_key.split("#", 2)
-        if len(key_parts) != 3 or key_parts[0] != "DEADLINE" or key_parts[2] != deadline_bucket(str(item["deadline_at"])):
+        if (
+            len(key_parts) != 3
+            or key_parts[0] != "DEADLINE"
+            or key_parts[2] != deadline_bucket(str(item["deadline_at"]))
+        ):
             raise DeadlineRejection("DEADLINE_KEY_INVALID")
-        expected_sort = f"{item['deadline_at']}#{item['occurrence_id']}#{item['deadline_kind']}"
+        expected_sort = (
+            f"{item['deadline_at']}#{item['occurrence_id']}#{item['deadline_kind']}"
+        )
         if item["deadline_sort"] != expected_sort:
             raise DeadlineRejection("DEADLINE_SORT_INVALID")
         return cls(*(str(item[field]) for field in required))
@@ -106,8 +120,12 @@ def deadline_bucket(deadline_at: str, *, bucket_seconds: int = 60) -> str:
     return timestamp(datetime.fromtimestamp(epoch, UTC))
 
 
-def deadline_index_key(deadline_at: str, shard: str, *, bucket_seconds: int = 60) -> str:
-    if not shard or any(char not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for char in shard):
+def deadline_index_key(
+    deadline_at: str, shard: str, *, bucket_seconds: int = 60
+) -> str:
+    if not shard or any(
+        char not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for char in shard
+    ):
         raise DeadlineRejection("DEADLINE_SHARD_INVALID")
     return f"DEADLINE#{shard}#{deadline_bucket(deadline_at, bucket_seconds=bucket_seconds)}"
 
@@ -137,12 +155,17 @@ def due_candidates(
     lower = current - timedelta(seconds=lookback_seconds)
     upper = current
     result = [
-        candidate for candidate in candidates
+        candidate
+        for candidate in candidates
         if lower <= _time(candidate.deadline_at) <= upper
-        and current - _time(candidate.deadline_at) <= timedelta(seconds=maximum_lateness_seconds)
+        and current - _time(candidate.deadline_at)
+        <= timedelta(seconds=maximum_lateness_seconds)
         and candidate.state not in {"SUCCEEDED", "FAILED", "MISSED", "AMBIGUOUS"}
     ]
-    return sorted(result, key=lambda item: (item.deadline_at, item.occurrence_id, item.deadline_kind))
+    return sorted(
+        result,
+        key=lambda item: (item.deadline_at, item.occurrence_id, item.deadline_kind),
+    )
 
 
 def build_deadline_envelope(

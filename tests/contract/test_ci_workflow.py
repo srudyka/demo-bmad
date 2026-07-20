@@ -71,7 +71,7 @@ class ContinuousIntegrationContractTest(unittest.TestCase):
         self.assertEqual(contents.count("./scripts/validate.sh"), 1)
         self.assertIn('terraform_version: "1.15.8"', contents)
         self.assertIn('python-version: "3.14.6"', contents)
-        self.assertIn('version: "0.11.28"', contents)
+        self.assertIn('version: "0.11.29"', contents)
 
 
 if __name__ == "__main__":

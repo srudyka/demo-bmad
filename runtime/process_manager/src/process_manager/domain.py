@@ -163,24 +163,43 @@ def prepare_deadline(
     if not isinstance(envelope, Mapping) or envelope.get("schema_version") != "1.0.0":
         raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
     required = {
-        "schema_version", "event_type", "producer_id", "producer_event_id",
-        "job_id", "config_version", "schedule_generation", "occurrence_id",
-        "scheduled_time", "payload", "payload_hash", "emitted_at",
+        "schema_version",
+        "event_type",
+        "producer_id",
+        "producer_event_id",
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+        "scheduled_time",
+        "payload",
+        "payload_hash",
+        "emitted_at",
     }
     if set(envelope) - required - {"trace_context"} and not all(
-        isinstance(key, str) and key.startswith("x-") for key in set(envelope) - required - {"trace_context"}
+        isinstance(key, str) and key.startswith("x-")
+        for key in set(envelope) - required - {"trace_context"}
     ):
         raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
     if any(field not in envelope for field in required):
         raise ContractRejection("DEADLINE_ENVELOPE_INVALID")
-    if envelope.get("event_type") != "occurrence.deadline-reached.v1" or envelope.get("producer_id") != "deadline-scanner":
+    if (
+        envelope.get("event_type") != "occurrence.deadline-reached.v1"
+        or envelope.get("producer_id") != "deadline-scanner"
+    ):
         raise ContractRejection("UNAUTHORIZED_PRODUCER")
     payload = envelope.get("payload")
-    if not isinstance(payload, dict) or set(payload) != {"deadline_kind", "deadline_at", "scanner_watermark"}:
+    if not isinstance(payload, dict) or set(payload) != {
+        "deadline_kind",
+        "deadline_at",
+        "scanner_watermark",
+    }:
         raise ContractRejection("DEADLINE_PAYLOAD_INVALID")
     if payload.get("deadline_kind") not in {"START", "COMPLETION"}:
         raise ContractRejection("DEADLINE_KIND_INVALID")
-    if hashlib.sha256(canonical_json_bytes(payload)).hexdigest() != envelope.get("payload_hash"):
+    if hashlib.sha256(canonical_json_bytes(payload)).hexdigest() != envelope.get(
+        "payload_hash"
+    ):
         raise ContractRejection("PAYLOAD_HASH_MISMATCH")
     for field in ("scheduled_time", "emitted_at"):
         _timestamp(envelope[field], "DEADLINE_TIME_INVALID")
@@ -208,7 +227,9 @@ def prepare_deadline(
         "event_type": "occurrence.deadline-reached.v1",
         "job_id": str(envelope["job_id"]),
         "occurrence_id": str(envelope["occurrence_id"]),
-        "accepted_at": _timestamp(now, "PROCESSOR_TIME_INVALID").isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "accepted_at": _timestamp(now, "PROCESSOR_TIME_INVALID")
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z"),
         "disposition": "ACCEPTED",
         "processor_deployment_identity_id": processor_identity,
     }
@@ -229,25 +250,41 @@ def reduce_deadline_state(
             return "AMBIGUOUS"
         deduplicated[key] = item
     facts = list(deduplicated.values())
-    task_facts = [item for item in facts if item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"}]
+    task_facts = [
+        item for item in facts if item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"}
+    ]
     task_arns = {item.get("task_arn") for item in task_facts if item.get("task_arn")}
     completions = [item for item in facts if item.get("kind") == "COMPLETION"]
     if len(task_arns) > 1 or len(completions) > 1:
         return "AMBIGUOUS"
     failure = any(
         item.get("kind") == "LAUNCH_FAILED"
-        or (item.get("kind") == "TASK_STOPPED" and item.get("exit_code") not in {None, 0})
+        or (
+            item.get("kind") == "TASK_STOPPED"
+            and item.get("exit_code") not in {None, 0}
+        )
         or (item.get("kind") == "COMPLETION" and item.get("marker_status") == "FAILURE")
         for item in facts
     )
-    started = any(item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"} for item in facts)
-    success = any(item.get("kind") == "TASK_STOPPED" and item.get("exit_code") == 0 for item in facts) and any(
-        item.get("kind") == "COMPLETION" and item.get("marker_status") == "SUCCESS" for item in facts
+    started = any(
+        item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"} for item in facts
+    )
+    success = any(
+        item.get("kind") == "TASK_STOPPED" and item.get("exit_code") == 0
+        for item in facts
+    ) and any(
+        item.get("kind") == "COMPLETION" and item.get("marker_status") == "SUCCESS"
+        for item in facts
     )
     deadline = next((item for item in facts if item.get("kind") == "DEADLINE"), None)
     if deadline is not None:
         completion = completions[0] if completions else None
-        if success and completion is not None and str(completion.get("fact_time", "")) <= str(deadline.get("deadline_at", "")):
+        if (
+            success
+            and completion is not None
+            and str(completion.get("fact_time", ""))
+            <= str(deadline.get("deadline_at", ""))
+        ):
             return "SUCCEEDED"
         if failure:
             return "FAILED"
@@ -691,7 +728,10 @@ def prepare_correlation(
         "completion.observed.v1": "log-ingestor",
     }
     event_type = envelope.get("event_type")
-    if event_type not in expected_producer or envelope.get("producer_id") != expected_producer[event_type]:
+    if (
+        event_type not in expected_producer
+        or envelope.get("producer_id") != expected_producer[event_type]
+    ):
         raise ContractRejection("CORRELATION_PRODUCER_INVALID")
     for field in (
         "producer_event_id",
@@ -706,7 +746,11 @@ def prepare_correlation(
         if not isinstance(envelope[field], str) or not envelope[field]:
             raise ContractRejection("CORRELATION_ENVELOPE_INVALID")
     payload = envelope["payload"]
-    if not isinstance(payload, dict) or hashlib.sha256(canonical_json_bytes(payload)).hexdigest() != envelope["payload_hash"]:
+    if (
+        not isinstance(payload, dict)
+        or hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+        != envelope["payload_hash"]
+    ):
         raise ContractRejection("CORRELATION_PAYLOAD_HASH_MISMATCH")
     scheduled_at = _timestamp(envelope["scheduled_time"], "CORRELATION_TIME_INVALID")
     _timestamp(envelope["emitted_at"], "CORRELATION_TIME_INVALID")
@@ -718,7 +762,10 @@ def prepare_correlation(
     if envelope["occurrence_id"] != expected_id:
         raise ContractRejection("OCCURRENCE_ID_MISMATCH")
     snapshot = ConfigSnapshot.from_item(snapshot_item)
-    if snapshot.materialization_state != "MATERIALIZED" or snapshot.config_hash != snapshot.config_version:
+    if (
+        snapshot.materialization_state != "MATERIALIZED"
+        or snapshot.config_hash != snapshot.config_version
+    ):
         raise ContractRejection("CONFIG_NOT_MATERIALIZED")
     config = snapshot.config()
     if (
@@ -729,7 +776,10 @@ def prepare_correlation(
         or config.get("schedule_generation") != envelope["schedule_generation"]
     ):
         raise ContractRejection("CONFIG_IDENTITY_MISMATCH")
-    if expected_owner_generation is not None and snapshot.owner_generation != expected_owner_generation:
+    if (
+        expected_owner_generation is not None
+        and snapshot.owner_generation != expected_owner_generation
+    ):
         raise ContractRejection("CONFIG_OWNER_GENERATION_MISMATCH")
     digest = hashlib.sha256(canonical_json_bytes(dict(envelope))).hexdigest()
     processed = {

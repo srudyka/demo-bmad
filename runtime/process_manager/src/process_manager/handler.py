@@ -168,7 +168,12 @@ def lambda_handler(
                 if envelope.get("event_type") == "occurrence.deadline-reached.v1"
                 else None
             )
-            if prepared is None and launch_prepared is None and correlation_prepared is None and deadline_prepared is None:
+            if (
+                prepared is None
+                and launch_prepared is None
+                and correlation_prepared is None
+                and deadline_prepared is None
+            ):
                 raise ContractRejection("UNAUTHORIZED_PRODUCER")
             if launch_prepared is not None:
                 _process_launch(
@@ -181,9 +186,7 @@ def lambda_handler(
                 )
                 continue
             if correlation_prepared is not None:
-                _process_correlation(
-                    envelope, correlation_prepared, ledger, now
-                )
+                _process_correlation(envelope, correlation_prepared, ledger, now)
                 continue
             if deadline_prepared is not None:
                 _process_deadline(envelope, deadline_prepared, ledger, now)
@@ -298,15 +301,22 @@ def _process_correlation(
             state = "AMBIGUOUS"
         changes["task_arn"] = task_arn
         if payload.get("last_status") == "RUNNING":
-            state = "STARTED" if state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"} else state
+            state = (
+                "STARTED"
+                if state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS"}
+                else state
+            )
             changes["started_at"] = payload["event_time"]
         elif payload.get("last_status") == "STOPPED":
             containers = payload.get("containers", [])
             essential = [
-                item for item in containers if isinstance(item, Mapping) and item.get("essential")
+                item
+                for item in containers
+                if isinstance(item, Mapping) and item.get("essential")
             ]
             nonzero = [
-                item for item in essential
+                item
+                for item in essential
                 if item.get("exit_code") is not None and item.get("exit_code") != 0
             ]
             if nonzero and not terminal_state:
@@ -319,10 +329,7 @@ def _process_correlation(
             elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS", "MISSED", "OVERDUE"}:
                 state = "STARTED"
             if state == "STARTED":
-                zero_exit = [
-                    item for item in essential
-                    if item.get("exit_code") == 0
-                ]
+                zero_exit = [item for item in essential if item.get("exit_code") == 0]
                 if zero_exit:
                     changes["exit_code"] = 0
             if (
@@ -398,15 +405,13 @@ def _process_deadline(
     )
     if any(envelope[field] != occurrence.get(field) for field in coordinate_fields):
         raise ContractRejection("DEADLINE_COORDINATE_MISMATCH")
-    if (
-        occurrence.get("deadline_at") is not None
-        and prepared.payload["deadline_at"] != occurrence.get("deadline_at")
-    ):
+    if occurrence.get("deadline_at") is not None and prepared.payload[
+        "deadline_at"
+    ] != occurrence.get("deadline_at"):
         raise ContractRejection("DEADLINE_TIME_MISMATCH")
-    if (
-        occurrence.get("deadline_kind") is not None
-        and prepared.payload["deadline_kind"] != occurrence.get("deadline_kind")
-    ):
+    if occurrence.get("deadline_kind") is not None and prepared.payload[
+        "deadline_kind"
+    ] != occurrence.get("deadline_kind"):
         raise ContractRejection("DEADLINE_KIND_MISMATCH")
     existing = ledger.get(
         {"pk": prepared.processed_event["pk"], "sk": prepared.processed_event["sk"]}
@@ -421,7 +426,11 @@ def _process_deadline(
     elif prepared.payload["deadline_kind"] == "START":
         state = "MISSED" if current == "EXPECTED" else "OVERDUE"
     else:
-        state = "OVERDUE" if current in {"STARTED", "EXPECTED"} and occurrence.get("task_arn") else "MISSED"
+        state = (
+            "OVERDUE"
+            if current in {"STARTED", "EXPECTED"} and occurrence.get("task_arn")
+            else "MISSED"
+        )
     ledger.reduce_evidence(
         occurrence,
         prepared.processed_event,

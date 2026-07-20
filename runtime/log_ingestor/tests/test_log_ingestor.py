@@ -5,7 +5,11 @@ import gzip
 import json
 
 import log_ingestor
-from log_ingestor import CompletionBinding, build_completion_envelopes, decode_subscription_record
+from log_ingestor import (
+    CompletionBinding,
+    build_completion_envelopes,
+    decode_subscription_record,
+)
 
 
 def test_package_boundary_is_importable() -> None:
@@ -33,7 +37,9 @@ def test_decode_and_build_completion_envelope_from_aws_log_metadata() -> None:
         "owner": "111111111111",
         "logGroup": "/platform/jobs/dev-platform-canary",
         "logStream": "canary/task/" + "c" * 32,
-        "logEvents": [{"id": "1", "timestamp": 1798761720000, "message": json.dumps(completion)}],
+        "logEvents": [
+            {"id": "1", "timestamp": 1798761720000, "message": json.dumps(completion)}
+        ],
     }
     encoded = base64.b64encode(gzip.compress(json.dumps(raw).encode())).decode()
     batch = decode_subscription_record({"awslogs": {"data": encoded}})
@@ -44,16 +50,19 @@ def test_decode_and_build_completion_envelope_from_aws_log_metadata() -> None:
         schedule_generation="d" * 64,
         occurrence_id="a" * 64,
         scheduled_time="2027-01-01T00:00:00.000Z",
-        task_arn=completion["asserted_task_arn"],
+        task_arn=task_arn,
         attempt_no=0,
         log_group=batch.log_group,
         log_stream=batch.log_stream,
     )
     envelopes = build_completion_envelopes(
         batch,
-        task_lookup=lambda group, stream, task: binding
-        if (group, stream, task) == (batch.log_group, batch.log_stream, binding.task_arn)
-        else None,
+        task_lookup=lambda group, stream, task: (
+            binding
+            if (group, stream, task)
+            == (batch.log_group, batch.log_stream, binding.task_arn)
+            else None
+        ),
     )
     assert len(envelopes) == 1
     assert envelopes[0]["event_type"] == "completion.observed.v1"

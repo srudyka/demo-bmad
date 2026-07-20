@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from deadline_scanner import (
     DeadlineCandidate,
     ScannerCheckpoint,
@@ -27,9 +29,12 @@ def candidate(**overrides: object) -> DeadlineCandidate:
         "state": "EXPECTED",
         "deadline_key": "DEADLINE#0#2026-07-20T10:05:00.000Z",
     }
-    values["deadline_sort"] = f"{values['deadline_at']}#{values['occurrence_id']}#{values['deadline_kind']}"
     values.update(overrides)
-    return DeadlineCandidate(**values)
+    values["deadline_key"] = deadline_index_key(str(values["deadline_at"]), "0")
+    values["deadline_sort"] = (
+        f"{values['deadline_at']}#{values['occurrence_id']}#{values['deadline_kind']}"
+    )
+    return DeadlineCandidate(**cast(dict[str, str], values))
 
 
 def test_deadline_key_and_event_identity_are_stable() -> None:

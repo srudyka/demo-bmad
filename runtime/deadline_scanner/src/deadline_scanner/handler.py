@@ -70,14 +70,21 @@ def scan_once(
     table = _required("DEADLINE_SCANNER_OCCURRENCE_TABLE_NAME")
     index = _required("DEADLINE_SCANNER_INDEX_NAME")
     queue_url = _required("DEADLINE_SCANNER_SOURCE_QUEUE_URL")
-    checkpoint_key = {"pk": {"S": _required("DEADLINE_SCANNER_CHECKPOINT_PK")}, "sk": {"S": "CHECKPOINT#deadline"}}
+    checkpoint_key = {
+        "pk": {"S": _required("DEADLINE_SCANNER_CHECKPOINT_PK")},
+        "sk": {"S": "CHECKPOINT#deadline"},
+    }
     checkpoint_item = dynamodb.get_item(
         TableName=_required("DEADLINE_SCANNER_CHECKPOINT_TABLE_NAME"),
         Key=checkpoint_key,
         ConsistentRead=True,
     ).get("Item")
     checkpoint = ScannerCheckpoint(
-        str(_plain(checkpoint_item or {}).get("watermark", ScannerCheckpoint.initial().watermark)),
+        str(
+            _plain(checkpoint_item or {}).get(
+                "watermark", ScannerCheckpoint.initial().watermark
+            )
+        ),
         str(_plain(checkpoint_item or {}).get("position", "")),
     )
     now = _now()
@@ -112,9 +119,13 @@ def scan_once(
                     continue
                 index_item = _plain(raw)
                 keys = {"pk": raw.get("pk"), "sk": raw.get("sk")}
-                if not isinstance(keys["pk"], Mapping) or not isinstance(keys["sk"], Mapping):
+                if not isinstance(keys["pk"], Mapping) or not isinstance(
+                    keys["sk"], Mapping
+                ):
                     continue
-                base = dynamodb.get_item(TableName=table, Key=keys, ConsistentRead=True).get("Item")
+                base = dynamodb.get_item(
+                    TableName=table, Key=keys, ConsistentRead=True
+                ).get("Item")
                 if not isinstance(base, Mapping):
                     continue
                 candidate_data = _plain(base)
@@ -124,9 +135,10 @@ def scan_once(
                     candidate = DeadlineCandidate.from_item(candidate_data)
                 except DeadlineRejection:
                     continue
-                if (
-                    candidate_data.get("deadline_key") != index_item.get("deadline_key")
-                    or candidate_data.get("deadline_sort") != index_item.get("deadline_sort")
+                if candidate_data.get("deadline_key") != index_item.get(
+                    "deadline_key"
+                ) or candidate_data.get("deadline_sort") != index_item.get(
+                    "deadline_sort"
                 ):
                     continue
                 candidates.append(candidate)
@@ -140,14 +152,20 @@ def scan_once(
     selected = due_candidates(
         candidates,
         now=now,
-        lookback_seconds=int(os.environ.get("DEADLINE_SCANNER_LOOKBACK_SECONDS", "900")),
-        maximum_lateness_seconds=int(os.environ.get("DEADLINE_SCANNER_MAX_LATENESS_SECONDS", "900")),
+        lookback_seconds=int(
+            os.environ.get("DEADLINE_SCANNER_LOOKBACK_SECONDS", "900")
+        ),
+        maximum_lateness_seconds=int(
+            os.environ.get("DEADLINE_SCANNER_MAX_LATENESS_SECONDS", "900")
+        ),
     )
     for candidate in selected:
         queues.send_message(
             QueueUrl=queue_url,
             MessageBody=canonical_json_bytes(
-                build_deadline_envelope(candidate, scanner_watermark=now, emitted_at=now)
+                build_deadline_envelope(
+                    candidate, scanner_watermark=now, emitted_at=now
+                )
             ).decode("utf-8"),
         )
     new_checkpoint = checkpoint.advance(now, "")
@@ -157,7 +175,10 @@ def scan_once(
         UpdateExpression="SET #watermark = :watermark, #position = :position",
         ConditionExpression="attribute_not_exists(#watermark) OR #watermark < :watermark OR (#watermark = :watermark AND #position <= :position)",
         ExpressionAttributeNames={"#watermark": "watermark", "#position": "position"},
-        ExpressionAttributeValues={":watermark": {"S": new_checkpoint.watermark}, ":position": {"S": new_checkpoint.position}},
+        ExpressionAttributeValues={
+            ":watermark": {"S": new_checkpoint.watermark},
+            ":position": {"S": new_checkpoint.position},
+        },
     )
     if metrics is not None:
         try:
@@ -169,16 +190,34 @@ def scan_once(
                         "Unit": "Count",
                         "Value": float(len(selected)),
                         "Dimensions": [
-                            {"Name": "environment", "Value": os.environ.get("DEADLINE_SCANNER_ENVIRONMENT", "unknown")},
+                            {
+                                "Name": "environment",
+                                "Value": os.environ.get(
+                                    "DEADLINE_SCANNER_ENVIRONMENT", "unknown"
+                                ),
+                            },
                             {"Name": "state", "Value": "reconciled"},
                         ],
                     },
                     {
                         "MetricName": "DeadlineScannerWatermarkAge",
                         "Unit": "Seconds",
-                        "Value": max(0.0, (current - datetime.fromisoformat(new_checkpoint.watermark[:-1] + "+00:00")).total_seconds()),
+                        "Value": max(
+                            0.0,
+                            (
+                                current
+                                - datetime.fromisoformat(
+                                    new_checkpoint.watermark[:-1] + "+00:00"
+                                )
+                            ).total_seconds(),
+                        ),
                         "Dimensions": [
-                            {"Name": "environment", "Value": os.environ.get("DEADLINE_SCANNER_ENVIRONMENT", "unknown")},
+                            {
+                                "Name": "environment",
+                                "Value": os.environ.get(
+                                    "DEADLINE_SCANNER_ENVIRONMENT", "unknown"
+                                ),
+                            },
                             {"Name": "state", "Value": "reconciled"},
                         ],
                     },

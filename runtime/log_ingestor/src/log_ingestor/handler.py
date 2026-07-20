@@ -9,7 +9,12 @@ from typing import Any
 
 from .canonical import canonical_json_bytes
 
-from .ingestor import CompletionBinding, LogIngestionError, build_completion_envelopes, decode_subscription_record
+from .ingestor import (
+    CompletionBinding,
+    LogIngestionError,
+    build_completion_envelopes,
+    decode_subscription_record,
+)
 
 
 def _required(name: str) -> str:
@@ -35,12 +40,16 @@ def _plain(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, list[dict[str, str]]]:
+def lambda_handler(
+    event: Mapping[str, object], _context: object
+) -> dict[str, list[dict[str, str]]]:
     """Consume subscription envelopes and publish only canonical completions."""
 
     records = event.get("Records")
     if records is None and "awslogs" in event:
-        records = [{"messageId": "direct-cloudwatch-subscription", "body": json.dumps(event)}]
+        records = [
+            {"messageId": "direct-cloudwatch-subscription", "body": json.dumps(event)}
+        ]
     if not isinstance(records, list):
         raise RuntimeError("LOG_INGESTOR_EVENT_INVALID")
     import boto3  # type: ignore[import-untyped]
@@ -57,7 +66,11 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, l
             sqs.send_message(
                 QueueUrl=quarantine_url,
                 MessageBody=canonical_json_bytes(
-                    {"record_type": "LOG_INGESTOR_REJECTION", "code": code, "message_id": message_id}
+                    {
+                        "record_type": "LOG_INGESTOR_REJECTION",
+                        "code": code,
+                        "message_id": message_id,
+                    }
                 ).decode("utf-8"),
             )
             return True
@@ -105,7 +118,9 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, l
                 if len(candidates) != 1:
                     return None
                 item = candidates[0]
-                expected_group = "/platform/jobs/" + str(item.get("job_id", "")).replace("/", "-")
+                expected_group = "/platform/jobs/" + str(
+                    item.get("job_id", "")
+                ).replace("/", "-")
                 if group != expected_group or not stream:
                     return None
                 return CompletionBinding(
@@ -128,7 +143,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, l
             if not quarantine(message_id, error.code):
                 failures.append({"itemIdentifier": message_id})
             continue
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             if not quarantine(message_id, "LOG_INGESTOR_INPUT_INVALID"):
                 failures.append({"itemIdentifier": message_id})
             continue

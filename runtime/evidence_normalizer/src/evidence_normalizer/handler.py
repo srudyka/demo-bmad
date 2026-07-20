@@ -153,6 +153,7 @@ def lambda_handler(
         items = response.get("Items", [])
         if not isinstance(items, list):
             return None
+
         def plain(value: Mapping[str, object]) -> dict[str, object]:
             decoded: dict[str, object] = {}
             for key, child in value.items():
