@@ -846,9 +846,11 @@ data "aws_iam_policy_document" "occurrence_materializer" {
       values   = ["s3.${data.aws_region.current.region}.amazonaws.com"]
     }
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "kms:EncryptionContext:aws:s3:arn"
-      values   = [aws_s3_bucket.config_inbox.arn]
+      values = [
+        "${aws_s3_bucket.config_inbox.arn}/jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"
+      ]
     }
   }
   statement {

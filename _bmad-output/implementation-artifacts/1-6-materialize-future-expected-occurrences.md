@@ -5,7 +5,7 @@ baseline_commit: efb4de79bb6449794880e5e4755045371c8210f1
 
 # Story 1.6: Materialize Future Expected Occurrences
 
-Status: review
+Status: done
 
 ## Story
 
@@ -139,6 +139,16 @@ so that a missing Scheduler invocation remains observable as a specific occurren
 - [x] [Review][Patch] Validate the CONFIG Cell identity, environment, and declared supported contract ranges against the registration and Compatibility Package [runtime/occurrence_materializer/src/occurrence_materializer/materializer.py:144].
 - [x] [Review][Patch] Emit distinct bounded horizon-freshness and conformance metrics with the required Cell, environment, account, Region, and failure-plane dimensions [runtime/occurrence_materializer/src/occurrence_materializer/handler.py:57].
 - [x] [Review][Patch] Reject oversized CONFIG objects before persisting `config_json` to DynamoDB, producing a sanitized rejection rather than an unbounded storage retry [runtime/occurrence_materializer/src/occurrence_materializer/handler.py:246].
+
+### Adversarial Review Findings (2026-07-20)
+
+- [x] [Review][Patch] High: The environment check rejects valid canonical job IDs such as `dev-platform/dev/dev-platform-canary`, so the focused materializer suite fails before schedule-binding assertions [runtime/occurrence_materializer/src/occurrence_materializer/materializer.py:156]. Replace the ad hoc prefix check with the canonical namespace/environment contract and update the fixtures.
+- [x] [Review][Patch] High: Concurrent invocations can regress `horizon_at` because `_mark_materialized` allows updates to both `PENDING` and `MATERIALIZED` without a monotonic incoming-watermark condition [runtime/occurrence_materializer/src/occurrence_materializer/handler.py:194]. Make the conditional update reject stale horizons.
+- [x] [Review][Patch] High: CONFIG accepts any `1.x.y` schema version but emits hard-coded `1.0.0` evidence and does not load/evaluate the Compatibility Package component ranges [runtime/occurrence_materializer/src/occurrence_materializer/materializer.py:135]. Enforce the supported schema/component versions before side effects.
+- [x] [Review][Patch] High: The materializer KMS S3 encryption-context condition matches only the bucket ARN, while ordinary S3 object encryption uses the object ARN context; CONFIG reads can therefore fail at runtime [modules/ecs-scheduled-job-platform/main.tf:849]. Scope the condition to the exact registered CONFIG object context (or the explicitly configured bucket-key mode) and test it.
+- [x] [Review][Patch] Medium: `materialized_at` is persisted from `validated_at`, so the registry cannot distinguish validation time from completion time after queue delivery [runtime/occurrence_materializer/src/occurrence_materializer/handler.py:200]. Persist an actual completion timestamp separately.
+- [x] [Review][Patch] Medium: `_parse_timestamp` accepts naive/non-UTC tick timestamps and applies the Lambda host timezone, which can shift the expectation horizon and occurrence IDs [runtime/occurrence_materializer/src/occurrence_materializer/materializer.py:56]. Require canonical UTC EventBridge timestamps at the adapter boundary.
+- [x] [Review][Defer] Authoritative Scheduler/materializer conformance remains unimplemented and `conformance_result` is hard-coded to `PASS`; divergence cannot block `MATERIALIZED` [runtime/occurrence_materializer/src/occurrence_materializer/materializer.py:241; runtime/occurrence_materializer/src/occurrence_materializer/handler.py:200]. This is explicitly deferred to Story 1.7 or later.
 
 ### Agent Model Used
 

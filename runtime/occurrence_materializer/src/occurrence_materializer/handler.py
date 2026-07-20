@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Mapping
 
@@ -18,7 +19,14 @@ from tests.contract.support.contracts import (
 from .materializer import (
     MaterializationError,
     MaterializerRegistration,
+    _parse_timestamp,
+    _timestamp,
     materialize_config,
+)
+
+
+_EVENTBRIDGE_TIMESTAMP = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$"
 )
 
 
@@ -51,8 +59,8 @@ def _item(snapshot: Mapping[str, object]) -> dict[str, dict[str, object]]:
 
 
 def _metric(
-    metrics: object, 
-    registration: MaterializerRegistration, 
+    metrics: object,
+    registration: MaterializerRegistration,
     state: str,
     horizon_freshness_hours: float | None = None,
     conformance_result: str | None = None,
@@ -73,32 +81,36 @@ def _metric(
         }
     ]
     if horizon_freshness_hours is not None:
-        metric_data.append({
-            "MetricName": "HorizonFreshnessHours",
-            "Unit": "Count",
-            "Value": horizon_freshness_hours,
-            "Dimensions": [
-                {"Name": "account_id", "Value": registration.account_id},
-                {"Name": "environment", "Value": registration.environment},
-                {"Name": "failure_plane", "Value": "materialization"},
-                {"Name": "job_id", "Value": registration.job_id},
-                {"Name": "region", "Value": registration.region},
-            ],
-        })
+        metric_data.append(
+            {
+                "MetricName": "HorizonFreshnessHours",
+                "Unit": "Count",
+                "Value": horizon_freshness_hours,
+                "Dimensions": [
+                    {"Name": "account_id", "Value": registration.account_id},
+                    {"Name": "environment", "Value": registration.environment},
+                    {"Name": "failure_plane", "Value": "materialization"},
+                    {"Name": "job_id", "Value": registration.job_id},
+                    {"Name": "region", "Value": registration.region},
+                ],
+            }
+        )
     if conformance_result is not None:
-        metric_data.append({
-            "MetricName": "SchedulerConformance",
-            "Unit": "Count",
-            "Value": 1.0,
-            "Dimensions": [
-                {"Name": "account_id", "Value": registration.account_id},
-                {"Name": "environment", "Value": registration.environment},
-                {"Name": "failure_plane", "Value": "materialization"},
-                {"Name": "job_id", "Value": registration.job_id},
-                {"Name": "region", "Value": registration.region},
-                {"Name": "result", "Value": conformance_result},
-            ],
-        })
+        metric_data.append(
+            {
+                "MetricName": "SchedulerConformance",
+                "Unit": "Count",
+                "Value": 1.0,
+                "Dimensions": [
+                    {"Name": "account_id", "Value": registration.account_id},
+                    {"Name": "environment", "Value": registration.environment},
+                    {"Name": "failure_plane", "Value": "materialization"},
+                    {"Name": "job_id", "Value": registration.job_id},
+                    {"Name": "region", "Value": registration.region},
+                    {"Name": "result", "Value": conformance_result},
+                ],
+            }
+        )
     metrics.put_metric_data(  # type: ignore[attr-defined]
         Namespace=_required("MATERIALIZER_METRIC_NAMESPACE"),
         MetricData=metric_data,
@@ -178,6 +190,7 @@ def _mark_materialized(
     dynamodb: object,
     registration: MaterializerRegistration,
     snapshot: Mapping[str, object],
+    completed_at: str,
 ) -> None:
     """Advance only the status marker after all deterministic sends succeed."""
 
@@ -193,14 +206,14 @@ def _mark_materialized(
         ),
         ConditionExpression=(
             "validation_state = :validated AND materialization_state IN (:pending, :materialized) "
-            "AND config_hash = :config_hash"
+            "AND config_hash = :config_hash AND horizon_at <= :horizon_at"
         ),
         ExpressionAttributeValues={
             ":config_hash": {"S": registration.config_version},
             ":conformance_result": {"S": "PASS"},
             ":horizon_at": {"S": str(snapshot["horizon_at"])},
             ":materialized": {"S": "MATERIALIZED"},
-            ":materialized_at": {"S": str(snapshot["validated_at"])},
+            ":materialized_at": {"S": completed_at},
             ":pending": {"S": "PENDING"},
             ":validated": {"S": "VALIDATED"},
         },
@@ -250,14 +263,21 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
     """Materialize expected evidence; all persistence is immutable and conditional."""
 
     scheduled_at = event.get("time")
-    if not isinstance(scheduled_at, str):
+    if (
+        not isinstance(scheduled_at, str)
+        or _EVENTBRIDGE_TIMESTAMP.fullmatch(scheduled_at) is None
+    ):
         raise RuntimeError("MATERIALIZER_EVENT_TIME_INVALID")
+    _parse_timestamp(scheduled_at)
     import boto3  # type: ignore[import-untyped]
 
     registration = _registration()
     contracts_root = Path(_required("MATERIALIZER_CONTRACTS_ROOT"))
     schemas, schema_registry = build_schema_registry(contracts_root / "schemas")
     secret_policy = load_json_strict(contracts_root / "catalogs" / "secret-safety.json")
+    compatibility_catalog = load_json_strict(
+        contracts_root / "catalogs" / "compatibility.json"
+    )
     s3 = boto3.client("s3")
     dynamodb = boto3.client("dynamodb")
     sqs = boto3.client("sqs")
@@ -279,6 +299,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             schemas,
             schema_registry,
             secret_policy,
+            compatibility_catalog,
         )
     except (MaterializationError, ContractViolation) as error:
         _record_rejection(dynamodb, registration, str(error), scheduled_at)
@@ -286,12 +307,21 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         return {"rejected": True}
     needs_delivery = _put_validated_snapshot(dynamodb, registration, result.snapshot)
     from datetime import datetime, UTC
+
     now = datetime.now(UTC)
-    horizon_dt = datetime.fromisoformat(str(result.snapshot["horizon_at"]).replace("Z", "+00:00"))
+    horizon_dt = datetime.fromisoformat(
+        str(result.snapshot["horizon_at"]).replace("Z", "+00:00")
+    )
     freshness = max(0.0, (horizon_dt - now).total_seconds() / 3600.0)
 
     if not needs_delivery:
-        _metric(metrics, registration, "materialized", horizon_freshness_hours=freshness, conformance_result="PASS")
+        _metric(
+            metrics,
+            registration,
+            "materialized",
+            horizon_freshness_hours=freshness,
+            conformance_result="PASS",
+        )
         return {
             "materialized": 0,
             "horizon_at": result.snapshot["horizon_at"],
@@ -306,8 +336,14 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             QueueUrl=destination,
             MessageBody=canonical_json_bytes(envelope).decode("utf-8"),
         )
-    _mark_materialized(dynamodb, registration, result.snapshot)
-    _metric(metrics, registration, "materialized", horizon_freshness_hours=freshness, conformance_result="PASS")
+    _mark_materialized(dynamodb, registration, result.snapshot, _timestamp(now))
+    _metric(
+        metrics,
+        registration,
+        "materialized",
+        horizon_freshness_hours=freshness,
+        conformance_result="PASS",
+    )
     return {
         "materialized": len(result.envelopes),
         "horizon_at": result.snapshot["horizon_at"],

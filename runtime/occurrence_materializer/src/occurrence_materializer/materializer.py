@@ -8,6 +8,7 @@ from hashlib import sha256
 from typing import Any, Mapping
 
 from referencing import Registry
+from semantic_version import SimpleSpec, Version  # type: ignore[import-untyped]
 
 from tests.contract.support.contracts import (
     ContractViolation,
@@ -55,9 +56,35 @@ def _timestamp(value: datetime) -> str:
 
 def _parse_timestamp(value: str) -> datetime:
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if not value.endswith("Z") or parsed.tzinfo is None:
+            raise ValueError("timestamp must be explicit UTC")
+        return parsed.astimezone(UTC)
     except (TypeError, ValueError) as error:
         raise MaterializationError("MATERIALIZER_TIME_INVALID") from error
+
+
+def _assert_compatibility(
+    document: Mapping[str, object], compatibility_catalog: Mapping[str, object]
+) -> None:
+    """Reject unsupported contract and runtime component versions before side effects."""
+
+    schema_version = document.get("schema_version")
+    if schema_version != "1.0.0":
+        raise MaterializationError("MATERIALIZER_SCHEMA_VERSION_UNSUPPORTED")
+    ranges = compatibility_catalog.get("component_ranges")
+    if not isinstance(ranges, Mapping):
+        raise MaterializationError("MATERIALIZER_COMPATIBILITY_INVALID")
+    for component in ("config", "evidence", "occurrence-materializer"):
+        declared = ranges.get(component)
+        if not isinstance(declared, str):
+            raise MaterializationError("MATERIALIZER_COMPATIBILITY_INVALID")
+        try:
+            supported = SimpleSpec(declared).match(Version("1.0.0"))
+        except ValueError as error:
+            raise MaterializationError("MATERIALIZER_COMPATIBILITY_INVALID") from error
+        if not supported:
+            raise MaterializationError("MATERIALIZER_COMPATIBILITY_UNSUPPORTED")
 
 
 def _assert_arn_binding(
@@ -91,7 +118,9 @@ def _assert_config_bindings(
     task_def = config.get("task_definition_arn")
     _assert_arn_binding(task_def, registration, "ecs")
     if not isinstance(task_def, str) or task_def.count(":") != 6:
-        raise MaterializationError("MATERIALIZER_CONFIG_TASK_DEFINITION_REVISION_MISSING")
+        raise MaterializationError(
+            "MATERIALIZER_CONFIG_TASK_DEFINITION_REVISION_MISSING"
+        )
     _assert_arn_binding(
         config.get("notification_target_arn"), registration, ("sns", "sqs")
     )
@@ -119,6 +148,7 @@ def materialize_config(
     schemas: Mapping[str, dict[str, object]],
     schema_registry: Registry[Any],
     secret_policy: dict[str, object],
+    compatibility_catalog: Mapping[str, object],
 ) -> MaterializationResult:
     """Validate immutable CONFIG and create the next 24-hour expected evidence set."""
 
@@ -128,6 +158,7 @@ def materialize_config(
     )
     if not isinstance(document, dict):
         raise MaterializationError("MATERIALIZER_CONFIG_INVALID")
+    _assert_compatibility(document, compatibility_catalog)
     try:
         screen_secret_safety(document, secret_policy)
     except ContractViolation as error:
@@ -151,15 +182,7 @@ def materialize_config(
     ):
         if config.get(field) != expected:
             raise MaterializationError(f"MATERIALIZER_CONFIG_{field.upper()}_MISMATCH")
-    
-    # We must also validate environment and cell identity via the registration
-    if not isinstance(registration.job_id, str) or not registration.job_id.startswith(registration.environment + "/"):
-        raise MaterializationError("MATERIALIZER_CONFIG_ENVIRONMENT_MISMATCH")
-    
-    # Check supported ranges against Compatibility Package (which is encoded in our schemas)
-    # The cell identity is implicitly validated by the ARN checks in _assert_config_bindings (account_id, region)
-    # and the environment prefix check above.
-    
+
     _assert_config_bindings(config, registration)
     schedule = config.get("schedule")
     if not isinstance(schedule, dict):

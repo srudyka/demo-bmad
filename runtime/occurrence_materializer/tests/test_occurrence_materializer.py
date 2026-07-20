@@ -74,6 +74,7 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
     version = config_hash(config)
     schemas_root = Path(__file__).resolve().parents[3] / "contracts" / "v1"
     schemas, registry = build_schema_registry(schemas_root / "schemas")
+    compatibility = load_json_strict(schemas_root / "catalogs" / "compatibility.json")
     result = materialize_config(
         {"schema_version": "1.0.0", "config_version": version, "config": config},
         MaterializerRegistration(
@@ -93,6 +94,7 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
         schemas,
         registry,
         load_json_strict(schemas_root / "catalogs" / "secret-safety.json"),
+        compatibility,
     )
     assert len(result.envelopes) == 25
     assert result.envelopes[0]["event_type"] == "occurrence.expected.v1"
@@ -158,6 +160,7 @@ def test_materializer_rejects_substituted_scheduler_binding() -> None:
     version = config_hash(config)
     schemas_root = Path(__file__).resolve().parents[3] / "contracts" / "v1"
     schemas, registry = build_schema_registry(schemas_root / "schemas")
+    compatibility = load_json_strict(schemas_root / "catalogs" / "compatibility.json")
 
     with pytest.raises(
         MaterializationError, match="MATERIALIZER_CONFIG_SCHEDULE_ARN_MISMATCH"
@@ -181,6 +184,7 @@ def test_materializer_rejects_substituted_scheduler_binding() -> None:
             schemas,
             registry,
             load_json_strict(schemas_root / "catalogs" / "secret-safety.json"),
+            compatibility,
         )
 
 
@@ -191,6 +195,9 @@ def test_materializer_canonicalizes_eventbridge_second_precision_time() -> None:
         _timestamp(_parse_timestamp("2027-01-01T00:00:00Z"))
         == "2027-01-01T00:00:00.000Z"
     )
+
+    with pytest.raises(MaterializationError, match="MATERIALIZER_TIME_INVALID"):
+        _parse_timestamp("2027-01-01T00:00:00")
 
 
 def test_empty_materialization_snapshot_omits_invalid_string_set() -> None:
@@ -231,6 +238,10 @@ def test_materializer_marks_only_a_validated_snapshot_as_materialized(
 
         def update_item(self, **kwargs: object) -> None:
             assert "validation_state = :validated" in str(kwargs["ConditionExpression"])
+            assert "horizon_at <= :horizon_at" in str(kwargs["ConditionExpression"])
+            assert kwargs["ExpressionAttributeValues"][":materialized_at"] == {
+                "S": "2027-01-01T00:00:01.000Z"
+            }
             assert self.item is not None
             self.item["materialization_state"] = {"S": "MATERIALIZED"}
             self.updated = True
@@ -261,6 +272,6 @@ def test_materializer_marks_only_a_validated_snapshot_as_materialized(
     dynamodb = DynamoDb()
 
     assert _put_validated_snapshot(dynamodb, registration, snapshot)
-    _mark_materialized(dynamodb, registration, snapshot)
+    _mark_materialized(dynamodb, registration, snapshot, "2027-01-01T00:00:01.000Z")
     assert dynamodb.updated
     assert not _put_validated_snapshot(dynamodb, registration, snapshot)
