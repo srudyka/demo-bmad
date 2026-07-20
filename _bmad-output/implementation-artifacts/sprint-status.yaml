@@ -55,7 +55,7 @@ development_status:
   1-4-register-a-platform-owned-canary-job: done
   1-5-authenticate-and-normalize-platform-evidence: done
   1-6-materialize-future-expected-occurrences: done
-  1-7-record-deterministic-occurrence-state: backlog
+  1-7-record-deterministic-occurrence-state: ready-for-dev
   1-8-launch-exactly-one-canary-task-per-occurrence: backlog
   1-9-correlate-ecs-state-and-completion-evidence: backlog
   1-10-detect-missed-and-overdue-occurrences: backlog
