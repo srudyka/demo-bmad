@@ -359,3 +359,49 @@ variable "deadline_scanner" {
     error_message = "deadline_scanner must use bounded scanner, queue, checkpoint, and log controls."
   }
 }
+
+variable "alert_router" {
+  description = "Explicit trusted Alert Router artifact and bounded Stream/reconciliation controls."
+  type = object({
+    stream_enabled                     = bool
+    reconciliation_enabled             = bool
+    notifications_enabled              = bool
+    artifact_path                      = string
+    artifact_source_hash               = string
+    batch_size                         = number
+    batch_window_seconds               = number
+    maximum_record_age_seconds         = number
+    maximum_retry_attempts             = number
+    reconciliation_page_size           = number
+    reconciliation_schedule_expression = string
+    reserved_concurrency               = number
+    timeout_seconds                    = number
+    log_retention_days                 = number
+    notification_target_arn            = string
+    runbook_uri                        = string
+  })
+
+  validation {
+    condition = (
+      can(var.alert_router.stream_enabled) &&
+      can(var.alert_router.reconciliation_enabled) &&
+      can(var.alert_router.notifications_enabled) &&
+      (var.environment != "prod" || var.alert_router.stream_enabled || var.alert_router.reconciliation_enabled) &&
+      (var.environment != "prod" || var.alert_router.notifications_enabled) &&
+      length(var.alert_router.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.alert_router.artifact_source_hash)) &&
+      var.alert_router.batch_size >= 1 && var.alert_router.batch_size <= 100 &&
+      var.alert_router.batch_window_seconds >= 0 && var.alert_router.batch_window_seconds <= 300 &&
+      var.alert_router.maximum_record_age_seconds >= 60 && var.alert_router.maximum_record_age_seconds <= 86400 &&
+      var.alert_router.maximum_retry_attempts >= 1 && var.alert_router.maximum_retry_attempts <= 10000 &&
+      var.alert_router.reconciliation_page_size >= 1 && var.alert_router.reconciliation_page_size <= 100 &&
+      can(regex("^rate\\([1-9][0-9]* (minute|minutes)\\)$", var.alert_router.reconciliation_schedule_expression)) &&
+      var.alert_router.reserved_concurrency >= 2 && var.alert_router.reserved_concurrency <= 1000 &&
+      var.alert_router.timeout_seconds >= 1 && var.alert_router.timeout_seconds <= 900 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.alert_router.log_retention_days) &&
+      can(regex("^arn:[a-z0-9-]+:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_.:/=-]+$", var.alert_router.notification_target_arn)) &&
+      can(regex("^https://", var.alert_router.runbook_uri))
+    )
+    error_message = "alert_router must use a published artifact, bounded Stream/reconciliation controls, an exact SNS target, and an HTTPS runbook."
+  }
+}

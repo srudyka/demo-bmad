@@ -200,6 +200,74 @@ locals {
     },
   )
 
+  cell_health_alarm_definitions = {
+    scheduler_delivery_failures = {
+      namespace  = "AWS/Events"
+      name       = "FailedInvocations"
+      dimensions = { RuleName = aws_cloudwatch_event_rule.materializer_tick.name }
+      statistic  = "Sum"
+    }
+    scheduler_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.alert_router_dlq.name }
+      statistic  = "Maximum"
+    }
+    source_queue_age = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateAgeOfOldestMessage"
+      dimensions = { QueueName = aws_sqs_queue.scheduler_ingress.name }
+      statistic  = "Maximum"
+    }
+    ingress_queue_age = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateAgeOfOldestMessage"
+      dimensions = { QueueName = aws_sqs_queue.process_manager_ingress.name }
+      statistic  = "Maximum"
+    }
+    lambda_errors = {
+      namespace  = "AWS/Lambda"
+      name       = "Errors"
+      dimensions = { FunctionName = aws_lambda_function.alert_router.function_name }
+      statistic  = "Sum"
+    }
+    lambda_throttles = {
+      namespace  = "AWS/Lambda"
+      name       = "Throttles"
+      dimensions = { FunctionName = aws_lambda_function.alert_router.function_name }
+      statistic  = "Sum"
+    }
+    dynamodb_throttles = {
+      namespace  = "AWS/DynamoDB"
+      name       = "ThrottledRequests"
+      dimensions = { TableName = aws_dynamodb_table.occurrence_ledger.name }
+      statistic  = "Sum"
+    }
+    deadline_lag = {
+      namespace  = var.metric_namespace
+      name       = "DeadlineScannerWatermarkAge"
+      dimensions = { component = "deadline-scanner", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Maximum"
+    }
+    outbox_reconciliation = {
+      namespace  = var.metric_namespace
+      name       = "ReconciliationFailure"
+      dimensions = { component = "alert-router", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+  }
+  cell_health_alarm_policy = {
+    for key in keys(local.cell_health_alarm_definitions) : key => {
+      threshold          = 1
+      evaluation_periods = 5
+      period_seconds     = 60
+      missing_data       = "breaching"
+      owner              = var.owner
+      severity           = "critical"
+      runbook_uri        = var.alert_router.runbook_uri
+    }
+  }
+
   compatibility_catalog = jsondecode(
     file("${path.module}/../../contracts/v1/catalogs/compatibility.json"),
   )
@@ -328,6 +396,21 @@ locals {
       arn          = aws_sqs_queue.completion_source.arn
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.evidence
+    }
+    alert_outbox = {
+      arn          = "${aws_dynamodb_table.occurrence_ledger.arn}/index/alert-outbox"
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["alert-router"]
+    }
+    notification_ledger = {
+      arn          = aws_dynamodb_table.notification_ledger.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["alert-router"]
+    }
+    alert_router = {
+      arn          = aws_lambda_function.alert_router.arn
+      owner        = "cell-root"
+      schema_range = local.compatibility_catalog.component_ranges["alert-router"]
     }
   }
   cell_contract_body = {
@@ -547,11 +630,31 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
     type = "S"
   }
 
+  attribute {
+    name = "record_type"
+    type = "S"
+  }
+
+  attribute {
+    name = "alert_sort"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "task-arn"
     hash_key        = "task_arn"
     projection_type = "ALL"
   }
+
+  global_secondary_index {
+    name            = "alert-outbox"
+    hash_key        = "record_type"
+    range_key       = "alert_sort"
+    projection_type = "ALL"
+  }
+
+  stream_enabled   = true
+  stream_view_type = "NEW_IMAGE"
 
   global_secondary_index {
     name            = "deadlines"
@@ -682,7 +785,7 @@ data "aws_iam_policy_document" "deadline_scanner" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+      values   = ["JOB#*"]
     }
   }
   statement {
@@ -831,6 +934,405 @@ resource "aws_lambda_permission" "deadline_scanner_tick" {
   source_arn    = aws_cloudwatch_event_rule.deadline_scanner_tick.arn
 }
 
+resource "aws_dynamodb_table" "notification_ledger" {
+  name                        = "${local.name_prefix}-notification-ledger"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "pk"
+  range_key                   = "sk"
+  deletion_protection_enabled = var.enable_recovery_protection
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
+  }
+
+  lifecycle {
+    precondition {
+      condition     = split(":", var.kms_key_arn)[3] == data.aws_region.current.region
+      error_message = "KMS_KEY_REGION_MISMATCH: notification ledger key must be in the Cell provider Region."
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "alert_router" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/alert-router"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.alert_router.log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_sqs_queue" "alert_router_dlq" {
+  name                      = "${local.name_prefix}-alert-router-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
+  tags                      = local.common_tags
+}
+
+data "aws_iam_policy_document" "alert_router_dlq" {
+  statement {
+    sid       = "AllowEventBridgeReconciliationDeadLetterDelivery"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.alert_router_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.alert_router_reconciliation.arn]
+    }
+  }
+  statement {
+    sid       = "AllowOnlyAlertRouterStreamDeadLetterDelivery"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.alert_router_dlq.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_dynamodb_table.occurrence_ledger.stream_arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "alert_router_dlq" {
+  queue_url = aws_sqs_queue.alert_router_dlq.id
+  policy    = data.aws_iam_policy_document.alert_router_dlq.json
+}
+
+data "aws_iam_policy_document" "alert_router_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "alert_router" {
+  statement {
+    sid       = "ReadOnlyOccurrenceStream"
+    effect    = "Allow"
+    actions   = ["dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams"]
+    resources = [aws_dynamodb_table.occurrence_ledger.stream_arn]
+  }
+  statement {
+    sid       = "ReadOnlyAuthoritativeOccurrences"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#*"]
+    }
+  }
+  statement {
+    sid       = "ReadOnlyAlertOutbox"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.occurrence_ledger.arn}/index/alert-outbox"]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["ALERT_OUTBOX"]
+    }
+  }
+  statement {
+    sid       = "UpdateOnlyAlertOutbox"
+    effect    = "Allow"
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["ALERT_OUTBOX#*"]
+    }
+  }
+  statement {
+    sid       = "ReadOnlyRegisteredConfig"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.configuration_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#*"]
+    }
+  }
+  statement {
+    sid       = "UpdateOnlyNotificationLedger"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.notification_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["NOTIFICATION#*"]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyRegisteredTarget"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [var.alert_router.notification_target_arn]
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.alert_router.arn}:*"]
+  }
+  statement {
+    sid       = "PublishOnlyBoundedRouterMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    sid       = "UseCellDataKey"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "kms:EncryptionContext:aws:dynamodb:tableName"
+      values   = [aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.notification_ledger.name]
+    }
+  }
+}
+
+resource "aws_iam_role" "alert_router" {
+  name                 = "${local.name_prefix}-alert-router"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.alert_router_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "alert_router" {
+  name   = "${local.name_prefix}-alert-router"
+  role   = aws_iam_role.alert_router.id
+  policy = data.aws_iam_policy_document.alert_router.json
+}
+
+resource "aws_lambda_function" "alert_router" {
+  function_name                  = "${local.name_prefix}-alert-router"
+  filename                       = var.alert_router.artifact_path
+  source_code_hash               = var.alert_router.artifact_source_hash
+  handler                        = "alert_router.handler.lambda_handler"
+  role                           = aws_iam_role.alert_router.arn
+  runtime                        = "python3.14"
+  timeout                        = var.alert_router.timeout_seconds
+  reserved_concurrent_executions = var.alert_router.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
+  environment {
+    variables = {
+      ALERT_ROUTER_ACCOUNT_ID               = data.aws_caller_identity.current.account_id
+      ALERT_ROUTER_CELL_ID                  = var.cell_id
+      ALERT_ROUTER_CELL_TARGET_ARN          = var.alert_router.notification_target_arn
+      ALERT_ROUTER_NOTIFICATIONS_ENABLED    = tostring(var.alert_router.notifications_enabled)
+      ALERT_ROUTER_CONFIG_TABLE_NAME        = aws_dynamodb_table.configuration_registry.name
+      ALERT_ROUTER_ENVIRONMENT              = var.environment
+      ALERT_ROUTER_NOTIFICATION_TABLE_NAME  = aws_dynamodb_table.notification_ledger.name
+      ALERT_ROUTER_OCCURRENCE_TABLE_NAME    = aws_dynamodb_table.occurrence_ledger.name
+      ALERT_ROUTER_OWNER                    = var.owner
+      ALERT_ROUTER_REGION                   = data.aws_region.current.region
+      ALERT_ROUTER_RUNBOOK_URI              = var.alert_router.runbook_uri
+      ALERT_ROUTER_RECONCILIATION_PAGE_SIZE = tostring(var.alert_router.reconciliation_page_size)
+      ALERT_ROUTER_METRIC_NAMESPACE         = var.metric_namespace
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.alert_router]
+  tags       = local.common_tags
+}
+
+resource "aws_lambda_event_source_mapping" "alert_router" {
+  enabled                            = var.alert_router.stream_enabled
+  event_source_arn                   = aws_dynamodb_table.occurrence_ledger.stream_arn
+  function_name                      = aws_lambda_function.alert_router.arn
+  batch_size                         = var.alert_router.batch_size
+  maximum_batching_window_in_seconds = var.alert_router.batch_window_seconds
+  maximum_record_age_in_seconds      = var.alert_router.maximum_record_age_seconds
+  maximum_retry_attempts             = var.alert_router.maximum_retry_attempts
+  bisect_batch_on_function_error     = true
+  starting_position                  = "TRIM_HORIZON"
+  function_response_types            = ["ReportBatchItemFailures"]
+
+  filter_criteria {
+    filter {
+      pattern = jsonencode({
+        eventName = ["INSERT", "MODIFY"]
+        dynamodb = {
+          NewImage = {
+            record_type = { S = ["ALERT_OUTBOX"] }
+          }
+        }
+      })
+    }
+  }
+
+  destination_config {
+    on_failure {
+      destination_arn = aws_sqs_queue.alert_router_dlq.arn
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "alert_router_reconciliation" {
+  is_enabled          = var.alert_router.reconciliation_enabled
+  name                = "${local.name_prefix}-alert-router-reconciliation"
+  description         = "Bounded replay of pending occurrence alert obligations."
+  schedule_expression = var.alert_router.reconciliation_schedule_expression
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "alert_router_reconciliation" {
+  rule = aws_cloudwatch_event_rule.alert_router_reconciliation.name
+  arn  = aws_lambda_function.alert_router.arn
+  input = jsonencode({
+    mode = "reconciliation"
+  })
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 5
+  }
+  dead_letter_config {
+    arn = aws_sqs_queue.alert_router_dlq.arn
+  }
+}
+
+resource "aws_lambda_permission" "alert_router_reconciliation" {
+  statement_id  = "AllowEventBridgeAlertRouterReconciliation"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.alert_router.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.alert_router_reconciliation.arn
+}
+
+resource "aws_cloudwatch_metric_alarm" "canary_processed_freshness" {
+  alarm_name          = "${local.name_prefix}-canary-processed-freshness"
+  alarm_description   = "Canary end-to-end processing heartbeat is stale; see the Cell runbook."
+  namespace           = var.metric_namespace
+  metric_name         = "CanaryProcessedHeartbeat"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  dimensions = {
+    component   = "canary"
+    cell_id     = var.cell_id
+    state       = "SUCCEEDED"
+    environment = var.environment
+  }
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "alert_router_retries" {
+  alarm_name          = "${local.name_prefix}-alert-router-retries"
+  alarm_description   = "Alert Router retries require Cell runbook investigation."
+  namespace           = var.metric_namespace
+  metric_name         = "Retry"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  dimensions = {
+    component   = "alert-router"
+    cell_id     = var.cell_id
+    environment = var.environment
+  }
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "cell_health" {
+  for_each            = local.cell_health_alarm_definitions
+  alarm_name          = "${local.name_prefix}-cell-${each.key}"
+  alarm_description   = "Cell health signal ${each.key}; owner: ${local.cell_health_alarm_policy[each.key].owner}; severity: ${local.cell_health_alarm_policy[each.key].severity}; threshold: ${local.cell_health_alarm_policy[each.key].threshold}; missing-data: ${local.cell_health_alarm_policy[each.key].missing_data}; runbook: ${local.cell_health_alarm_policy[each.key].runbook_uri}."
+  namespace           = each.value.namespace
+  metric_name         = each.value.name
+  statistic           = each.value.statistic
+  period              = local.cell_health_alarm_policy[each.key].period_seconds
+  evaluation_periods  = local.cell_health_alarm_policy[each.key].evaluation_periods
+  threshold           = local.cell_health_alarm_policy[each.key].threshold
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = local.cell_health_alarm_policy[each.key].missing_data
+  alarm_actions       = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [aws_lambda_function.alert_router.arn] : []
+  dimensions          = each.value.dimensions
+  tags                = merge(local.common_tags, { Severity = "critical", HealthOwner = var.owner, Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_lambda_permission" "alert_router_cloudwatch_alarms" {
+  for_each = merge(
+    {
+      canary_processed_freshness = aws_cloudwatch_metric_alarm.canary_processed_freshness.arn
+      alert_router_retries       = aws_cloudwatch_metric_alarm.alert_router_retries.arn
+    },
+    { for key, alarm in aws_cloudwatch_metric_alarm.cell_health : "cell_${key}" => alarm.arn }
+  )
+  statement_id   = "AllowCloudWatchAlarm${replace(each.key, "-", "")}"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.alert_router.function_name
+  principal      = "lambda.alarms.cloudwatch.amazonaws.com"
+  source_account = data.aws_caller_identity.current.account_id
+  source_arn     = each.value
+}
+
 data "aws_iam_policy_document" "process_manager" {
   statement {
     sid       = "ConsumeOnlyCanonicalIngress"
@@ -928,6 +1430,9 @@ resource "aws_lambda_function" "process_manager" {
       PROCESS_MANAGER_QUARANTINE_QUEUE_URL   = aws_sqs_queue.normalizer_quarantine.url
       PROCESS_MANAGER_OWNER_GENERATION       = tostring(var.canary_normalizer_registration.owner_generation)
       PROCESS_MANAGER_METRIC_NAMESPACE       = var.metric_namespace
+      PROCESS_MANAGER_CANARY_JOB_ID          = var.canary_normalizer_registration.job_id
+      PROCESS_MANAGER_CELL_ID                = var.cell_id
+      PROCESS_MANAGER_ENVIRONMENT            = var.environment
       PROCESS_MANAGER_OCCURRENCE_TABLE_NAME  = aws_dynamodb_table.occurrence_ledger.name
       PROCESS_MANAGER_CANARY_LAUNCH_ROLE_ARN = var.canary_normalizer_registration.canary_launch_role_arn
     }

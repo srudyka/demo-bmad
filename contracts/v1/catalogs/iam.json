@@ -1,9 +1,9 @@
 {
   "roles": {
     "alert-router": {
-      "actions": ["dynamodb:ConditionCheckItem", "dynamodb:PutItem", "sns:Publish"],
-      "conditions": {"sns:ResourceTag/PlatformCell": "<cell-id>"},
-      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:sns:<region>:<account>:<approved-topic>"],
+      "actions": ["cloudwatch:PutMetricData", "dynamodb:DescribeStream", "dynamodb:GetItem", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "sns:Publish"],
+      "conditions": {"cloudwatch:namespace": "<metric-namespace>", "sns:ResourceTag/PlatformCell": "<cell-id>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/stream/<timestamp>", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/index/alert-outbox", "arn:aws:dynamodb:<region>:<account>:table/<cell>-configuration-registry", "arn:aws:dynamodb:<region>:<account>:table/<cell>-notification-ledger", "arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/alert-router:*", "arn:aws:sns:<region>:<account>:<approved-topic>"],
       "trust": ["lambda.amazonaws.com"]
     },
     "apply": {

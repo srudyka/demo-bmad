@@ -156,3 +156,15 @@ restore a compatible scanner artifact/Cell Contract. Replay only after the
 registration and contract are corrected. Do not delete deadline evidence or
 stop healthy/overdue tasks as a rollback action. Local tests do not prove live
 AWS propagation timing, IAM enforcement, or the five-minute production SLO.
+# Alert delivery
+
+Terminal occurrence alerts are first written atomically to the occurrence
+ledger outbox. If Stream delivery is delayed, the scheduled Alert Router
+reconciliation queries the bounded `alert-outbox` index and retries pending
+obligations. Inspect the encrypted notification ledger by deterministic
+deduplication ID: `DELIVERED` is final, `PENDING` is retryable, and `AMBIGUOUS`
+means publication outcome cannot be safely replayed.
+
+For a bad deployment, disable the Alert Router event source mapping and
+reconciliation rule, correct the artifact or configuration, then re-enable
+them. Do not delete the outbox or notification ledger during rollback.

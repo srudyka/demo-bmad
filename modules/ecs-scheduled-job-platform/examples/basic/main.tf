@@ -20,4 +20,5 @@ module "platform" {
   process_manager                = var.process_manager
   log_ingestor                   = var.log_ingestor
   deadline_scanner               = var.deadline_scanner
+  alert_router                   = var.alert_router
 }

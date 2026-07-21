@@ -257,3 +257,43 @@ variable "deadline_scanner" {
     log_retention_days       = 365
   }
 }
+
+variable "alert_router" {
+  description = "Fictitious Alert Router artifact and bounded controls for local validation only."
+  type = object({
+    stream_enabled                     = bool
+    reconciliation_enabled             = bool
+    notifications_enabled              = bool
+    artifact_path                      = string
+    artifact_source_hash               = string
+    batch_size                         = number
+    batch_window_seconds               = number
+    maximum_record_age_seconds         = number
+    maximum_retry_attempts             = number
+    reconciliation_page_size           = number
+    reconciliation_schedule_expression = string
+    reserved_concurrency               = number
+    timeout_seconds                    = number
+    log_retention_days                 = number
+    notification_target_arn            = string
+    runbook_uri                        = string
+  })
+  default = {
+    stream_enabled                     = true
+    reconciliation_enabled             = true
+    notifications_enabled              = true
+    artifact_path                      = "artifacts/alert-router.zip"
+    artifact_source_hash               = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    batch_size                         = 10
+    batch_window_seconds               = 5
+    maximum_record_age_seconds         = 3600
+    maximum_retry_attempts             = 5
+    reconciliation_page_size           = 25
+    reconciliation_schedule_expression = "rate(1 minute)"
+    reserved_concurrency               = 2
+    timeout_seconds                    = 30
+    log_retention_days                 = 365
+    notification_target_arn            = "arn:aws:sns:us-east-1:000000000000:dev-platform-canary"
+    runbook_uri                        = "https://runbooks.example.test/platform/canary"
+  }
+}

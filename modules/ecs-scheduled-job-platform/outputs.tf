@@ -77,6 +77,30 @@ output "deadline_scanner" {
   }
 }
 
+output "alert_router" {
+  description = "Cell-owned occurrence Alert Router, outbox, notification ledger, and reconciliation identifiers."
+  value = {
+    function_arn             = aws_lambda_function.alert_router.arn
+    role_arn                 = aws_iam_role.alert_router.arn
+    occurrence_stream_arn    = aws_dynamodb_table.occurrence_ledger.stream_arn
+    outbox_index_name        = "alert-outbox"
+    notification_ledger_arn  = aws_dynamodb_table.notification_ledger.arn
+    notification_ledger_name = aws_dynamodb_table.notification_ledger.name
+    reconciliation_rule_arn  = aws_cloudwatch_event_rule.alert_router_reconciliation.arn
+    dead_letter_queue_arn    = aws_sqs_queue.alert_router_dlq.arn
+  }
+}
+
+output "cell_health" {
+  description = "Bounded Cell-health alarm identifiers and the processed-canary heartbeat metric."
+  value = {
+    alarm_arns       = { for key, alarm in aws_cloudwatch_metric_alarm.cell_health : key => alarm.arn }
+    heartbeat_alarm  = aws_cloudwatch_metric_alarm.canary_processed_freshness.arn
+    retry_alarm      = aws_cloudwatch_metric_alarm.alert_router_retries.arn
+    metric_namespace = var.metric_namespace
+  }
+}
+
 output "scheduler_ingress" {
   description = "Cell-owned EventBridge Scheduler ingress queue, DLQ, and schedule-group identifiers."
   value = {

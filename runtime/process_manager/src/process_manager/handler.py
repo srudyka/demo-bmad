@@ -186,7 +186,9 @@ def lambda_handler(
                 )
                 continue
             if correlation_prepared is not None:
-                _process_correlation(envelope, correlation_prepared, ledger, now)
+                _process_correlation(
+                    envelope, correlation_prepared, ledger, now, metrics
+                )
                 continue
             if deadline_prepared is not None:
                 _process_deadline(envelope, deadline_prepared, ledger, now)
@@ -271,6 +273,7 @@ def _process_correlation(
     prepared: PreparedCorrelation,
     ledger: Ledger,
     now: str,
+    metrics: Any,
 ) -> None:
     """Reduce one authenticated task-state or completion fact."""
 
@@ -295,6 +298,9 @@ def _process_correlation(
     state = str(occurrence.get("state", "EXPECTED"))
     terminal_state = state in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}
     changes: dict[str, Any] = {}
+    failure_plane = (
+        "TASK" if envelope["event_type"] == "task.state.v1" else "COMPLETION"
+    )
     if envelope["event_type"] == "task.state.v1":
         task_arn = payload.get("task_arn")
         if task_arn != occurrence.get("task_arn") and occurrence.get("task_arn"):
@@ -380,7 +386,36 @@ def _process_correlation(
         state=state,
         evidence_id=evidence_id,
         changes=changes,
+        failure_plane=failure_plane,
     )
+    if state == "SUCCEEDED" and envelope.get("job_id") == os.environ.get(
+        "PROCESS_MANAGER_CANARY_JOB_ID"
+    ):
+        try:
+            metrics.put_metric_data(
+                Namespace=os.environ["PROCESS_MANAGER_METRIC_NAMESPACE"],
+                MetricData=[
+                    {
+                        "MetricName": "CanaryProcessedHeartbeat",
+                        "Unit": "Count",
+                        "Value": 1.0,
+                        "Dimensions": [
+                            {"Name": "component", "Value": "canary"},
+                            {
+                                "Name": "cell_id",
+                                "Value": os.environ["PROCESS_MANAGER_CELL_ID"],
+                            },
+                            {"Name": "state", "Value": "SUCCEEDED"},
+                            {
+                                "Name": "environment",
+                                "Value": os.environ["PROCESS_MANAGER_ENVIRONMENT"],
+                            },
+                        ],
+                    }
+                ],
+            )
+        except Exception:  # noqa: BLE001 - heartbeat is post-commit best effort
+            LOGGER.warning("process_manager_heartbeat_publish_failed", exc_info=True)
 
 
 def _process_deadline(
@@ -440,6 +475,9 @@ def _process_deadline(
             "deadline_at": prepared.payload["deadline_at"],
             "deadline_kind": prepared.payload["deadline_kind"],
         },
+        failure_plane=(
+            "SCHEDULE" if prepared.payload["deadline_kind"] == "START" else "DEADLINE"
+        ),
     )
 
 

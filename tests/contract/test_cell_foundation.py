@@ -50,7 +50,6 @@ def test_cell_foundation_declares_only_owned_bootstrap_registration_config_and_d
     prohibited = (
         "aws_ecs_task_definition",
         'resource "aws_scheduler_schedule"',
-        "aws_cloudwatch_metric_alarm",
         "aws_sns_topic",
         "terraform_remote_state",
     )
@@ -86,7 +85,6 @@ def test_cell_canary_bootstrap_has_no_runtime_processing_or_launch_authority() -
     for prohibited in (
         "ecs:RunTask",
         "iam:PassRole",
-        "aws_cloudwatch_metric_alarm",
         "aws_sns_topic",
     ):
         assert prohibited not in contents

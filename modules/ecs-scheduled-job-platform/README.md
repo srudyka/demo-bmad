@@ -15,9 +15,12 @@ the narrow, platform-owned canary bootstrap prerequisites:
   EventBridge capture rule, and the least-privilege log ingestor path.
 - an encrypted deadline source queue/DLQ, minute-cadence deadline scanner,
   deadline projection, and encrypted monotonic scanner checkpoint.
+- an encrypted notification ledger, occurrence outbox GSI, and Stream/EventBridge
+  Alert Router for durable terminal-occurrence notifications.
 
 It deliberately does not create a general Registrar, ECS task definitions, job
-resource roles, alarms, notification targets, or alert consumers. The deadline
+resource roles, or customer notification consumers. It does create bounded Cell
+health alarms and the platform-owned Alert Router path. The deadline
 scanner is detection-only and never stops or relaunches ECS tasks. The Process Manager may assume only the explicitly registered canary
 launch role; the job-owned launch role retains `RunTask` and `PassRole` authority.
 
@@ -101,6 +104,31 @@ Required inputs:
   The scanner reads the deadline projection, strongly verifies base records,
   emits to the exact encrypted source queue, and conditionally advances its
   encrypted Cell checkpoint only after emission.
+- `alert_router` supplies an immutable router artifact, exact SNS target, runbook,
+  bounded Stream retry settings, reconciliation cadence, and encrypted ledger
+  retention. The target is also validated against the authoritative CONFIG.
+
+## Cell-health observability bounds
+
+The Cell health alarm set contains nine bounded alarms plus the canary freshness
+and router retry alarms. Service metrics use only AWS resource dimensions;
+platform metrics use `cell_id`, `environment`, and `component`. No occurrence
+ID, task ARN, log stream, source ARN, target ARN, or raw error is a metric
+dimension. Reconciliation performs at most ten pages per scheduled invocation,
+with a configured page size of 1-100 and a one-hour EventBridge retry age.
+
+The fixed Cell baseline is nine health alarms, two routing alarms, one canary
+heartbeat, one alert-router Lambda, one notification ledger, and the existing
+queue/DLQ set. Cost is therefore bounded by those fixed resources plus metric
+ingestion and alarm evaluation; investigate any increase in alarm count or
+metric dimensions as a Cell Contract change. The module does not claim live-AWS
+failure qualification: credential-free tests must cover each failure plane,
+recovery, target denial, and 20 healthy accelerated canary windows before
+production enablement.
+
+Rollback disables the specific health alarm actions or event-source mapping
+while retaining metrics, DLQs, logs, heartbeat evidence, the occurrence outbox,
+notification ledger, and CloudWatch alarm history.
 - `incomplete_multipart_upload_days` is a bounded 1-365 day cleanup policy for
   incomplete uploads only. CONFIG object versions are retained until a later,
   registry-aware garbage collector proves them unreferenced.

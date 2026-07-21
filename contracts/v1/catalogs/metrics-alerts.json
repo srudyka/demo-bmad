@@ -19,5 +19,34 @@
   "forbidden_dimensions": ["occurrence_id", "task_arn", "command_id"],
   "metric_dimensions": ["job_id", "environment", "state"],
   "outbox_identity": ["job_id", "occurrence_id", "state", "failure_plane"],
+  "notification_ledger": {
+    "statuses": ["PENDING", "DELIVERED", "AMBIGUOUS"],
+    "retry_horizon_seconds": 1209600,
+    "separate_from_occurrence_state": true
+  },
+  "occurrence_alert_states": ["FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"],
+  "cell_health": {
+    "bounded_dimensions": ["cell_id", "component", "environment", "failure_plane", "job_id", "state"],
+    "forbidden_dimensions": ["occurrence_id", "task_arn", "log_stream", "error_text", "source_arn", "target_arn"],
+    "heartbeat_metric": "CanaryProcessedHeartbeat",
+    "freshness_alarm": {
+      "evaluation_periods": 5,
+      "missing_data": "breaching",
+      "period_seconds": 60,
+      "threshold": 1
+    },
+    "runbook_uri_required": true,
+    "alarm_definitions": {
+      "scheduler_delivery_failures": {"metric": "FailedInvocations", "namespace": "AWS/Events", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "scheduler_dlq_depth": {"metric": "ApproximateNumberOfMessagesVisible", "namespace": "AWS/SQS", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "source_queue_age": {"metric": "ApproximateAgeOfOldestMessage", "namespace": "AWS/SQS", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "ingress_queue_age": {"metric": "ApproximateAgeOfOldestMessage", "namespace": "AWS/SQS", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "lambda_errors": {"metric": "Errors", "namespace": "AWS/Lambda", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "lambda_throttles": {"metric": "Throttles", "namespace": "AWS/Lambda", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "dynamodb_throttles": {"metric": "ThrottledRequests", "namespace": "AWS/DynamoDB", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "deadline_lag": {"metric": "DeadlineScannerWatermarkAge", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "outbox_reconciliation": {"metric": "ReconciliationFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true}
+    }
+  },
   "schema_version": "1.0.0"
 }

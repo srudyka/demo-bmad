@@ -29,6 +29,24 @@
     "maximum_lateness_seconds": 900,
     "nonterminal_reconciliation_required": true
   },
+  "alert_outbox": {
+    "record_type": "ALERT_OUTBOX",
+    "partition_key_pattern": "ALERT_OUTBOX#<occurrence_id>#<policy>",
+    "sort_key_pattern": "ALERT#<state>#<failure_plane>",
+    "identity": ["job_id", "occurrence_id", "state", "failure_plane", "policy"],
+    "terminal_states": ["FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"],
+    "reconciliation_index": "alert-outbox",
+    "retry_horizon_seconds": 1209600
+  },
+  "notification_ledger": {
+    "record_type": "NOTIFICATION_DELIVERY",
+    "partition_key_pattern": "NOTIFICATION#<deduplication_id>",
+    "sort_key": "DELIVERY",
+    "identity": ["alert_id", "notification_target_arn"],
+    "statuses": ["PENDING", "DELIVERED", "AMBIGUOUS"],
+    "retry_horizon_seconds": 1209600,
+    "encryption": "server_side_kms"
+  },
   "scanner_checkpoint": {
     "record_key": "PK=CELL#<cell_id>;SK=CHECKPOINT#deadline",
     "fields": ["watermark", "position"],

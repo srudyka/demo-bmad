@@ -65,6 +65,7 @@ class RepositoryStructureTest(unittest.TestCase):
             "aws_iam_role",
             "aws_iam_role_policy",
             "aws_cloudwatch_log_group",
+            "aws_cloudwatch_metric_alarm",
             "aws_cloudwatch_event_rule",
             "aws_cloudwatch_event_target",
             "aws_lambda_event_source_mapping",
@@ -84,7 +85,6 @@ class RepositoryStructureTest(unittest.TestCase):
         prohibited_platform_terms = (
             "aws_ecs_task_definition",
             'resource "aws_scheduler_schedule"',
-            "aws_cloudwatch_metric_alarm",
             "aws_sns_topic",
             "aws_s3_bucket_notification",
             "terraform_remote_state",
