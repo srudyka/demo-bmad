@@ -16,6 +16,7 @@
   },
   "operator_request": {
     "allowed_lookup_selectors": ["scheduled_time"],
+    "allowed_command_types": ["RERUN", "REPLAY", "DISABLE", "RECOVER"],
     "forbidden_caller_fields": [
       "occurrence_id",
       "original_occurrence_id",

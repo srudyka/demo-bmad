@@ -19,11 +19,13 @@ from .normalizer import (
     SchedulerRegistration,
     EcsRegistration,
     DeadlineRegistration,
+    CommandRegistration,
     TransientTransportError,
     process_scheduler_batch,
     process_materializer_batch,
     process_ecs_batch,
     process_deadline_batch,
+    process_command_batch,
 )
 
 
@@ -98,6 +100,16 @@ def _deadline_registration() -> DeadlineRegistration:
         raise RuntimeError("NORMALIZER_DEADLINE_REGISTRATION_INVALID") from error
 
 
+def _command_registration() -> CommandRegistration:
+    try:
+        parsed = json.loads(_required_environment("NORMALIZER_COMMAND_REGISTRATION"))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("NORMALIZER_COMMAND_REGISTRATION_INVALID")
+        return CommandRegistration(**parsed)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError("NORMALIZER_COMMAND_REGISTRATION_INVALID") from error
+
+
 def _clients() -> tuple[QueueClient, MetricsClient, DynamoClient]:
     # boto3 stays inside this adapter so unit tests and parsing need no AWS SDK.
     import boto3  # type: ignore[import-untyped]
@@ -135,6 +147,7 @@ def lambda_handler(
     materializer_registration = _materializer_registration()
     ecs_registration = _ecs_registration()
     deadline_registration = _deadline_registration()
+    command_registration = _command_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
     process_manager_url = _required_environment("NORMALIZER_PROCESS_MANAGER_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
@@ -268,6 +281,17 @@ def lambda_handler(
             send_envelope=send_process_manager_envelope,
             send_quarantine=send_quarantine,
             deadline_lookup=deadline_lookup,
+        )
+    if source_arns == {command_registration.source_queue_arn}:
+        return process_command_batch(
+            list(records),
+            command_registration,
+            schemas,
+            registry,
+            secret_policy,
+            send_envelope=send_process_manager_envelope,
+            send_quarantine=send_quarantine,
+            on_permanent_rejection=_safe_log,
         )
     if source_arns == {materializer_registration.source_queue_arn}:
         response = process_materializer_batch(

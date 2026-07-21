@@ -86,6 +86,19 @@ class DeadlineRegistration:
 
 
 @dataclass(frozen=True)
+class CommandRegistration:
+    """Cell-owned binding for handler-authorized command evidence."""
+
+    account_id: str
+    cell_id: str
+    environment: str
+    region: str
+    handler_role_id: str
+    source_queue_arn: str
+    schedule_generation: str
+
+
+@dataclass(frozen=True)
 class NormalizationResult:
     """Either a canonical envelope or a sanitized permanent rejection."""
 
@@ -269,6 +282,89 @@ def normalize_scheduler_record(
         )
     except NormalizationError as error:
         return _rejection(record, str(error))
+
+
+def normalize_command_record(
+    record: Mapping[str, object],
+    registration: CommandRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+) -> NormalizationResult:
+    """Turn handler-authorized command payloads into canonical evidence envelopes."""
+    try:
+        if (
+            record.get("eventSource") != "aws:sqs"
+            or record.get("eventSourceARN") != registration.source_queue_arn
+        ):
+            raise NormalizationError("COMMAND_SOURCE_QUEUE")
+        if record.get("awsRegion") != registration.region:
+            raise NormalizationError("COMMAND_SOURCE_REGION")
+        attributes = record.get("attributes")
+        if not isinstance(attributes, Mapping) or not str(
+            attributes.get("SenderId", "")
+        ).startswith(registration.handler_role_id):
+            raise NormalizationError("COMMAND_HANDLER_AUTHORITY")
+        body = _body(record)
+        command = body.get("command")
+        if not isinstance(command, Mapping) or command.get("form") != "canonical":
+            raise NormalizationError("COMMAND_BODY_INVALID")
+        if command.get("job_id") is None or command.get("scheduled_time") is None:
+            raise NormalizationError("COMMAND_COORDINATES")
+        envelope = {
+            "schema_version": "1.0.0",
+            "producer_id": "command-handler",
+            "producer_event_id": command.get("command_id"),
+            "event_type": "command.authorized.v1",
+            "job_id": command.get("job_id"),
+            "config_version": command.get("config_version"),
+            "schedule_generation": registration.schedule_generation,
+            "scheduled_time": command.get("scheduled_time"),
+            "occurrence_id": command.get("synthetic_occurrence_id"),
+            "emitted_at": datetime.now(UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+            "payload": body,
+        }
+        schema_id = (
+            "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+        )
+        if validate_contract_instance(
+            schemas[schema_id], envelope, schema_registry, secret_policy=secret_policy
+        ):
+            raise NormalizationError("COMMAND_ENVELOPE_INVALID")
+        return NormalizationResult(envelope, None, None)
+    except NormalizationError as error:
+        return _rejection(record, str(error))
+
+
+def process_command_batch(
+    records: list[Mapping[str, object]],
+    registration: CommandRegistration,
+    schemas: Mapping[str, dict[str, object]],
+    schema_registry: Registry[Any],
+    secret_policy: dict[str, object],
+    *,
+    send_envelope: Callable[[dict[str, object]], None],
+    send_quarantine: Callable[[dict[str, object]], None],
+    on_permanent_rejection: Callable[[str, Mapping[str, object]], None] | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    failures: list[dict[str, str]] = []
+    for record in records:
+        message_id = str(record.get("messageId", ""))
+        result = normalize_command_record(
+            record, registration, schemas, schema_registry, secret_policy
+        )
+        if result.rejection_code and on_permanent_rejection:
+            on_permanent_rejection(result.rejection_code, record)
+        try:
+            if result.envelope:
+                send_envelope(result.envelope)
+            elif result.quarantine_record:
+                send_quarantine(result.quarantine_record)
+        except OSError, TransientTransportError:
+            failures.append({"itemIdentifier": message_id})
+    return {"batchItemFailures": failures}
 
 
 def normalize_materializer_record(

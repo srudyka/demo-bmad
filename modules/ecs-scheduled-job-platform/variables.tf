@@ -405,3 +405,53 @@ variable "alert_router" {
     error_message = "alert_router must use a published artifact, bounded Stream/reconciliation controls, an exact SNS target, and an HTTPS runbook."
   }
 }
+
+variable "command_handler" {
+  description = "Published command-handler artifact and bounded encrypted command queue controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    timeout_seconds      = number
+    reserved_concurrency = number
+    queue_retention_days = number
+    visibility_seconds   = number
+    max_receive_count    = number
+    log_retention_days   = number
+    broker_secret_arn    = string
+  })
+
+  validation {
+    condition = (
+      length(var.command_handler.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.command_handler.artifact_source_hash)) &&
+      var.command_handler.timeout_seconds >= 1 && var.command_handler.timeout_seconds <= 900 &&
+      var.command_handler.reserved_concurrency >= 1 && var.command_handler.reserved_concurrency <= 100 &&
+      var.command_handler.queue_retention_days >= 1 && var.command_handler.queue_retention_days <= 14 &&
+      var.command_handler.visibility_seconds >= 30 && var.command_handler.visibility_seconds <= 43200 &&
+      var.command_handler.max_receive_count >= 5 && var.command_handler.max_receive_count <= 1000 &&
+      can(regex("^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret/[A-Za-z0-9/_+=.@-]+$", var.command_handler.broker_secret_arn)) &&
+      var.command_handler.visibility_seconds >= 6 * var.command_handler.timeout_seconds &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.command_handler.log_retention_days)
+    )
+    error_message = "command_handler must use a published artifact and bounded encrypted queue/runtime controls."
+  }
+}
+
+variable "operator" {
+  description = "Approved human operator principals and IAM boundary for short-lived command invocation."
+  type = object({
+    trusted_principal_arns   = list(string)
+    permissions_boundary_arn = string
+    max_session_duration     = number
+  })
+
+  validation {
+    condition = (
+      length(var.operator.trusted_principal_arns) > 0 &&
+      alltrue([for arn in var.operator.trusted_principal_arns : can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:(role|user)/[A-Za-z0-9+=,.@_/-]+$", arn))]) &&
+      can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+$", var.operator.permissions_boundary_arn)) &&
+      var.operator.max_session_duration >= 900 && var.operator.max_session_duration <= 43200
+    )
+    error_message = "operator must contain approved IAM principals, a permissions boundary, and a bounded session duration."
+  }
+}

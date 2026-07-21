@@ -61,7 +61,7 @@ development_status:
   1-10-detect-missed-and-overdue-occurrences: done
   1-11-deliver-occurrence-alerts-reliably: done
   1-12-monitor-cell-health-with-the-canary: in-progress
-  1-13-authorize-operator-access-and-commands: backlog
+  1-13-authorize-operator-access-and-commands: done
   1-14-recover-cell-state-safely: backlog
   1-15-garbage-collect-unreferenced-platform-versions: backlog
   epic-1-retrospective: optional

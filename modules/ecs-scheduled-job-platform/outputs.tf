@@ -142,3 +142,14 @@ output "canary_registration" {
     owner_generation          = var.canary_reservation.owner_generation
   }
 }
+
+output "operator_commands" {
+  description = "Short-lived operator role and encrypted command-handler queue identifiers."
+  value = {
+    handler_function_arn = aws_lambda_function.command_handler.arn
+    handler_role_arn     = aws_iam_role.command_handler.arn
+    queue_arn            = aws_sqs_queue.command_handler_queue.arn
+    dlq_arn              = aws_sqs_queue.command_handler_dlq.arn
+    operator_role_arn    = aws_iam_role.operator.arn
+  }
+}

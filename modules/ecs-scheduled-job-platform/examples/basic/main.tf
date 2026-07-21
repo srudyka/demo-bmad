@@ -21,4 +21,6 @@ module "platform" {
   log_ingestor                   = var.log_ingestor
   deadline_scanner               = var.deadline_scanner
   alert_router                   = var.alert_router
+  command_handler                = var.command_handler
+  operator                       = var.operator
 }

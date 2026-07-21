@@ -13,6 +13,13 @@
           "minLength": 1,
           "type": "string"
         },
+        "command_type": {
+          "enum": ["RERUN", "REPLAY", "DISABLE", "RECOVER"],
+          "type": "string"
+        },
+        "compensation_acknowledged": {
+          "type": "boolean"
+        },
         "form": {
           "const": "operator_request"
         },
@@ -24,11 +31,11 @@
           "minLength": 1,
           "type": "string"
         },
-        "request_id": {
-          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
-        },
         "scheduled_time": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        "request_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
         },
         "schema_version": {
           "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
@@ -92,6 +99,9 @@
           "maxLength": 1024,
           "minLength": 1,
           "type": "string"
+        },
+        "scheduled_time": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
         "schema_version": {
           "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",

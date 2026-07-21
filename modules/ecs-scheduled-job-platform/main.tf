@@ -640,6 +640,16 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
     type = "S"
   }
 
+  attribute {
+    name = "job_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "scheduled_time"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "task-arn"
     hash_key        = "task_arn"
@@ -660,6 +670,13 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
     name            = "deadlines"
     hash_key        = "deadline_key"
     range_key       = "deadline_sort"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "job-scheduled-time"
+    hash_key        = "job_id"
+    range_key       = "scheduled_time"
     projection_type = "ALL"
   }
 
@@ -1705,7 +1722,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "ReadOnlyTheRegisteredSchedulerSource"
     effect    = "Allow"
     actions   = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
-    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn, aws_sqs_queue.ecs_event_source.arn, aws_sqs_queue.deadline_source.arn]
+    resources = [aws_sqs_queue.scheduler_ingress.arn, aws_sqs_queue.materializer_ingress.arn, aws_sqs_queue.ecs_event_source.arn, aws_sqs_queue.deadline_source.arn, aws_sqs_queue.command_handler_queue.arn]
   }
   statement {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
@@ -1752,6 +1769,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
         aws_sqs_queue.normalizer_ingress.arn,
         aws_sqs_queue.process_manager_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
+        aws_sqs_queue.command_handler_queue.arn,
       ]
     }
   }
@@ -1801,6 +1819,15 @@ resource "aws_lambda_function" "evidence_normalizer" {
       NORMALIZER_METRIC_NAMESPACE          = var.metric_namespace
       NORMALIZER_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
       NORMALIZER_OCCURRENCE_TABLE_NAME     = aws_dynamodb_table.occurrence_ledger.name
+      NORMALIZER_COMMAND_REGISTRATION = jsonencode({
+        account_id          = data.aws_caller_identity.current.account_id
+        cell_id             = var.cell_id
+        environment         = var.environment
+        region              = data.aws_region.current.region
+        handler_role_id     = aws_iam_role.command_handler.unique_id
+        source_queue_arn    = aws_sqs_queue.command_handler_queue.arn
+        schedule_generation = var.canary_normalizer_registration.schedule_generation
+      })
       NORMALIZER_ECS_REGISTRATION = jsonencode({
         account_id       = data.aws_caller_identity.current.account_id
         environment      = var.environment
@@ -2471,4 +2498,311 @@ resource "aws_ssm_parameter" "cell_contract" {
       error_message = "KMS_KEY_REGION_MISMATCH: kms_key_arn must be in the Cell provider Region."
     }
   }
+}
+
+resource "aws_sqs_queue" "command_handler_dlq" {
+  name                              = "${local.name_prefix}-commands-dlq"
+  message_retention_seconds         = var.command_handler.queue_retention_days * 86400
+  kms_master_key_id                 = var.kms_key_arn
+  kms_data_key_reuse_period_seconds = 300
+  tags                              = local.common_tags
+}
+
+resource "aws_sqs_queue" "command_handler_queue" {
+  name                              = "${local.name_prefix}-commands"
+  message_retention_seconds         = var.command_handler.queue_retention_days * 86400
+  visibility_timeout_seconds        = var.command_handler.visibility_seconds
+  kms_master_key_id                 = var.kms_key_arn
+  kms_data_key_reuse_period_seconds = 300
+  receive_wait_time_seconds         = 10
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.command_handler_dlq.arn
+    maxReceiveCount     = var.command_handler.max_receive_count
+  })
+  tags = local.common_tags
+}
+
+data "aws_iam_policy_document" "command_handler_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "command_handler" {
+  statement {
+    effect  = "Allow"
+    actions = ["dynamodb:GetItem", "dynamodb:Query"]
+    resources = [
+      aws_dynamodb_table.occurrence_ledger.arn,
+      "${aws_dynamodb_table.occurrence_ledger.arn}/index/job-scheduled-time",
+    ]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["APPROVAL#*"]
+    }
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.command_authorizations.arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.command_handler_queue.arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [var.command_handler.broker_secret_arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["dynamodb.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.command_handler.arn}:*"]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["sqs.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "command_handler" {
+  name                 = "${local.name_prefix}-command-handler"
+  assume_role_policy   = data.aws_iam_policy_document.command_handler_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_dynamodb_table" "command_authorizations" {
+  name                        = "${local.name_prefix}-command-authorizations"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "pk"
+  range_key                   = "sk"
+  deletion_protection_enabled = var.enable_recovery_protection
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+  point_in_time_recovery {
+    enabled = true
+  }
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
+  }
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "command_handler" {
+  name   = "${local.name_prefix}-command-handler"
+  role   = aws_iam_role.command_handler.id
+  policy = data.aws_iam_policy_document.command_handler.json
+}
+
+resource "aws_cloudwatch_log_group" "command_handler" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/command-handler"
+  retention_in_days = var.command_handler.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = local.common_tags
+}
+
+resource "aws_lambda_function" "command_handler" {
+  function_name                  = "${local.name_prefix}-command-handler"
+  filename                       = var.command_handler.artifact_path
+  source_code_hash               = var.command_handler.artifact_source_hash
+  handler                        = "command_handler.handler.lambda_handler"
+  role                           = aws_iam_role.command_handler.arn
+  runtime                        = "python3.14"
+  timeout                        = var.command_handler.timeout_seconds
+  reserved_concurrent_executions = var.command_handler.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+  environment {
+    variables = {
+      COMMAND_OCCURRENCE_TABLE_NAME    = aws_dynamodb_table.occurrence_ledger.name
+      COMMAND_AUTHORIZATION_TABLE_NAME = aws_dynamodb_table.command_authorizations.name
+      COMMAND_QUEUE_URL                = aws_sqs_queue.command_handler_queue.url
+      COMMAND_CELL_ID                  = var.cell_id
+      COMMAND_ACCOUNT_ID               = data.aws_caller_identity.current.account_id
+      COMMAND_REGION                   = data.aws_region.current.region
+      COMMAND_BROKER_SECRET_ARN        = var.command_handler.broker_secret_arn
+      COMMAND_METRIC_NAMESPACE         = var.metric_namespace
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.command_handler]
+  tags       = local.common_tags
+}
+
+data "aws_iam_policy_document" "command_queue" {
+  statement {
+    sid       = "HandlerOnlySend"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.command_handler_queue.arn]
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.command_handler.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "command_queue" {
+  queue_url = aws_sqs_queue.command_handler_queue.id
+  policy    = data.aws_iam_policy_document.command_queue.json
+}
+
+resource "aws_lambda_event_source_mapping" "command_normalizer" {
+  event_source_arn                   = aws_sqs_queue.command_handler_queue.arn
+  function_name                      = aws_lambda_function.evidence_normalizer.arn
+  batch_size                         = var.normalizer.batch_size
+  maximum_batching_window_in_seconds = var.normalizer.batch_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+resource "aws_cloudwatch_metric_alarm" "command_queue_age" {
+  alarm_name          = "${local.name_prefix}-command-queue-age"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateAgeOfOldestMessage"
+  dimensions          = { QueueName = aws_sqs_queue.command_handler_queue.name }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = var.command_handler.visibility_seconds
+  comparison_operator = "GreaterThanThreshold"
+  alarm_description   = "Authorized command evidence is not being consumed within the bounded visibility window."
+  treat_missing_data  = "notBreaching"
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "command_dlq_messages" {
+  alarm_name          = "${local.name_prefix}-command-dlq-messages"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = aws_sqs_queue.command_handler_dlq.name }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  alarm_description   = "Authorized command evidence is quarantined in the command DLQ."
+  treat_missing_data  = "notBreaching"
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "command_break_glass" {
+  alarm_name          = "${local.name_prefix}-command-break-glass"
+  namespace           = var.metric_namespace
+  metric_name         = "BreakGlassCommandAccepted"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  alarm_description   = "A break-glass command was accepted and requires immediate review."
+  treat_missing_data  = "notBreaching"
+  tags                = local.common_tags
+}
+
+data "aws_iam_policy_document" "operator_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    principals {
+      type        = "AWS"
+      identifiers = var.operator.trusted_principal_arns
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:MultiFactorAuthPresent"
+      values   = ["true"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "sts:SourceIdentity"
+      values   = ["operator:*"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/PlatformCell"
+      values   = [var.cell_id]
+    }
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["PlatformCell", "Actor", "ApprovalReference", "BreakGlassApproved"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "operator" {
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = [aws_lambda_function.command_handler.arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.occurrence_ledger.arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["logs:FilterLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.command_handler.arn}:*"]
+  }
+}
+
+resource "aws_iam_role" "operator" {
+  name                 = "${local.name_prefix}-operator"
+  assume_role_policy   = data.aws_iam_policy_document.operator_assume_role.json
+  permissions_boundary = var.operator.permissions_boundary_arn
+  max_session_duration = var.operator.max_session_duration
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "operator" {
+  name   = "${local.name_prefix}-operator"
+  role   = aws_iam_role.operator.id
+  policy = data.aws_iam_policy_document.operator.json
 }

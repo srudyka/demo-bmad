@@ -136,6 +136,44 @@ variable "ecs_cluster_arn" {
   default     = "arn:aws:ecs:us-east-1:000000000000:cluster/dev-platform"
 }
 
+variable "command_handler" {
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    timeout_seconds      = number
+    reserved_concurrency = number
+    queue_retention_days = number
+    visibility_seconds   = number
+    max_receive_count    = number
+    log_retention_days   = number
+    broker_secret_arn    = string
+  })
+  default = {
+    artifact_path        = "/tmp/command-handler.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    timeout_seconds      = 30
+    reserved_concurrency = 2
+    queue_retention_days = 4
+    visibility_seconds   = 180
+    max_receive_count    = 5
+    log_retention_days   = 365
+    broker_secret_arn    = "arn:aws:secretsmanager:us-east-1:000000000000:secret:example-command-broker"
+  }
+}
+
+variable "operator" {
+  type = object({
+    trusted_principal_arns   = list(string)
+    permissions_boundary_arn = string
+    max_session_duration     = number
+  })
+  default = {
+    trusted_principal_arns   = ["arn:aws:iam::000000000000:role/example-operator"]
+    permissions_boundary_arn = "arn:aws:iam::000000000000:policy/platform-boundary"
+    max_session_duration     = 3600
+  }
+}
+
 variable "process_manager" {
   description = "Fictitious Process Manager artifact controls for validation only."
   type = object({
