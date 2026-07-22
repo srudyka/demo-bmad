@@ -1,7 +1,9 @@
 # ECS Scheduled Job Module
 
-This module is the ownership boundary for one application's scheduled job. It
-intentionally creates no resources in the repository bootstrap.
+This module is the ownership boundary for one application's scheduled-job
+declaration. Story 2.1 validates the declaration and Cell Contract and accepts
+only a matching, secret-free receipt from the authoritative Registrar; it
+creates no resources for workload execution.
 
 ## Required Providers
 
@@ -14,8 +16,8 @@ patch releases.
 
 ## Example
 
-See [`examples/basic`](examples/basic). The example proves module wiring and
-validation only; it does not provision AWS resources.
+See [`examples/basic`](examples/basic). The example proves declaration wiring
+and validation only; it does not provision workload resources.
 
 ## Ownership And Assumptions
 
@@ -26,10 +28,35 @@ Cell root's Terraform state.
 
 ## Inputs And Outputs
 
-There are no inputs or outputs in the bootstrap. They will be added with the
-capability that needs them, including descriptions and validation.
+Inputs cover identity, immutable repository ownership, Cell discovery, ECS
+dependencies, schedule, runtime, networking, notifications, configuration,
+secret references, permissions, and protected tags. Outputs expose the
+canonical job ID, validated Cell metadata, Registrar-confirmed reservation,
+protected tags, and normalized schedule identity.
 
 ## Security And Observability
 
-This skeleton has no IAM, network, secret, logging, metric, or alarm behavior.
-Those controls must be introduced and tested with the resources they govern.
+No workload IAM, network, secret injection, logging, metric, or alarm resources
+are created here. Later stories introduce those controls with the resources
+they govern. The Cell Contract is read from SSM and must match account,
+Region, Environment, schema, checksum, and integration ownership.
+
+## Reservation and rollback
+
+The reservation identity is `JOB#<environment>/<application>/<job>` and binds
+immutable repository/root/apply identity, account, Region, Environment,
+namespace, owner, and generation. An authoritative conditional Registrar must
+perform the claim before its receipt is passed as `registrar_receipt`; a
+missing, mismatched, or stale receipt fails planning. The runtime Registrar
+first verifies the Cell namespace authorization and then uses a conditional
+write; a read-then-write or unconditional overwrite is unsafe under concurrent
+claims. `RESERVED` does not grant launch authority, and tombstoned IDs must not
+be reused automatically. Rollback is to stop passing the receipt and remove
+the declaration after confirming no later-story resources reference the job.
+
+## Validation
+
+Run the repository validation command, backend-free Terraform validation for
+this module and `examples/basic`, contract/runtime tests, Checkov, hygiene, and
+`git diff --check`. Do not use real account IDs, credentials, or secrets in
+examples.

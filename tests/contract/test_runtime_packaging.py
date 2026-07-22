@@ -16,6 +16,7 @@ RUNTIME_PACKAGES = (
     "alert_router",
     "command_handler",
     "lifecycle_gc",
+    "job_registrar",
 )
 FORBIDDEN_DEFAULTS = re.compile(
     r"\b(?:us-(?:east|west)-\d|eu-[a-z]+-\d|arn:aws|AKIA[0-9A-Z]{16}|"

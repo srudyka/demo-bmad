@@ -16,6 +16,7 @@ RUNTIME_PACKAGES = (
     "alert_router",
     "command_handler",
     "lifecycle_gc",
+    "job_registrar",
 )
 
 
@@ -111,7 +112,10 @@ class RepositoryStructureTest(unittest.TestCase):
         job_files = tuple(
             (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
         )
-        prohibited_blocks = re.compile(r'^\s*(resource|data|backend)\s+"', re.MULTILINE)
+        prohibited_blocks = re.compile(
+            r'^\s*(backend|terraform_remote_state|resource\s+"(?!terraform_data)|data\s+"(?!aws_(caller_identity|region|ssm_parameter)))',
+            re.MULTILINE,
+        )
         for terraform_file in job_files:
             with self.subTest(path=terraform_file.relative_to(REPOSITORY_ROOT)):
                 self.assertIsNone(
