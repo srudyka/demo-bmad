@@ -44,6 +44,7 @@ class NotificationLedger:
         if existing is not None and existing.get("status") in {
             "DELIVERED",
             "AMBIGUOUS",
+            "REJECTED",
         }:
             return False
         item = {
@@ -161,6 +162,35 @@ class NotificationLedger:
                 {"pk": f"NOTIFICATION#{deduplication_id}", "sk": "DELIVERY"}
             ),
             UpdateExpression="SET #status = :status, ambiguous_at = :at, response_code = :response",
+            ConditionExpression=condition,
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues=values,
+        )
+
+    def mark_rejected(
+        self,
+        deduplication_id: str,
+        *,
+        now: str,
+        response: str,
+        lease_token: str | None = None,
+    ) -> None:
+        condition = "#status = :pending"
+        values: dict[str, dict[str, Any]] = {
+            ":status": {"S": "REJECTED"},
+            ":pending": {"S": "PENDING"},
+            ":at": {"S": now},
+            ":response": {"S": response[:256]},
+        }
+        if lease_token:
+            condition += " AND lease_token = :lease_token"
+            values[":lease_token"] = {"S": lease_token}
+        self.client.update_item(
+            TableName=self.table_name,
+            Key=dynamodb_item(
+                {"pk": f"NOTIFICATION#{deduplication_id}", "sk": "DELIVERY"}
+            ),
+            UpdateExpression="SET #status = :status, rejected_at = :at, response_code = :response",
             ConditionExpression=condition,
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues=values,

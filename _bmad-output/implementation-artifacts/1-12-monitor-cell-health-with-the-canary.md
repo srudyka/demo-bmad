@@ -5,7 +5,7 @@ baseline_commit: 3ca936fe9675d2c505ceb17453242730c1cef20d
 
 # Story 1.12: Monitor Cell Health with the Canary
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -97,6 +97,23 @@ so that platform degradation is detected before scheduled-job failures are misdi
 - [x] [Review][Patch] Stream consumption processes unrelated ledger writes with unnecessary image exposure [modules/ecs-scheduled-job-platform/main.tf:593-601,1128-1144] — the stream now uses `NEW_IMAGE` and filters to ALERT_OUTBOX inserts/modifications.
 - [x] [Review][Patch] Alert Router alarm permission is broader than the alarm set [modules/ecs-scheduled-job-platform/main.tf:1236-1242] — each alarm permission now has an exact `source_arn` and source account.
 - [x] [Review][Patch] AC10 qualification and operational bounds are absent [tests/contract/test_cell_health_catalog.py:1-27; modules/ecs-scheduled-job-platform/README.md] — bounded cost/cardinality/query documentation and credential-free failure/recovery plus 20-window qualification fixtures are now present.
+
+### Review Findings (2026-07-22)
+
+- [x] [Review][Patch] Delivered notifications can strand the occurrence outbox as PENDING [runtime/alert_router/src/alert_router/handler.py:228-245] — delivered-ledger retries now repair the occurrence outbox.
+- [x] [Review][Patch] Publisher failures are all classified as AMBIGUOUS [runtime/alert_router/src/alert_router/handler.py:189-208,305-321] — deterministic target errors now use the durable REJECTED state; uncertain publication remains AMBIGUOUS.
+- [x] [Review][Patch] Reconciliation can report success while obligations failed [runtime/alert_router/src/alert_router/handler.py:430-466] — reconciliation now raises after isolated failures so EventBridge retries the bounded scan.
+- [x] [Review][Patch] Malformed stream records can be acknowledged without retry [runtime/alert_router/src/alert_router/handler.py:355-401] — malformed metadata now fails the invocation instead of acknowledging the record.
+- [x] [Review][Patch] Alarm state values other than ALARM are treated as RECOVERED [runtime/alert_router/src/alert_router/handler.py:252-264] — only ALARM and OK are accepted.
+- [x] [Review][Patch] Cell-health alarm definitions monitor the wrong Scheduler resources [modules/ecs-scheduled-job-platform/main.tf:203-214] — scheduler alarms now bind to the Scheduler ingress and Scheduler DLQ.
+- [x] [Review][Patch] The Cell-health alarm matrix omits required signals [contracts/v1/catalogs/metrics-alerts.json:28-39; modules/ecs-scheduled-job-platform/main.tf:203-258] — the catalog and Terraform now cover the required queue, DLQ, Lambda, DynamoDB, log, notification, freshness, and conformance signals.
+- [x] [Review][Patch] Notification opt-out is not enforced by the Alert Router runtime [modules/ecs-scheduled-job-platform/main.tf:1191-1205; runtime/alert_router/src/alert_router/handler.py:340-402] — both occurrence and Cell-alarm dispatch honor the runtime flag.
+- [x] [Review][Patch] Processed-canary heartbeat is not durable evidence [runtime/process_manager/src/process_manager/handler.py:382-418] — terminal canary reduction and the Cell checkpoint now commit atomically before metric emission.
+- [x] [Review][Patch] Durable outbox reasons are not sanitized before persistence [runtime/process_manager/src/process_manager/ledger.py:493-526] — durable reasons now use the bounded operator-safe token policy.
+- [x] [Review][Patch] Qualification tests assert fabricated observations rather than injected behavior [tests/contract/test_cell_health_qualification.py:21-66] — the matrix now drives the Alert Router cell-alarm path and measures bounded delivery for every plane.
+- [x] [Review][Patch] Fixed cost and query bounds are not quantitatively documented [modules/ecs-scheduled-job-platform/README.md:120-130] — the README now documents alarm count, monthly evaluations, and expected alarm cost.
+- [x] [Review][Patch] Deadline Scanner IAM was broadened beyond the canary job [modules/ecs-scheduled-job-platform/main.tf:798-806] — the occurrence read condition is scoped back to the registered canary job.
+- [x] [Review][Patch] Timestamp validation accepts non-canonical UTC values [runtime/alert_router/src/alert_router/domain.py:116-123] — detected timestamps now require canonical millisecond UTC form.
 
 ### Agent Model Used
 

@@ -380,6 +380,9 @@ def _process_correlation(
         elif state not in {"SUCCEEDED", "FAILED", "AMBIGUOUS", "MISSED", "OVERDUE"}:
             state = state if state == "STARTED" else "EXPECTED"
     evidence_id = prepared.envelope_digest
+    canary_success = state == "SUCCEEDED" and envelope.get("job_id") == os.environ.get(
+        "PROCESS_MANAGER_CANARY_JOB_ID"
+    )
     ledger.reduce_evidence(
         occurrence,
         prepared.processed_event,
@@ -387,10 +390,21 @@ def _process_correlation(
         evidence_id=evidence_id,
         changes=changes,
         failure_plane=failure_plane,
+        heartbeat_table=(
+            os.environ.get("PROCESS_MANAGER_HEARTBEAT_TABLE_NAME")
+            if canary_success
+            else None
+        ),
+        heartbeat_key=(
+            {
+                "pk": f"CELL#{os.environ['PROCESS_MANAGER_CELL_ID']}",
+                "sk": "CANARY_HEARTBEAT",
+            }
+            if canary_success
+            else None
+        ),
     )
-    if state == "SUCCEEDED" and envelope.get("job_id") == os.environ.get(
-        "PROCESS_MANAGER_CANARY_JOB_ID"
-    ):
+    if canary_success:
         try:
             metrics.put_metric_data(
                 Namespace=os.environ["PROCESS_MANAGER_METRIC_NAMESPACE"],

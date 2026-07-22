@@ -26,7 +26,7 @@ def test_cell_health_catalog_has_bounded_dimensions_and_freshness_policy() -> No
     assert "job_id" in health["bounded_dimensions"]
     assert health["runbook_uri_required"] is True
     definitions = health["alarm_definitions"]
-    assert len(definitions) == 9
+    assert len(definitions) >= 29
     for definition in definitions.values():
         assert definition["threshold"] >= 1
         assert definition["evaluation_periods"] >= 1

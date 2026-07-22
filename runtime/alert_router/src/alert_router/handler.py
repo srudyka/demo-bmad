@@ -73,6 +73,49 @@ def _metric(client: Any, name: str, *, value: float = 1.0) -> None:
         LOGGER.exception("alert_router_metric_failed metric=%s", name)
 
 
+_DETERMINISTIC_PUBLISH_ERRORS = {
+    "AccessDenied",
+    "AuthorizationError",
+    "InvalidParameter",
+    "InvalidParameterValue",
+    "NotFound",
+    "ResourceNotFoundException",
+}
+
+
+def _publisher_error_code(error: Exception) -> str:
+    response = getattr(error, "response", {})
+    if isinstance(response, Mapping):
+        details = response.get("Error", {})
+        if isinstance(details, Mapping):
+            code = details.get("Code")
+            if isinstance(code, str):
+                return code
+    return ""
+
+
+def _mark_outbox_delivered(dynamodb: Any, outbox: Mapping[str, Any], now: str) -> None:
+    occurrence_table = os.environ.get("ALERT_ROUTER_OCCURRENCE_TABLE_NAME")
+    if not occurrence_table:
+        return
+    dynamodb.update_item(
+        TableName=occurrence_table,
+        Key=dynamodb_item(
+            {
+                "pk": f"ALERT_OUTBOX#{outbox['occurrence_id']}#{outbox['policy']}",
+                "sk": f"ALERT#{outbox['state']}#{outbox['failure_plane']}",
+            }
+        ),
+        UpdateExpression="SET delivery_status = :delivered, alert_sort = :sort",
+        ConditionExpression="attribute_exists(pk) AND delivery_status = :pending",
+        ExpressionAttributeValues={
+            ":delivered": {"S": "DELIVERED"},
+            ":pending": {"S": "PENDING"},
+            ":sort": {"S": f"DELIVERED#{now}#{outbox['occurrence_id']}"},
+        },
+    )
+
+
 def _image(record: Mapping[str, Any]) -> dict[str, Any] | None:
     dynamodb = record.get("dynamodb")
     image = dynamodb.get("NewImage") if isinstance(dynamodb, Mapping) else None
@@ -163,6 +206,9 @@ def dispatch_outbox_item(
 ) -> str:
     """Deliver one deterministic obligation, returning its durable outcome."""
 
+    if os.environ.get("ALERT_ROUTER_NOTIFICATIONS_ENABLED", "true").lower() == "false":
+        return "DISABLED"
+
     config = _config_snapshot(dynamodb, config_table, outbox)
     alert = build_occurrence_alert(
         outbox,
@@ -180,6 +226,9 @@ def dispatch_outbox_item(
         target_arn=str(alert["notification_target_arn"]),
         now=now,
     ):
+        existing = ledger.get(str(alert["deduplication_id"])) or {}
+        if existing.get("status") == "DELIVERED":
+            _mark_outbox_delivered(dynamodb, outbox, now)
         return "DEDUPLICATED"
     message = canonical_json_bytes(alert).decode("utf-8")
     claim = ledger.get(str(alert["deduplication_id"])) or {}
@@ -199,12 +248,21 @@ def dispatch_outbox_item(
             },
         )
     except Exception as error:  # noqa: BLE001 - publication uncertainty is durable
-        ledger.mark_ambiguous(
-            str(alert["deduplication_id"]),
-            now=now,
-            response=type(error).__name__,
-            lease_token=lease_token,
-        )
+        code = _publisher_error_code(error)
+        if code in _DETERMINISTIC_PUBLISH_ERRORS:
+            ledger.mark_rejected(
+                str(alert["deduplication_id"]),
+                now=now,
+                response=code,
+                lease_token=lease_token,
+            )
+        else:
+            ledger.mark_ambiguous(
+                str(alert["deduplication_id"]),
+                now=now,
+                response=code or type(error).__name__,
+                lease_token=lease_token,
+            )
         raise
     message_id = str(response.get("MessageId", "PUBLISHED"))
     try:
@@ -225,36 +283,26 @@ def dispatch_outbox_item(
         except Exception:  # noqa: BLE001 - retain original failure for retry/DLQ
             LOGGER.exception("alert_router_ledger_ambiguity_record_failed")
         raise
-    occurrence_table = os.environ.get("ALERT_ROUTER_OCCURRENCE_TABLE_NAME")
-    if occurrence_table:
-        dynamodb.update_item(
-            TableName=occurrence_table,
-            Key=dynamodb_item(
-                {
-                    "pk": f"ALERT_OUTBOX#{outbox['occurrence_id']}#{outbox['policy']}",
-                    "sk": f"ALERT#{outbox['state']}#{outbox['failure_plane']}",
-                }
-            ),
-            UpdateExpression="SET delivery_status = :delivered, alert_sort = :sort",
-            ConditionExpression="attribute_exists(pk) AND delivery_status = :pending",
-            ExpressionAttributeValues={
-                ":delivered": {"S": "DELIVERED"},
-                ":pending": {"S": "PENDING"},
-                ":sort": {"S": f"DELIVERED#{now}#{outbox['occurrence_id']}"},
-            },
-        )
+    _mark_outbox_delivered(dynamodb, outbox, now)
     return "DELIVERED"
 
 
 def dispatch_cell_alarm(
     event: Mapping[str, Any], *, dynamodb: Any, publisher: Publisher
 ) -> str:
+    if os.environ.get("ALERT_ROUTER_NOTIFICATIONS_ENABLED", "true").lower() == "false":
+        return "DISABLED"
     alarm_data = event.get("alarmData", event.get("detail", {}))
     if not isinstance(alarm_data, Mapping):
         raise AlertRoutingError("CELL_ALARM_INVALID")
     alarm_name = str(alarm_data.get("alarmName", "CELL_ALARM"))
-    state = str(alarm_data.get("state", {}).get("value", "ALARM"))
-    timestamp = str(alarm_data.get("state", {}).get("timestamp", _now()))
+    raw_state = alarm_data.get("state", {})
+    if not isinstance(raw_state, Mapping):
+        raise AlertRoutingError("CELL_ALARM_INVALID")
+    state = str(raw_state.get("value", "ALARM"))
+    if state not in {"ALARM", "OK"}:
+        raise AlertRoutingError("CELL_ALARM_STATE_UNSUPPORTED")
+    timestamp = str(raw_state.get("timestamp", _now()))
     cell_id = _required("ALERT_ROUTER_CELL_ID")
     window = timestamp[:16]
     occurrence_id = hashlib.sha256(
@@ -355,10 +403,14 @@ def lambda_handler(
     for record in records:
         if not isinstance(record, Mapping):
             continue
-        sequence = record.get("eventID") or record.get("dynamodb", {}).get(
-            "SequenceNumber"
-        )
+        sequence: object = record.get("eventID")
         try:
+            dynamodb_record = record.get("dynamodb")
+            if not isinstance(dynamodb_record, Mapping):
+                raise RuntimeError("ALERT_ROUTER_STREAM_METADATA_INVALID")
+            sequence = record.get("eventID") or dynamodb_record.get("SequenceNumber")
+            if not isinstance(sequence, str) or not sequence:
+                raise RuntimeError("ALERT_ROUTER_STREAM_SEQUENCE_MISSING")
             outbox = _image(record)
             if not outbox or outbox.get("record_type") != "ALERT_OUTBOX":
                 continue
@@ -387,15 +439,17 @@ def lambda_handler(
             _metric(metrics, f"Notification{result.title()}")
         except AlertRoutingError, RuntimeError:
             _metric(metrics, "RoutingFailure")
-            if isinstance(sequence, str):
-                failures.append({"itemIdentifier": sequence})
+            if not isinstance(sequence, str) or not sequence:
+                raise
+            failures.append({"itemIdentifier": sequence})
             LOGGER.exception(
                 "alert_router_record_rejected sequence=%s", sequence or "unknown"
             )
         except Exception:  # noqa: BLE001 - retry transport and target failures
             _metric(metrics, "Retry")
-            if isinstance(sequence, str):
-                failures.append({"itemIdentifier": sequence})
+            if not isinstance(sequence, str) or not sequence:
+                raise
+            failures.append({"itemIdentifier": sequence})
             LOGGER.exception(
                 "alert_router_record_retry sequence=%s", sequence or "unknown"
             )
@@ -411,6 +465,7 @@ def reconciliation_handler(event: Mapping[str, Any], _context: Any) -> dict[str,
     pages = 0
     delivered = 0
     start_key: Mapping[str, Any] | None = None
+    failures = 0
     while pages < 10:
         query_args: dict[str, Any] = {
             "TableName": _required("ALERT_ROUTER_OCCURRENCE_TABLE_NAME"),
@@ -455,6 +510,7 @@ def reconciliation_handler(event: Mapping[str, Any], _context: Any) -> dict[str,
                 if result == "DELIVERED":
                     delivered += 1
             except Exception:  # noqa: BLE001 - isolate one bad obligation
+                failures += 1
                 _metric(metrics, "ReconciliationFailure")
                 LOGGER.exception("alert_router_reconciliation_item_failed")
         last_key = scan.get("LastEvaluatedKey") if isinstance(scan, Mapping) else None
@@ -463,4 +519,6 @@ def reconciliation_handler(event: Mapping[str, Any], _context: Any) -> dict[str,
         start_key = last_key
         pages += 1
     _metric(metrics, "ReconciliationRun")
+    if failures:
+        raise RuntimeError(f"ALERT_ROUTER_RECONCILIATION_FAILED:{failures}")
     return {"delivered": delivered}

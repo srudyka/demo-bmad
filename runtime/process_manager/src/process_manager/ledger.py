@@ -8,6 +8,17 @@ from typing import Any, Mapping, Protocol
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_SAFE_REASON = re.compile(r"^[A-Z0-9][A-Z0-9_.:-]{0,127}$")
+_SECRET_TOKENS = ("PASSWORD", "SECRET", "ACCESS_KEY", "SECRET_KEY", "TOKEN")
+
+
+def operator_safe_reason(value: object) -> str:
+    reason = str(value or "ALERT_REASON_UNSPECIFIED").strip().upper()
+    if any(token in reason for token in _SECRET_TOKENS):
+        return "ALERT_REASON_UNSPECIFIED"
+    if not _SAFE_REASON.fullmatch(reason):
+        return "ALERT_REASON_UNSPECIFIED"
+    return reason
 
 
 def occurrence_alert_identity(
@@ -390,6 +401,8 @@ class Ledger:
         changes: Mapping[str, Any] | None = None,
         failure_plane: str | None = None,
         alert_policy: str = "occurrence-v1",
+        heartbeat_table: str | None = None,
+        heartbeat_key: Mapping[str, str] | None = None,
     ) -> None:
         """Atomically retain one canonical evidence fact and reduce the occurrence."""
 
@@ -452,7 +465,7 @@ class Ledger:
                 failure_plane=failure_plane,
                 policy=alert_policy,
                 detected_at=str(processed["accepted_at"]),
-                reason=str(
+                reason=operator_safe_reason(
                     changes.get("operator_safe_error_reason")
                     or changes.get("error_code")
                     or state
@@ -484,6 +497,23 @@ class Ledger:
                         "TableName": self.table_name,
                         "Item": dynamodb_item(alert_item),
                         "ConditionExpression": "attribute_not_exists(pk)",
+                    }
+                }
+            )
+        if heartbeat_table is not None and heartbeat_key is not None:
+            transactions.append(
+                {
+                    "Update": {
+                        "TableName": heartbeat_table,
+                        "Key": dynamodb_item(heartbeat_key),
+                        "UpdateExpression": "SET heartbeat_at = :heartbeat_at, occurrence_id = :occurrence_id, job_id = :job_id, #state = :succeeded",
+                        "ExpressionAttributeNames": {"#state": "state"},
+                        "ExpressionAttributeValues": {
+                            ":heartbeat_at": {"S": str(processed["accepted_at"])},
+                            ":occurrence_id": {"S": str(occurrence["occurrence_id"])},
+                            ":job_id": {"S": str(occurrence["job_id"])},
+                            ":succeeded": {"S": "SUCCEEDED"},
+                        },
                     }
                 }
             )

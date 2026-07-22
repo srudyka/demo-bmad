@@ -117,14 +117,16 @@ ID, task ARN, log stream, source ARN, target ARN, or raw error is a metric
 dimension. Reconciliation performs at most ten pages per scheduled invocation,
 with a configured page size of 1-100 and a one-hour EventBridge retry age.
 
-The fixed Cell baseline is nine health alarms, two routing alarms, one canary
+The fixed Cell baseline is 29 health alarms, two routing alarms, one canary
 heartbeat, one alert-router Lambda, one notification ledger, and the existing
-queue/DLQ set. Cost is therefore bounded by those fixed resources plus metric
-ingestion and alarm evaluation; investigate any increase in alarm count or
-metric dimensions as a Cell Contract change. The module does not claim live-AWS
-failure qualification: credential-free tests must cover each failure plane,
-recovery, target denial, and 20 healthy accelerated canary windows before
-production enablement.
+queue/DLQ set. At the default one-minute period this is 31 metric alarms and
+about 44,640 evaluations per alarm per month; the expected fixed monitoring
+budget is approximately $0.30 per alarm-month plus metric ingestion and
+dashboard/query charges. Treat any increase in alarm count, metric samples,
+or query frequency as a Cell Contract change and re-estimate before rollout.
+The module does not claim live-AWS failure qualification: credential-free tests
+must cover each failure plane, recovery, target denial, and 20 healthy
+accelerated canary windows before production enablement.
 
 Rollback disables the specific health alarm actions or event-source mapping
 while retaining metrics, DLQs, logs, heartbeat evidence, the occurrence outbox,

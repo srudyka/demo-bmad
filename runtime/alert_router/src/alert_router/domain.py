@@ -34,6 +34,7 @@ _PLANES = {
     "ALERT_DELIVERY",
     "CELL",
 }
+_CANONICAL_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
 
 def occurrence_alert_identity(
@@ -115,7 +116,9 @@ def build_occurrence_alert(
     )
     detected_at = outbox.get("detected_at")
     try:
-        if not isinstance(detected_at, str) or not detected_at.endswith("Z"):
+        if not isinstance(detected_at, str) or not _CANONICAL_TIMESTAMP.fullmatch(
+            detected_at
+        ):
             raise ValueError
         parsed_detected_at = datetime.fromisoformat(detected_at[:-1] + "+00:00")
         if parsed_detected_at.tzinfo is None:

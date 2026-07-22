@@ -202,16 +202,22 @@ locals {
 
   cell_health_alarm_definitions = {
     scheduler_delivery_failures = {
-      namespace  = "AWS/Events"
-      name       = "FailedInvocations"
-      dimensions = { RuleName = aws_cloudwatch_event_rule.materializer_tick.name }
-      statistic  = "Sum"
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.scheduler_dlq.name }
+      statistic  = "Maximum"
     }
     scheduler_dlq_depth = {
       namespace  = "AWS/SQS"
       name       = "ApproximateNumberOfMessagesVisible"
-      dimensions = { QueueName = aws_sqs_queue.alert_router_dlq.name }
+      dimensions = { QueueName = aws_sqs_queue.scheduler_dlq.name }
       statistic  = "Maximum"
+    }
+    scheduler_attempts = {
+      namespace  = "AWS/SQS"
+      name       = "NumberOfMessagesSent"
+      dimensions = { QueueName = aws_sqs_queue.scheduler_ingress.name }
+      statistic  = "Sum"
     }
     source_queue_age = {
       namespace  = "AWS/SQS"
@@ -255,10 +261,125 @@ locals {
       dimensions = { component = "alert-router", cell_id = var.cell_id, environment = var.environment }
       statistic  = "Sum"
     }
+    scheduler_queue_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.scheduler_ingress.name }
+      statistic  = "Maximum"
+    }
+    process_manager_queue_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.process_manager_ingress.name }
+      statistic  = "Maximum"
+    }
+    every_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.deadline_scanner_tick_dlq.name }
+      statistic  = "Maximum"
+    }
+    deadline_source_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.deadline_source_dlq.name }
+      statistic  = "Maximum"
+    }
+    ecs_event_source_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.ecs_event_source_dlq.name }
+      statistic  = "Maximum"
+    }
+    completion_source_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.completion_source_dlq.name }
+      statistic  = "Maximum"
+    }
+    normalizer_ingress_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.normalizer_ingress_dlq.name }
+      statistic  = "Maximum"
+    }
+    process_manager_ingress_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.process_manager_ingress_dlq.name }
+      statistic  = "Maximum"
+    }
+    normalizer_quarantine_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.normalizer_quarantine_dlq.name }
+      statistic  = "Maximum"
+    }
+    materializer_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.materializer_dlq.name }
+      statistic  = "Maximum"
+    }
+    command_handler_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.command_handler_dlq.name }
+      statistic  = "Maximum"
+    }
+    alert_router_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.alert_router_dlq.name }
+      statistic  = "Maximum"
+    }
+    lambda_duration = {
+      namespace  = "AWS/Lambda"
+      name       = "Duration"
+      dimensions = { FunctionName = aws_lambda_function.alert_router.function_name }
+      statistic  = "Maximum"
+      threshold  = 5000
+    }
+    lambda_concurrency = {
+      namespace  = "AWS/Lambda"
+      name       = "ConcurrentExecutions"
+      dimensions = { FunctionName = aws_lambda_function.alert_router.function_name }
+      statistic  = "Maximum"
+    }
+    dynamodb_conditional_failures = {
+      namespace  = "AWS/DynamoDB"
+      name       = "ConditionalCheckFailedRequests"
+      dimensions = { TableName = aws_dynamodb_table.occurrence_ledger.name }
+      statistic  = "Sum"
+    }
+    log_subscription_delivery = {
+      namespace  = "AWS/Logs"
+      name       = "DeliveryErrors"
+      dimensions = { LogGroupName = aws_cloudwatch_log_group.alert_router.name }
+      statistic  = "Sum"
+    }
+    notification_delivery = {
+      namespace  = var.metric_namespace
+      name       = "NotificationDelivered"
+      dimensions = { component = "alert-router", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+    expectation_horizon_freshness = {
+      namespace  = var.metric_namespace
+      name       = "DeadlineScannerWatermarkAge"
+      dimensions = { component = "deadline-scanner", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Maximum"
+    }
+    schedule_conformance = {
+      namespace  = var.metric_namespace
+      name       = "CanaryProcessedHeartbeat"
+      dimensions = { component = "canary", cell_id = var.cell_id, environment = var.environment, state = "SUCCEEDED" }
+      statistic  = "Sum"
+    }
   }
   cell_health_alarm_policy = {
     for key in keys(local.cell_health_alarm_definitions) : key => {
-      threshold          = 1
+      threshold          = try(local.cell_health_alarm_definitions[key].threshold, 1)
       evaluation_periods = 5
       period_seconds     = 60
       missing_data       = "breaching"
@@ -802,7 +923,7 @@ data "aws_iam_policy_document" "deadline_scanner" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#*"]
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
     }
   }
   statement {
@@ -1158,7 +1279,7 @@ data "aws_iam_policy_document" "alert_router" {
     condition {
       test     = "ForAnyValue:StringEquals"
       variable = "kms:EncryptionContext:aws:dynamodb:tableName"
-      values   = [aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.notification_ledger.name]
+      values   = [aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.notification_ledger.name, aws_dynamodb_table.deadline_checkpoint.name]
     }
   }
 }
@@ -1386,6 +1507,17 @@ data "aws_iam_policy_document" "process_manager" {
     }
   }
   statement {
+    sid       = "UpdateOnlyCanaryHeartbeatCheckpoint"
+    effect    = "Allow"
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.deadline_checkpoint.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["CELL#${var.cell_id}"]
+    }
+  }
+  statement {
     sid       = "AssumeOnlyRegisteredCanaryLaunchRole"
     effect    = "Allow"
     actions   = ["sts:AssumeRole"]
@@ -1451,6 +1583,7 @@ resource "aws_lambda_function" "process_manager" {
       PROCESS_MANAGER_CELL_ID                = var.cell_id
       PROCESS_MANAGER_ENVIRONMENT            = var.environment
       PROCESS_MANAGER_OCCURRENCE_TABLE_NAME  = aws_dynamodb_table.occurrence_ledger.name
+      PROCESS_MANAGER_HEARTBEAT_TABLE_NAME   = aws_dynamodb_table.deadline_checkpoint.name
       PROCESS_MANAGER_CANARY_LAUNCH_ROLE_ARN = var.canary_normalizer_registration.canary_launch_role_arn
     }
   }
