@@ -15,6 +15,7 @@ RUNTIME_PACKAGES = (
     "deadline_scanner",
     "alert_router",
     "command_handler",
+    "lifecycle_gc",
 )
 
 

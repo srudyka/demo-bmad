@@ -27,7 +27,7 @@ def test_every_schema_is_unique_meta_valid_local_and_manifest_listed() -> None:
     manifest = load_json_strict(CONTRACTS_ROOT / "manifest.json")
     schemas, _registry = build_schema_registry(SCHEMAS_ROOT)
 
-    assert len(schemas) == 18
+    assert len(schemas) == 19
     assert len(set(schemas)) == len(schemas)
     assert set(manifest["schemas"]) == set(schemas)
 

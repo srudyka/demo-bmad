@@ -298,9 +298,13 @@ prefix-scoped IAM allow after it verifies ownership; an S3 policy cannot query
 DynamoDB dynamically.
 
 CONFIG objects and all their versions are intentionally not expired here. S3
-cannot determine whether a candidate is still referenced by validation, replay,
-investigation, or rollback. Registry-aware garbage collection is a later Cell
-capability.
+version cleanup is delegated to the Cell lifecycle principal only after an
+exact, checksum-bound retirement manifest proves that the object version is
+unreferenced across active, replay, recovery, investigation, and rollback
+horizons. A normal object delete is not a permanent version deletion. The
+platform must not determine eligibility from object age alone: registry-aware
+garbage collection proves validation, replay, investigation, and rollback
+references before deletion.
 
 The Cell Contract uses the SSM Standard tier. Its generated ASCII JSON value is
 checked at plan time against the Standard tier's 4 KiB limit; contract growth

@@ -163,5 +163,12 @@ output "cell_recovery" {
     dlq_arn                 = aws_sqs_queue.recovery_dlq.arn
     manifest_table_arn      = aws_dynamodb_table.recovery_manifests.arn
     pointer_parameter_arn   = aws_ssm_parameter.recovery_generation.arn
+    lifecycle_role_arn      = aws_iam_role.lifecycle_gc.arn
+    lifecycle_log_group     = aws_cloudwatch_log_group.lifecycle_gc.name
+    lifecycle_schedule_arn  = aws_cloudwatch_event_rule.lifecycle_gc_schedule.arn
+    lifecycle_alarm_arns = {
+      blocked = aws_cloudwatch_metric_alarm.lifecycle_gc_blocked.arn
+      failure = aws_cloudwatch_metric_alarm.lifecycle_gc_failure.arn
+    }
   }
 }

@@ -82,6 +82,23 @@ variable "metric_namespace" {
   }
 }
 
+variable "lifecycle_cleanup_enabled" {
+  description = "Enables the lifecycle cleanup trigger; keep disabled until an approved cleanup controller is deployed."
+  type        = bool
+  default     = false
+}
+
+variable "lifecycle_cleanup_schedule_expression" {
+  description = "EventBridge schedule expression for the lifecycle cleanup control plane."
+  type        = string
+  default     = "rate(1 day)"
+
+  validation {
+    condition     = can(regex("^(rate|cron)\\(.+\\)$", var.lifecycle_cleanup_schedule_expression))
+    error_message = "lifecycle_cleanup_schedule_expression must be a rate(...) or cron(...) expression."
+  }
+}
+
 variable "contract_version" {
   description = "Semantic version of the Cell Contract published by this foundation."
   type        = string

@@ -63,7 +63,7 @@ development_status:
   1-12-monitor-cell-health-with-the-canary: done
   1-13-authorize-operator-access-and-commands: done
   1-14-recover-cell-state-safely: done
-  1-15-garbage-collect-unreferenced-platform-versions: backlog
+  1-15-garbage-collect-unreferenced-platform-versions: done
   epic-1-retrospective: optional
 
   epic-2: backlog

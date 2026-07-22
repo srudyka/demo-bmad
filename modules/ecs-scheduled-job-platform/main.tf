@@ -3016,6 +3016,248 @@ resource "aws_iam_role_policy" "recovery_controller_logs" {
   policy = data.aws_iam_policy_document.recovery_controller_logs.json
 }
 
+data "aws_iam_policy_document" "lifecycle_gc_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:${local.name_prefix}-lifecycle-gc"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "lifecycle_gc" {
+  statement {
+    sid    = "DenyNonLifecycleMutation"
+    effect = "Deny"
+    actions = [
+      "dynamodb:DeleteItem",
+      "dynamodb:DeleteTable",
+      join("", ["ecs:Run", "Task"]),
+      join("", ["iam:Pass", "Role"]),
+      "iam:PutRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "s3:DeleteObject",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "InventoryCellVersions"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+    ]
+    resources = [
+      aws_dynamodb_table.namespace_registry.arn,
+      aws_dynamodb_table.configuration_registry.arn,
+      aws_dynamodb_table.occurrence_ledger.arn,
+      aws_dynamodb_table.deadline_checkpoint.arn,
+      aws_dynamodb_table.notification_ledger.arn,
+      aws_dynamodb_table.recovery_manifests.arn,
+    ]
+  }
+
+  statement {
+    sid    = "ReadConfigInventory"
+    effect = "Allow"
+    actions = [
+      "s3:GetBucketVersioning",
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+      "s3:GetObject",
+      "s3:GetObjectAttributes",
+      "s3:GetObjectVersion",
+    ]
+    resources = [aws_s3_bucket.config_inbox.arn, "${aws_s3_bucket.config_inbox.arn}/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid     = "ReadLifecyclePointers"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter", "ssm:GetParameterHistory"]
+    resources = [
+      aws_ssm_parameter.recovery_generation.arn,
+      aws_ssm_parameter.cell_contract.arn,
+    ]
+  }
+
+  statement {
+    sid     = "ReadLifecycleQueues"
+    effect  = "Allow"
+    actions = ["sqs:GetQueueAttributes", "sqs:ListDeadLetterSourceQueues"]
+    resources = [
+      aws_sqs_queue.deadline_source.arn,
+      aws_sqs_queue.deadline_source_dlq.arn,
+      aws_sqs_queue.alert_router_dlq.arn,
+      aws_sqs_queue.command_handler_queue.arn,
+      aws_sqs_queue.command_handler_dlq.arn,
+      aws_sqs_queue.recovery_queue.arn,
+      aws_sqs_queue.recovery_dlq.arn,
+    ]
+  }
+
+  statement {
+    sid    = "ReadRuntimeInventory"
+    effect = "Allow"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:ListAliases",
+      "lambda:ListVersionsByFunction",
+    ]
+    resources = [
+      aws_lambda_function.alert_router.arn,
+      aws_lambda_function.command_handler.arn,
+      aws_lambda_function.deadline_scanner.arn,
+      aws_lambda_function.evidence_normalizer.arn,
+      aws_lambda_function.log_ingestor.arn,
+      aws_lambda_function.occurrence_materializer.arn,
+      aws_lambda_function.process_manager.arn,
+      aws_lambda_function.recovery_controller.arn,
+    ]
+  }
+
+  statement {
+    sid     = "ReadEcsTaskInventory"
+    effect  = "Allow"
+    actions = ["ecs:DescribeTaskDefinition", "ecs:ListTagsForResource"]
+    resources = [
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${local.name_prefix}-*"
+    ]
+  }
+
+  statement {
+    sid       = "DeleteExactConfigVersion"
+    effect    = "Allow"
+    actions   = ["s3:DeleteObjectVersion"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/*/config/*.json"]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid    = "DeleteCellRuntimeVersion"
+    effect = "Allow"
+    actions = [
+      "lambda:DeleteFunction",
+    ]
+    resources = [
+      aws_lambda_function.alert_router.arn,
+      aws_lambda_function.command_handler.arn,
+      aws_lambda_function.deadline_scanner.arn,
+      aws_lambda_function.evidence_normalizer.arn,
+      aws_lambda_function.log_ingestor.arn,
+      aws_lambda_function.occurrence_materializer.arn,
+      aws_lambda_function.process_manager.arn,
+      aws_lambda_function.recovery_controller.arn,
+    ]
+  }
+
+  statement {
+    sid       = "WriteLifecycleEvidence"
+    effect    = "Allow"
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.recovery_manifests.arn]
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["LIFECYCLE#${var.cell_id}"]
+    }
+  }
+
+  statement {
+    sid       = "PublishLifecycleMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+}
+
+resource "aws_iam_role" "lifecycle_gc" {
+  name                 = "${local.name_prefix}-lifecycle-gc"
+  assume_role_policy   = data.aws_iam_policy_document.lifecycle_gc_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "lifecycle_gc" {
+  name   = "${local.name_prefix}-lifecycle-gc"
+  role   = aws_iam_role.lifecycle_gc.id
+  policy = data.aws_iam_policy_document.lifecycle_gc.json
+}
+
+resource "aws_cloudwatch_log_group" "lifecycle_gc" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/lifecycle-gc"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.command_handler.log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "lifecycle_gc_schedule" {
+  name                = "${local.name_prefix}-lifecycle-gc"
+  description         = "Disabled-by-default lifecycle cleanup control-plane trigger."
+  schedule_expression = var.lifecycle_cleanup_schedule_expression
+  is_enabled          = var.lifecycle_cleanup_enabled
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "lifecycle_gc_blocked" {
+  alarm_name          = "${local.name_prefix}-lifecycle-gc-blocked"
+  alarm_description   = "Lifecycle cleanup candidates are being blocked by safety gates."
+  namespace           = var.metric_namespace
+  metric_name         = "LifecycleCleanupBlocked"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions          = { CellId = var.cell_id }
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "lifecycle_gc_failure" {
+  alarm_name          = "${local.name_prefix}-lifecycle-gc-failure"
+  alarm_description   = "Lifecycle cleanup execution reported a failure."
+  namespace           = var.metric_namespace
+  metric_name         = "LifecycleCleanupFailure"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions          = { CellId = var.cell_id }
+  tags                = local.common_tags
+}
+
 data "aws_iam_policy_document" "recovery_pointer_consumers" {
   statement {
     sid       = "ReadCellRecoveryPointer"

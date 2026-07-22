@@ -9,14 +9,14 @@
   "artifacts": [
     {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "6445c7fab2b37d3b3c5020403a15ae4f4bfdeddf4c731d9971594a95c3e20beb"},
+    {"path": "releases/1.0.0.json", "sha256": "d03d9747311bfa0021c7a29596a3e0615760b33b10e9da341aadd73166d61048"},
     {"path": "v1/catalogs/commands.json", "sha256": "79394f4f120f8facfd3d1831b9e1269c955c73ff8b86bcb7fc26acf7312614a7"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
     {"path": "v1/catalogs/event-types.json", "sha256": "e21655f62fef37ec463f6a221b779ad4f840946a9cbdc0a832a90bac95a29d57"},
     {"path": "v1/catalogs/iam.json", "sha256": "37bf23a3c15872f6b29977bb31d9a5c4ba566e9de1fc1529e166a143c7fa6515"},
     {"path": "v1/catalogs/keys-and-correlation.json", "sha256": "e326b8c6adcc8eed4b6f3d7b0abe688fcf755b3dff6f2893f3dc45eefe9f73bb"},
-    {"path": "v1/catalogs/lifecycle.json", "sha256": "208cf4e768942a4abc91fd6fb6e524c7722e7ce01b6d34863664a9ea88cb8e29"},
-    {"path": "v1/catalogs/metrics-alerts.json", "sha256": "c45c0d7f44ed8c659e519f3f1d68b8ffe99e3ea44e74686c053bf0268c47755c"},
+    {"path": "v1/catalogs/lifecycle.json", "sha256": "8fff49bb6d6ed9083b513762947b4a718488ca35626161032e43b81b1cb05b82"},
+    {"path": "v1/catalogs/metrics-alerts.json", "sha256": "fcfb0bcd12027c95878d31c3da73336a4f4c8a25888e1985b6612398666e82e9"},
     {"path": "v1/catalogs/oidc.json", "sha256": "01855504cd63a0430215b08ac63bce4ef2a4d0e9a1345275ab5dd2363f28db8e"},
     {"path": "v1/catalogs/ownership.json", "sha256": "7a9285dbc60055a1310c3420881eb25b1637f80c420ffdd343382e0c5b77c844"},
     {"path": "v1/catalogs/producers.json", "sha256": "24df8b1b09e441ea4db28545e8f6304600133f8266b451168a83cda8d8cd7343"},
@@ -36,6 +36,7 @@
     {"path": "v1/fixtures/iam/raw-aws-producer-shapes.json", "sha256": "791cd89fb8765554863f11740bcc4bc5b531a39379f2702766d7275fa7160c3e"},
     {"path": "v1/fixtures/identity/occurrence-v1.json", "sha256": "48e14b51697154a2a31a5b702f81802d2563d8296c5208bbf4f02731e283f90a"},
     {"path": "v1/fixtures/lifecycle/cases.json", "sha256": "220de259c47933dcc6b4e83cc9b4b84a46d349715d36c964f14584fef06f93b1"},
+    {"path": "v1/fixtures/lifecycle/retirement-cases.json", "sha256": "039df5956ca3ba6c956efbc74153de2eb32b326a8566d0a1a47001833ce7508d"},
     {"path": "v1/fixtures/oidc/cases.json", "sha256": "65e27c46edfcd8ff70378c1cfab4046ef3b4156b7424d223b2e38e9bc7c74032"},
     {"path": "v1/fixtures/queue-lambda/cases.json", "sha256": "25864f013570b9b9802a8a5f3c734862ca79b5b4bb4dd5acd97e5a22027bbc1c"},
     {"path": "v1/fixtures/reducer/cases.json", "sha256": "029b22bcda6c10ab9613f9e94483b85c7a53fe757956ae998a0db0b6a15621f6"},
@@ -51,6 +52,7 @@
     {"path": "v1/schemas/completion-signal.schema.json", "sha256": "56dbfe8c456ed56fc2e513e82c1e1eb10658104355122abf0bc6c9ee255c38b1"},
     {"path": "v1/schemas/config.schema.json", "sha256": "a37b350b69ed848b744b8911e2693cd6b068d9e749d675806728f31be848442b"},
     {"path": "v1/schemas/deployment-identity.schema.json", "sha256": "4d358866e372b456ef361ef82ab7614393f7c7d0314021f77c0162c94dabfbfb"},
+    {"path": "v1/schemas/lifecycle-retirement.schema.json", "sha256": "e61e82b0a7c29f3aa89239a749482973872ccde15930f01faf05dda37fdd712c"},
     {"path": "v1/schemas/evidence-envelope.schema.json", "sha256": "d2314390dbcd9bced1d845e2c669c61d18257a4762d6d3fb5e23494ce0f84d9e"},
     {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "8e557699c68d52e0f2f150ff77e132576f7ce824ea3fe6dcd170459327e160fb"},
     {"path": "v1/schemas/payloads/command-authorized.schema.json", "sha256": "2c44f04410d67455e0708184a45d50329105e3dc73aecdfde8234b19c67f82ed"},
@@ -139,6 +141,7 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-launch-result",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:processed-event",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:task-attempt-record"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:task-attempt-record",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:lifecycle-retirement"
   ]
 }

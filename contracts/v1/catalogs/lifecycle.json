@@ -9,6 +9,15 @@
     "contract_version",
     "horizon_watermark"
   ],
+  "retirement": {
+    "artifact_classes": ["config", "task-definition", "schema", "runtime", "contract", "deployment"],
+    "eligibility": ["inventory_complete", "no_active_reference", "no_unknown_reference", "horizon_expired", "not_current", "not_previous_supported_major"],
+    "manifest_required_before_delete": true,
+    "mutable_selection_forbidden": true,
+    "preserve": ["audit", "recovery", "tombstone"],
+    "lifecycle_principal": "lifecycle-garbage-collection",
+    "stable_denials": ["LIFECYCLE_INVENTORY_INCOMPLETE", "LIFECYCLE_REFERENCE_UNKNOWN", "LIFECYCLE_REFERENCED", "LIFECYCLE_HORIZON_ACTIVE", "LIFECYCLE_MANIFEST_CHECKSUM", "LIFECYCLE_LATE_REFERENCE"]
+  },
   "legal_transitions": {
     "MATERIALIZED": ["ENABLED", "REJECTED"],
     "PUBLISHED": ["VALIDATED", "REJECTED"],

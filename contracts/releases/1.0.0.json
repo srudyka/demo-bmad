@@ -28,7 +28,7 @@
       "schedules",
       "schemas"
     ],
-    "schema_count": 18
+    "schema_count": 19
   },
   "classification": "initial",
   "manifest_surface": {
@@ -64,5 +64,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "ad53644cfafdedb2b187bf4289b6e7428b6c879c3e2f418b74a3e2cb65e29e66"
+  "semantic_surface_sha256": "1dcee1be36c0afea23f3372cb2932738530883469837c5d9c1422fec18069a3d"
 }

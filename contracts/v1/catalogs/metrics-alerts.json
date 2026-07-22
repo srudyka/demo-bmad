@@ -71,6 +71,9 @@
       "recovery_integrity_failure": {"metric": "RecoveryIntegrityFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
       "recovery_replay_failure": {"metric": "RecoveryReplayFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
       "recovery_verification_failure": {"metric": "RecoveryVerificationFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true}
+      ,"lifecycle_cleanup_blocked": {"metric": "LifecycleCleanupBlocked", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true}
+      ,"lifecycle_cleanup_failure": {"metric": "LifecycleCleanupFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true}
+      ,"lifecycle_late_reference": {"metric": "LifecycleLateReference", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true}
     }
   },
   "schema_version": "1.0.0"
