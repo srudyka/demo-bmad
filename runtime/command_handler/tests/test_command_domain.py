@@ -77,3 +77,31 @@ def test_wrong_actor_and_invalid_approval_fail_closed() -> None:
             lookup=_binding,
             approve=lambda *_: False,
         )
+
+
+def test_recovery_request_requires_restore_point_and_objectives() -> None:
+    result = authorize_operator_request(
+        _request(
+            command_type="RECOVER",
+            compensation_acknowledged=True,
+            restore_point="2026-07-15T09:00:00.000Z",
+            expected_rpo_seconds=300,
+            expected_rto_seconds=1800,
+        ),
+        CallerContext("operator", "session-1", "cell-a", "123456789012", "us-test-1"),
+        lookup=_binding,
+        approve=lambda *_: True,
+        now=datetime(2026, 7, 15, 10, 1, tzinfo=UTC),
+        command_id_factory=lambda: "0190f2c9-6c00-7000-8000-000000000001",
+    )
+    assert result.command["command_type"] == "RECOVER"
+    assert result.command["restore_point"] == "2026-07-15T09:00:00.000Z"
+    with pytest.raises(CommandRejected, match="RECOVERY_REQUEST_FIELDS"):
+        authorize_operator_request(
+            _request(command_type="RECOVER", compensation_acknowledged=True),
+            CallerContext(
+                "operator", "session-1", "cell-a", "123456789012", "us-test-1"
+            ),
+            lookup=_binding,
+            approve=lambda *_: True,
+        )

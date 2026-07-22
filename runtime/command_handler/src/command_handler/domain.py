@@ -9,6 +9,8 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Callable, Mapping
 
+from .recovery import recovery_command_fields
+
 
 class CommandRejected(ValueError):
     """A permanent, secret-safe command rejection."""
@@ -141,10 +143,14 @@ def authorize_operator_request(
         "approval_reference",
         "reason",
     }
-    if set(request) - required - {
+    optional = {
         "command_type",
         "compensation_acknowledged",
-    } or not required.issubset(request):
+        "restore_point",
+        "expected_rpo_seconds",
+        "expected_rto_seconds",
+    }
+    if set(request) - required - optional or not required.issubset(request):
         raise CommandRejected("COMMAND_REQUEST_SHAPE")
     if request["form"] != "operator_request" or request["schema_version"] != "1.0.0":
         raise CommandRejected("COMMAND_SCHEMA_VERSION")
@@ -188,6 +194,20 @@ def authorize_operator_request(
         raise CommandRejected("COMMAND_COMPENSATION_ACK")
     if command_type in {"REPLAY", "DISABLE", "RECOVER"} and not compensation:
         raise CommandRejected("COMMAND_COMPENSATION_ACK")
+    recovery_fields: tuple[str, int, int, str] | None = None
+    if command_type == "RECOVER":
+        try:
+            recovery_fields = recovery_command_fields(
+                {
+                    "command_type": command_type,
+                    "restore_point": request.get("restore_point"),
+                    "expected_rpo_seconds": request.get("expected_rpo_seconds"),
+                    "expected_rto_seconds": request.get("expected_rto_seconds"),
+                    "deployment_identity_id": "pending",
+                }
+            )
+        except ValueError as error:
+            raise CommandRejected(str(error)) from error
     if not approve(approval, caller.actor, caller.session_id):
         raise CommandRejected("COMMAND_APPROVAL_INVALID")
     binding = lookup(job_id, scheduled_time)
@@ -244,6 +264,14 @@ def authorize_operator_request(
         "verification_reference": f"approval:{approval}",
         "compensation_acknowledged": compensation,
     }
+    if recovery_fields is not None:
+        command.update(
+            {
+                "restore_point": recovery_fields[0],
+                "expected_rpo_seconds": recovery_fields[1],
+                "expected_rto_seconds": recovery_fields[2],
+            }
+        )
     return Authorization(
         command=command,
         authorization_record_id=_new_uuid7(),

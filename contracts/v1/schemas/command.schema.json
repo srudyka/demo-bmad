@@ -31,6 +31,19 @@
           "minLength": 1,
           "type": "string"
         },
+        "restore_point": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        "expected_rpo_seconds": {
+          "maximum": 2592000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_rto_seconds": {
+          "maximum": 2592000,
+          "minimum": 1,
+          "type": "integer"
+        },
         "scheduled_time": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
@@ -51,6 +64,12 @@
         "actor",
         "approval_reference",
         "reason"
+      ],
+      "allOf": [
+        {
+          "if": {"required": ["command_type"], "properties": {"command_type": {"const": "RECOVER"}}},
+          "then": {"required": ["command_type", "restore_point", "expected_rpo_seconds", "expected_rto_seconds"]}
+        }
       ],
       "type": "object"
     },
@@ -100,6 +119,19 @@
           "minLength": 1,
           "type": "string"
         },
+        "restore_point": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
+        "expected_rpo_seconds": {
+          "maximum": 2592000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_rto_seconds": {
+          "maximum": 2592000,
+          "minimum": 1,
+          "type": "integer"
+        },
         "scheduled_time": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
@@ -130,6 +162,12 @@
         "reason",
         "verification_reference",
         "compensation_acknowledged"
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"command_type": {"const": "RECOVER"}}},
+          "then": {"required": ["restore_point", "expected_rpo_seconds", "expected_rto_seconds"]}
+        }
       ],
       "type": "object"
     }

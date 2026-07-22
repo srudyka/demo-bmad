@@ -376,6 +376,36 @@ locals {
       dimensions = { component = "canary", cell_id = var.cell_id, environment = var.environment, state = "SUCCEEDED" }
       statistic  = "Sum"
     }
+    recovery_blocked = {
+      namespace  = var.metric_namespace
+      name       = "RecoveryBlocked"
+      dimensions = { component = "recovery-controller", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+    recovery_restore_failure = {
+      namespace  = var.metric_namespace
+      name       = "RecoveryRestoreFailure"
+      dimensions = { component = "recovery-controller", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+    recovery_integrity_failure = {
+      namespace  = var.metric_namespace
+      name       = "RecoveryIntegrityFailure"
+      dimensions = { component = "recovery-controller", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+    recovery_replay_failure = {
+      namespace  = var.metric_namespace
+      name       = "RecoveryReplayFailure"
+      dimensions = { component = "recovery-controller", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
+    recovery_verification_failure = {
+      namespace  = var.metric_namespace
+      name       = "RecoveryVerificationFailure"
+      dimensions = { component = "recovery-controller", cell_id = var.cell_id, environment = var.environment }
+      statistic  = "Sum"
+    }
   }
   cell_health_alarm_policy = {
     for key in keys(local.cell_health_alarm_definitions) : key => {
@@ -992,17 +1022,18 @@ resource "aws_lambda_function" "deadline_scanner" {
 
   environment {
     variables = {
-      DEADLINE_SCANNER_OCCURRENCE_TABLE_NAME = aws_dynamodb_table.occurrence_ledger.name
-      DEADLINE_SCANNER_INDEX_NAME            = "deadlines"
-      DEADLINE_SCANNER_SOURCE_QUEUE_URL      = aws_sqs_queue.deadline_source.url
-      DEADLINE_SCANNER_CHECKPOINT_TABLE_NAME = aws_dynamodb_table.deadline_checkpoint.name
-      DEADLINE_SCANNER_CHECKPOINT_PK         = "CELL#${var.cell_id}"
-      DEADLINE_SCANNER_LOOKBACK_SECONDS      = tostring(var.deadline_scanner.lookback_seconds)
-      DEADLINE_SCANNER_MAX_LATENESS_SECONDS  = tostring(var.deadline_scanner.maximum_lateness_seconds)
-      DEADLINE_SCANNER_PAGE_SIZE             = tostring(var.deadline_scanner.page_size)
-      DEADLINE_SCANNER_SHARD                 = "0"
-      DEADLINE_SCANNER_METRIC_NAMESPACE      = var.metric_namespace
-      DEADLINE_SCANNER_ENVIRONMENT           = var.environment
+      DEADLINE_SCANNER_OCCURRENCE_TABLE_NAME           = aws_dynamodb_table.occurrence_ledger.name
+      DEADLINE_SCANNER_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+      DEADLINE_SCANNER_INDEX_NAME                      = "deadlines"
+      DEADLINE_SCANNER_SOURCE_QUEUE_URL                = aws_sqs_queue.deadline_source.url
+      DEADLINE_SCANNER_CHECKPOINT_TABLE_NAME           = aws_dynamodb_table.deadline_checkpoint.name
+      DEADLINE_SCANNER_CHECKPOINT_PK                   = "CELL#${var.cell_id}"
+      DEADLINE_SCANNER_LOOKBACK_SECONDS                = tostring(var.deadline_scanner.lookback_seconds)
+      DEADLINE_SCANNER_MAX_LATENESS_SECONDS            = tostring(var.deadline_scanner.maximum_lateness_seconds)
+      DEADLINE_SCANNER_PAGE_SIZE                       = tostring(var.deadline_scanner.page_size)
+      DEADLINE_SCANNER_SHARD                           = "0"
+      DEADLINE_SCANNER_METRIC_NAMESPACE                = var.metric_namespace
+      DEADLINE_SCANNER_ENVIRONMENT                     = var.environment
     }
   }
 
@@ -1311,19 +1342,20 @@ resource "aws_lambda_function" "alert_router" {
 
   environment {
     variables = {
-      ALERT_ROUTER_ACCOUNT_ID               = data.aws_caller_identity.current.account_id
-      ALERT_ROUTER_CELL_ID                  = var.cell_id
-      ALERT_ROUTER_CELL_TARGET_ARN          = var.alert_router.notification_target_arn
-      ALERT_ROUTER_NOTIFICATIONS_ENABLED    = tostring(var.alert_router.notifications_enabled)
-      ALERT_ROUTER_CONFIG_TABLE_NAME        = aws_dynamodb_table.configuration_registry.name
-      ALERT_ROUTER_ENVIRONMENT              = var.environment
-      ALERT_ROUTER_NOTIFICATION_TABLE_NAME  = aws_dynamodb_table.notification_ledger.name
-      ALERT_ROUTER_OCCURRENCE_TABLE_NAME    = aws_dynamodb_table.occurrence_ledger.name
-      ALERT_ROUTER_OWNER                    = var.owner
-      ALERT_ROUTER_REGION                   = data.aws_region.current.region
-      ALERT_ROUTER_RUNBOOK_URI              = var.alert_router.runbook_uri
-      ALERT_ROUTER_RECONCILIATION_PAGE_SIZE = tostring(var.alert_router.reconciliation_page_size)
-      ALERT_ROUTER_METRIC_NAMESPACE         = var.metric_namespace
+      ALERT_ROUTER_ACCOUNT_ID                      = data.aws_caller_identity.current.account_id
+      ALERT_ROUTER_CELL_ID                         = var.cell_id
+      ALERT_ROUTER_CELL_TARGET_ARN                 = var.alert_router.notification_target_arn
+      ALERT_ROUTER_NOTIFICATIONS_ENABLED           = tostring(var.alert_router.notifications_enabled)
+      ALERT_ROUTER_CONFIG_TABLE_NAME               = aws_dynamodb_table.configuration_registry.name
+      ALERT_ROUTER_ENVIRONMENT                     = var.environment
+      ALERT_ROUTER_NOTIFICATION_TABLE_NAME         = aws_dynamodb_table.notification_ledger.name
+      ALERT_ROUTER_OCCURRENCE_TABLE_NAME           = aws_dynamodb_table.occurrence_ledger.name
+      ALERT_ROUTER_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+      ALERT_ROUTER_OWNER                           = var.owner
+      ALERT_ROUTER_REGION                          = data.aws_region.current.region
+      ALERT_ROUTER_RUNBOOK_URI                     = var.alert_router.runbook_uri
+      ALERT_ROUTER_RECONCILIATION_PAGE_SIZE        = tostring(var.alert_router.reconciliation_page_size)
+      ALERT_ROUTER_METRIC_NAMESPACE                = var.metric_namespace
     }
   }
 
@@ -1572,19 +1604,20 @@ resource "aws_lambda_function" "process_manager" {
 
   environment {
     variables = {
-      PROCESS_MANAGER_CONFIG_TABLE_NAME      = aws_dynamodb_table.configuration_registry.name
-      PROCESS_MANAGER_DEPLOYMENT_IDENTITY    = "${var.cell_id}:process-manager:v1"
-      PROCESS_MANAGER_ENVIRONMENT            = var.environment
-      PROCESS_MANAGER_INGRESS_QUEUE_ARN      = aws_sqs_queue.process_manager_ingress.arn
-      PROCESS_MANAGER_QUARANTINE_QUEUE_URL   = aws_sqs_queue.normalizer_quarantine.url
-      PROCESS_MANAGER_OWNER_GENERATION       = tostring(var.canary_normalizer_registration.owner_generation)
-      PROCESS_MANAGER_METRIC_NAMESPACE       = var.metric_namespace
-      PROCESS_MANAGER_CANARY_JOB_ID          = var.canary_normalizer_registration.job_id
-      PROCESS_MANAGER_CELL_ID                = var.cell_id
-      PROCESS_MANAGER_ENVIRONMENT            = var.environment
-      PROCESS_MANAGER_OCCURRENCE_TABLE_NAME  = aws_dynamodb_table.occurrence_ledger.name
-      PROCESS_MANAGER_HEARTBEAT_TABLE_NAME   = aws_dynamodb_table.deadline_checkpoint.name
-      PROCESS_MANAGER_CANARY_LAUNCH_ROLE_ARN = var.canary_normalizer_registration.canary_launch_role_arn
+      PROCESS_MANAGER_CONFIG_TABLE_NAME               = aws_dynamodb_table.configuration_registry.name
+      PROCESS_MANAGER_DEPLOYMENT_IDENTITY             = "${var.cell_id}:process-manager:v1"
+      PROCESS_MANAGER_ENVIRONMENT                     = var.environment
+      PROCESS_MANAGER_INGRESS_QUEUE_ARN               = aws_sqs_queue.process_manager_ingress.arn
+      PROCESS_MANAGER_QUARANTINE_QUEUE_URL            = aws_sqs_queue.normalizer_quarantine.url
+      PROCESS_MANAGER_OWNER_GENERATION                = tostring(var.canary_normalizer_registration.owner_generation)
+      PROCESS_MANAGER_METRIC_NAMESPACE                = var.metric_namespace
+      PROCESS_MANAGER_CANARY_JOB_ID                   = var.canary_normalizer_registration.job_id
+      PROCESS_MANAGER_CELL_ID                         = var.cell_id
+      PROCESS_MANAGER_ENVIRONMENT                     = var.environment
+      PROCESS_MANAGER_OCCURRENCE_TABLE_NAME           = aws_dynamodb_table.occurrence_ledger.name
+      PROCESS_MANAGER_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+      PROCESS_MANAGER_HEARTBEAT_TABLE_NAME            = aws_dynamodb_table.deadline_checkpoint.name
+      PROCESS_MANAGER_CANARY_LAUNCH_ROLE_ARN          = var.canary_normalizer_registration.canary_launch_role_arn
     }
   }
   depends_on = [aws_cloudwatch_log_group.process_manager]
@@ -1861,7 +1894,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     sid       = "WriteOnlyCanonicalEvidenceAndQuarantine"
     effect    = "Allow"
     actions   = ["sqs:SendMessage"]
-    resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn]
+    resources = [aws_sqs_queue.normalizer_ingress.arn, aws_sqs_queue.process_manager_ingress.arn, aws_sqs_queue.normalizer_quarantine.arn, aws_sqs_queue.recovery_queue.arn]
   }
   statement {
     sid       = "ReadOnlyOccurrenceTaskIndex"
@@ -1903,6 +1936,7 @@ data "aws_iam_policy_document" "evidence_normalizer" {
         aws_sqs_queue.process_manager_ingress.arn,
         aws_sqs_queue.normalizer_quarantine.arn,
         aws_sqs_queue.command_handler_queue.arn,
+        aws_sqs_queue.recovery_queue.arn,
       ]
     }
   }
@@ -1946,12 +1980,14 @@ resource "aws_lambda_function" "evidence_normalizer" {
 
   environment {
     variables = {
-      NORMALIZER_CONTRACTS_ROOT            = "/var/task/contracts/v1"
-      NORMALIZER_INGRESS_QUEUE_URL         = aws_sqs_queue.normalizer_ingress.url
-      NORMALIZER_PROCESS_MANAGER_QUEUE_URL = aws_sqs_queue.process_manager_ingress.url
-      NORMALIZER_METRIC_NAMESPACE          = var.metric_namespace
-      NORMALIZER_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
-      NORMALIZER_OCCURRENCE_TABLE_NAME     = aws_dynamodb_table.occurrence_ledger.name
+      NORMALIZER_CONTRACTS_ROOT                  = "/var/task/contracts/v1"
+      NORMALIZER_INGRESS_QUEUE_URL               = aws_sqs_queue.normalizer_ingress.url
+      NORMALIZER_PROCESS_MANAGER_QUEUE_URL       = aws_sqs_queue.process_manager_ingress.url
+      NORMALIZER_RECOVERY_QUEUE_URL              = aws_sqs_queue.recovery_queue.url
+      NORMALIZER_METRIC_NAMESPACE                = var.metric_namespace
+      NORMALIZER_QUARANTINE_QUEUE_URL            = aws_sqs_queue.normalizer_quarantine.url
+      NORMALIZER_OCCURRENCE_TABLE_NAME           = aws_dynamodb_table.occurrence_ledger.name
+      NORMALIZER_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
       NORMALIZER_COMMAND_REGISTRATION = jsonencode({
         account_id          = data.aws_caller_identity.current.account_id
         cell_id             = var.cell_id
@@ -2141,9 +2177,10 @@ resource "aws_lambda_function" "log_ingestor" {
   kms_key_arn                    = var.kms_key_arn
   environment {
     variables = {
-      LOG_INGESTOR_OCCURRENCE_TABLE_NAME     = aws_dynamodb_table.occurrence_ledger.name
-      LOG_INGESTOR_PROCESS_MANAGER_QUEUE_URL = aws_sqs_queue.process_manager_ingress.url
-      LOG_INGESTOR_QUARANTINE_QUEUE_URL      = aws_sqs_queue.normalizer_quarantine.url
+      LOG_INGESTOR_OCCURRENCE_TABLE_NAME           = aws_dynamodb_table.occurrence_ledger.name
+      LOG_INGESTOR_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+      LOG_INGESTOR_PROCESS_MANAGER_QUEUE_URL       = aws_sqs_queue.process_manager_ingress.url
+      LOG_INGESTOR_QUARANTINE_QUEUE_URL            = aws_sqs_queue.normalizer_quarantine.url
     }
   }
   depends_on = [aws_cloudwatch_log_group.log_ingestor]
@@ -2312,13 +2349,14 @@ resource "aws_lambda_function" "occurrence_materializer" {
   reserved_concurrent_executions = var.materializer.reserved_concurrency
   kms_key_arn                    = var.kms_key_arn
   environment { variables = {
-    MATERIALIZER_CONTRACTS_ROOT           = "/var/task/contracts/v1"
-    MATERIALIZER_CONFIG_BUCKET            = aws_s3_bucket.config_inbox.bucket
-    MATERIALIZER_CONFIG_KEY               = "jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"
-    MATERIALIZER_CONFIG_REGISTRY_TABLE    = aws_dynamodb_table.configuration_registry.name
-    MATERIALIZER_NAMESPACE_REGISTRY_TABLE = aws_dynamodb_table.namespace_registry.name
-    MATERIALIZER_SOURCE_QUEUE_URL         = aws_sqs_queue.materializer_ingress.url
-    MATERIALIZER_METRIC_NAMESPACE         = var.metric_namespace
+    MATERIALIZER_CONTRACTS_ROOT                  = "/var/task/contracts/v1"
+    MATERIALIZER_CONFIG_BUCKET                   = aws_s3_bucket.config_inbox.bucket
+    MATERIALIZER_CONFIG_KEY                      = "jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"
+    MATERIALIZER_CONFIG_REGISTRY_TABLE           = aws_dynamodb_table.configuration_registry.name
+    MATERIALIZER_RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+    MATERIALIZER_NAMESPACE_REGISTRY_TABLE        = aws_dynamodb_table.namespace_registry.name
+    MATERIALIZER_SOURCE_QUEUE_URL                = aws_sqs_queue.materializer_ingress.url
+    MATERIALIZER_METRIC_NAMESPACE                = var.metric_namespace
     MATERIALIZER_REGISTRATION = jsonencode({
       account_id                 = var.canary_normalizer_registration.account_id
       config_version             = var.canary_normalizer_registration.config_version
@@ -2655,6 +2693,40 @@ resource "aws_sqs_queue" "command_handler_queue" {
   tags = local.common_tags
 }
 
+resource "aws_sqs_queue" "recovery_dlq" {
+  name                      = "${local.name_prefix}-recovery-dlq"
+  message_retention_seconds = var.command_handler.queue_retention_days * 86400
+  kms_master_key_id         = var.kms_key_arn
+  tags                      = local.common_tags
+}
+
+resource "aws_sqs_queue" "recovery_queue" {
+  name                              = "${local.name_prefix}-recovery"
+  message_retention_seconds         = var.command_handler.queue_retention_days * 86400
+  visibility_timeout_seconds        = var.command_handler.visibility_seconds
+  kms_master_key_id                 = var.kms_key_arn
+  kms_data_key_reuse_period_seconds = 300
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.recovery_dlq.arn
+    maxReceiveCount     = var.command_handler.max_receive_count
+  })
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue_policy" "recovery_queue" {
+  queue_url = aws_sqs_queue.recovery_queue.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowOnlyCellNormalizer"
+      Effect    = "Allow"
+      Principal = { AWS = aws_iam_role.evidence_normalizer.arn }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.recovery_queue.arn
+    }]
+  })
+}
+
 data "aws_iam_policy_document" "command_handler_assume_role" {
   statement {
     effect  = "Allow"
@@ -2768,10 +2840,281 @@ resource "aws_dynamodb_table" "command_authorizations" {
   tags = local.common_tags
 }
 
+resource "aws_dynamodb_table" "recovery_manifests" {
+  name                        = "${local.name_prefix}-recovery-manifests"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "pk"
+  range_key                   = "sk"
+  deletion_protection_enabled = var.enable_recovery_protection
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+  point_in_time_recovery {
+    enabled = true
+  }
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
+  }
+  tags = local.common_tags
+}
+
+resource "aws_ssm_parameter" "recovery_generation" {
+  name   = "/platform/ecs-scheduled-jobs/${var.environment}/${data.aws_region.current.region}/recovery-generation"
+  type   = "SecureString"
+  key_id = var.kms_key_arn
+  value = jsonencode({
+    recovery_generation = "INITIAL"
+    deployment_identity = "INITIAL"
+    tables = [
+      aws_dynamodb_table.namespace_registry.name,
+      aws_dynamodb_table.configuration_registry.name,
+      aws_dynamodb_table.occurrence_ledger.name,
+      aws_dynamodb_table.deadline_checkpoint.name,
+      aws_dynamodb_table.notification_ledger.name,
+    ]
+  })
+  tags = local.common_tags
+}
+
 resource "aws_iam_role_policy" "command_handler" {
   name   = "${local.name_prefix}-command-handler"
   role   = aws_iam_role.command_handler.id
   policy = data.aws_iam_policy_document.command_handler.json
+}
+
+data "aws_iam_policy_document" "recovery_controller_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "recovery_controller" {
+  statement {
+    sid       = "ReadAndRestoreCellTables"
+    effect    = "Allow"
+    actions   = ["dynamodb:DescribeTable", "dynamodb:DescribeContinuousBackups", "dynamodb:RestoreTableToPointInTime"]
+    resources = [aws_dynamodb_table.namespace_registry.arn, aws_dynamodb_table.configuration_registry.arn, aws_dynamodb_table.occurrence_ledger.arn, aws_dynamodb_table.deadline_checkpoint.arn, aws_dynamodb_table.notification_ledger.arn]
+  }
+  statement {
+    sid       = "ConfigureOnlyRecoveryTables"
+    effect    = "Allow"
+    actions   = ["dynamodb:DescribeTable", "dynamodb:TagResource", "dynamodb:UpdateContinuousBackups", "dynamodb:UpdateTable"]
+    resources = ["arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${local.name_prefix}-*-recovery-*"]
+  }
+  statement {
+    sid       = "WriteOnlyRecoveryManifest"
+    effect    = "Allow"
+    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.recovery_manifests.arn]
+  }
+  statement {
+    sid       = "PauseCellSchedules"
+    effect    = "Allow"
+    actions   = ["scheduler:GetSchedule", "scheduler:UpdateSchedule"]
+    resources = ["arn:aws:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/${aws_scheduler_schedule_group.cell.name}/*"]
+  }
+  statement {
+    sid     = "UpdateCellEventSources"
+    effect  = "Allow"
+    actions = ["lambda:UpdateEventSourceMapping"]
+    resources = [
+      for mapping in [
+        aws_lambda_event_source_mapping.alert_router,
+        aws_lambda_event_source_mapping.process_manager,
+        aws_lambda_event_source_mapping.evidence_normalizer,
+        aws_lambda_event_source_mapping.evidence_normalizer_ecs,
+        aws_lambda_event_source_mapping.evidence_normalizer_deadline,
+        aws_lambda_event_source_mapping.materializer_normalizer,
+        aws_lambda_event_source_mapping.command_normalizer,
+        aws_lambda_event_source_mapping.log_ingestor,
+      ] : "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:event-source-mapping:${mapping.uuid}"
+    ]
+  }
+  statement {
+    sid     = "InvokeRecoveryChecks"
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      aws_lambda_function.alert_router.arn,
+      aws_lambda_function.process_manager.arn,
+      aws_lambda_function.occurrence_materializer.arn,
+      aws_lambda_function.deadline_scanner.arn,
+    ]
+  }
+  statement {
+    sid       = "UpdateRecoveryPointer"
+    effect    = "Allow"
+    actions   = ["ssm:PutParameter", "ssm:GetParameter"]
+    resources = [aws_ssm_parameter.recovery_generation.arn]
+  }
+  statement {
+    sid       = "ConsumeRecoveryQueue"
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    resources = [aws_sqs_queue.recovery_queue.arn]
+  }
+  statement {
+    sid       = "PublishRecoveryMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    sid       = "UseRecoveryEncryptionKey"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+  }
+}
+
+resource "aws_iam_role" "recovery_controller" {
+  name                 = "${local.name_prefix}-recovery-controller"
+  assume_role_policy   = data.aws_iam_policy_document.recovery_controller_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+resource "aws_iam_role_policy" "recovery_controller" {
+  name   = "${local.name_prefix}-recovery-controller"
+  role   = aws_iam_role.recovery_controller.id
+  policy = data.aws_iam_policy_document.recovery_controller.json
+}
+
+data "aws_iam_policy_document" "recovery_controller_logs" {
+  statement {
+    sid       = "WriteRecoveryLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.recovery_controller.arn}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "recovery_controller_logs" {
+  name   = "${local.name_prefix}-recovery-controller-logs"
+  role   = aws_iam_role.recovery_controller.id
+  policy = data.aws_iam_policy_document.recovery_controller_logs.json
+}
+
+data "aws_iam_policy_document" "recovery_pointer_consumers" {
+  statement {
+    sid       = "ReadCellRecoveryPointer"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [aws_ssm_parameter.recovery_generation.arn]
+  }
+  statement {
+    sid       = "DecryptCellRecoveryPointer"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "recovery_pointer_consumers" {
+  for_each = {
+    alert_router            = aws_iam_role.alert_router.id
+    deadline_scanner        = aws_iam_role.deadline_scanner.id
+    evidence_normalizer     = aws_iam_role.evidence_normalizer.id
+    log_ingestor            = aws_iam_role.log_ingestor.id
+    occurrence_materializer = aws_iam_role.occurrence_materializer.id
+    process_manager         = aws_iam_role.process_manager.id
+  }
+  name   = "${local.name_prefix}-${each.key}-recovery-pointer"
+  role   = each.value
+  policy = data.aws_iam_policy_document.recovery_pointer_consumers.json
+}
+
+resource "aws_cloudwatch_log_group" "recovery_controller" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/recovery-controller"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.command_handler.log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_lambda_function" "recovery_controller" {
+  function_name                  = "${local.name_prefix}-recovery-controller"
+  filename                       = var.command_handler.artifact_path
+  source_code_hash               = var.command_handler.artifact_source_hash
+  handler                        = "command_handler.recovery_handler.lambda_handler"
+  role                           = aws_iam_role.recovery_controller.arn
+  runtime                        = "python3.14"
+  timeout                        = var.command_handler.timeout_seconds
+  reserved_concurrent_executions = 1
+  kms_key_arn                    = var.kms_key_arn
+  environment {
+    variables = {
+      RECOVERY_CELL_ID                = var.cell_id
+      RECOVERY_ACCOUNT_ID             = data.aws_caller_identity.current.account_id
+      RECOVERY_REGION                 = data.aws_region.current.region
+      RECOVERY_ENVIRONMENT            = var.environment
+      RECOVERY_OWNER                  = var.owner
+      RECOVERY_KMS_KEY_ARN            = var.kms_key_arn
+      RECOVERY_METRIC_NAMESPACE       = var.metric_namespace
+      RECOVERY_MANIFEST_TABLE_NAME    = aws_dynamodb_table.recovery_manifests.name
+      RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
+      RECOVERY_SOURCE_TABLES          = jsonencode([aws_dynamodb_table.namespace_registry.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.deadline_checkpoint.name, aws_dynamodb_table.notification_ledger.name])
+      RECOVERY_SCHEDULES              = jsonencode([{ name = "${local.name_prefix}-canary", group_name = aws_scheduler_schedule_group.cell.name }])
+      RECOVERY_EVENT_SOURCE_MAPPINGS = jsonencode([
+        aws_lambda_event_source_mapping.alert_router.uuid,
+        aws_lambda_event_source_mapping.process_manager.uuid,
+        aws_lambda_event_source_mapping.evidence_normalizer.uuid,
+        aws_lambda_event_source_mapping.evidence_normalizer_ecs.uuid,
+        aws_lambda_event_source_mapping.evidence_normalizer_deadline.uuid,
+        aws_lambda_event_source_mapping.materializer_normalizer.uuid,
+        aws_lambda_event_source_mapping.command_normalizer.uuid,
+        aws_lambda_event_source_mapping.log_ingestor.uuid,
+      ])
+      RECOVERY_REPLAY_MAPPINGS = jsonencode([
+        aws_lambda_event_source_mapping.evidence_normalizer.uuid,
+        aws_lambda_event_source_mapping.evidence_normalizer_ecs.uuid,
+        aws_lambda_event_source_mapping.evidence_normalizer_deadline.uuid,
+        aws_lambda_event_source_mapping.process_manager.uuid,
+        aws_lambda_event_source_mapping.materializer_normalizer.uuid,
+        aws_lambda_event_source_mapping.alert_router.uuid,
+      ])
+      RECOVERY_RECONCILIATION_FUNCTIONS = jsonencode([
+        aws_lambda_function.occurrence_materializer.arn,
+        aws_lambda_function.deadline_scanner.arn,
+        aws_lambda_function.alert_router.arn,
+      ])
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.recovery_controller]
+  tags       = local.common_tags
+}
+
+resource "aws_lambda_event_source_mapping" "recovery_controller" {
+  event_source_arn                   = aws_sqs_queue.recovery_queue.arn
+  function_name                      = aws_lambda_function.recovery_controller.arn
+  batch_size                         = 1
+  maximum_batching_window_in_seconds = 0
+  function_response_types            = ["ReportBatchItemFailures"]
 }
 
 resource "aws_cloudwatch_log_group" "command_handler" {

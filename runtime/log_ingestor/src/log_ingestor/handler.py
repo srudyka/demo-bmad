@@ -24,6 +24,27 @@ def _required(name: str) -> str:
     return value
 
 
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("LOG_INGESTOR_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3  # type: ignore[import-untyped]
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 3
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("LOG_INGESTOR_RECOVERY_POINTER_INVALID")
+    os.environ["LOG_INGESTOR_OCCURRENCE_TABLE_NAME"] = tables[2]
+
+
 def _plain(value: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, item in value.items():
@@ -45,6 +66,7 @@ def lambda_handler(
 ) -> dict[str, list[dict[str, str]]]:
     """Consume subscription envelopes and publish only canonical completions."""
 
+    _resolve_recovery_table()
     records = event.get("Records")
     if records is None and "awslogs" in event:
         records = [
@@ -52,7 +74,7 @@ def lambda_handler(
         ]
     if not isinstance(records, list):
         raise RuntimeError("LOG_INGESTOR_EVENT_INVALID")
-    import boto3  # type: ignore[import-untyped]
+    import boto3
 
     ddb = boto3.client("dynamodb")
     sqs = boto3.client("sqs")

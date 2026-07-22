@@ -117,6 +117,27 @@ def _clients() -> tuple[QueueClient, MetricsClient, DynamoClient]:
     return boto3.client("sqs"), boto3.client("cloudwatch"), boto3.client("dynamodb")
 
 
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("NORMALIZER_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 3
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("NORMALIZER_RECOVERY_POINTER_INVALID")
+    os.environ["NORMALIZER_OCCURRENCE_TABLE_NAME"] = tables[2]
+
+
 def _safe_log(code: str, record: Mapping[str, object]) -> None:
     LOGGER.info(
         "normalizer_record code=%s message_id=%s", code, record.get("messageId", "")
@@ -134,6 +155,7 @@ def lambda_handler(
 ) -> dict[str, list[dict[str, str]]]:
     """Normalize SQS records and retry only failed transport deliveries."""
 
+    _resolve_recovery_table()
     records = event.get("Records")
     if not isinstance(records, list) or not all(
         isinstance(item, Mapping) for item in records
@@ -150,6 +172,7 @@ def lambda_handler(
     command_registration = _command_registration()
     ingress_url = _required_environment("NORMALIZER_INGRESS_QUEUE_URL")
     process_manager_url = _required_environment("NORMALIZER_PROCESS_MANAGER_QUEUE_URL")
+    recovery_url = _required_environment("NORMALIZER_RECOVERY_QUEUE_URL")
     quarantine_url = _required_environment("NORMALIZER_QUARANTINE_QUEUE_URL")
     namespace = _required_environment("NORMALIZER_METRIC_NAMESPACE")
     queues, metrics, dynamodb = _clients()
@@ -270,6 +293,22 @@ def lambda_handler(
         except (BotoCoreError, ClientError, OSError) as error:
             raise TransientTransportError from error
 
+    def send_command_envelope(envelope: dict[str, object]) -> None:
+        payload = envelope.get("payload")
+        command = payload.get("command") if isinstance(payload, Mapping) else None
+        destination = (
+            recovery_url
+            if isinstance(command, Mapping) and command.get("command_type") == "RECOVER"
+            else process_manager_url
+        )
+        try:
+            queues.send_message(
+                QueueUrl=destination,
+                MessageBody=_canonical_message(envelope),
+            )
+        except (BotoCoreError, ClientError, OSError) as error:
+            raise TransientTransportError from error
+
     source_arns = {item.get("eventSourceARN") for item in records}
     if source_arns == {deadline_registration.source_queue_arn}:
         return process_deadline_batch(
@@ -278,7 +317,7 @@ def lambda_handler(
             schemas,
             registry,
             secret_policy,
-            send_envelope=send_process_manager_envelope,
+            send_envelope=send_command_envelope,
             send_quarantine=send_quarantine,
             deadline_lookup=deadline_lookup,
         )

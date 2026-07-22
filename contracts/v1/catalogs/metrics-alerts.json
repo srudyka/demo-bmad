@@ -65,7 +65,12 @@
       "log_subscription_delivery": {"metric": "DeliveryErrors", "namespace": "AWS/Logs", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "notBreaching", "severity": "high", "owner_required": true},
       "notification_delivery": {"metric": "NotificationDelivered", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "notBreaching", "severity": "high", "owner_required": true},
       "expectation_horizon_freshness": {"metric": "DeadlineScannerWatermarkAge", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
-      "schedule_conformance": {"metric": "CanaryProcessedHeartbeat", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true}
+      "schedule_conformance": {"metric": "CanaryProcessedHeartbeat", "namespace": "cell", "threshold": 1, "evaluation_periods": 5, "period_seconds": 60, "missing_data": "breaching", "severity": "critical", "owner_required": true},
+      "recovery_blocked": {"metric": "RecoveryBlocked", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
+      "recovery_restore_failure": {"metric": "RecoveryRestoreFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
+      "recovery_integrity_failure": {"metric": "RecoveryIntegrityFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
+      "recovery_replay_failure": {"metric": "RecoveryReplayFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true},
+      "recovery_verification_failure": {"metric": "RecoveryVerificationFailure", "namespace": "cell", "threshold": 1, "evaluation_periods": 1, "period_seconds": 60, "missing_data": "notBreaching", "severity": "critical", "owner_required": true}
     }
   },
   "schema_version": "1.0.0"

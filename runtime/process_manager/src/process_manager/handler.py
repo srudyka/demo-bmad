@@ -33,6 +33,29 @@ TRANSIENT_CODES = (
 )
 
 
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("PROCESS_MANAGER_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3  # type: ignore[import-untyped]
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 4
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("PROCESS_MANAGER_RECOVERY_POINTER_INVALID")
+    os.environ["PROCESS_MANAGER_CONFIG_TABLE_NAME"] = tables[1]
+    os.environ["PROCESS_MANAGER_OCCURRENCE_TABLE_NAME"] = tables[2]
+    os.environ["PROCESS_MANAGER_HEARTBEAT_TABLE_NAME"] = tables[3]
+
+
 def _required(name: str) -> str:
     value = os.environ.get(name)
     if not value:
@@ -41,7 +64,7 @@ def _required(name: str) -> str:
 
 
 def _clients() -> tuple[Any, Any, Any]:
-    import boto3  # type: ignore[import-untyped]
+    import boto3
 
     return boto3.client("dynamodb"), boto3.client("cloudwatch"), boto3.client("sqs")
 
@@ -81,6 +104,7 @@ def _body(record: Mapping[str, Any]) -> dict[str, Any]:
 def lambda_handler(
     event: Mapping[str, Any], _context: Any
 ) -> dict[str, list[dict[str, str]]]:
+    _resolve_recovery_table()
     records = event.get("Records")
     if not isinstance(records, list):
         raise RuntimeError("PROCESS_MANAGER_EVENT_INVALID")

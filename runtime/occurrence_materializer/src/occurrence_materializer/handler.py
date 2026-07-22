@@ -37,6 +37,28 @@ def _required(name: str) -> str:
     return value
 
 
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("MATERIALIZER_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3  # type: ignore[import-untyped]
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 2
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("MATERIALIZER_RECOVERY_POINTER_INVALID")
+    os.environ["MATERIALIZER_NAMESPACE_REGISTRY_TABLE"] = tables[0]
+    os.environ["MATERIALIZER_CONFIG_REGISTRY_TABLE"] = tables[1]
+
+
 def _registration() -> MaterializerRegistration:
     try:
         value = json.loads(_required("MATERIALIZER_REGISTRATION"))
@@ -260,6 +282,7 @@ def _assert_namespace(dynamodb: object, registration: MaterializerRegistration) 
 
 
 def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, object]:
+    _resolve_recovery_table()
     """Materialize expected evidence; all persistence is immutable and conditional."""
 
     scheduled_at = event.get("time")
@@ -269,7 +292,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
     ):
         raise RuntimeError("MATERIALIZER_EVENT_TIME_INVALID")
     _parse_timestamp(scheduled_at)
-    import boto3  # type: ignore[import-untyped]
+    import boto3
 
     registration = _registration()
     contracts_root = Path(_required("MATERIALIZER_CONTRACTS_ROOT"))

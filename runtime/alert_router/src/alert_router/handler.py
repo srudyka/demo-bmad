@@ -42,6 +42,29 @@ def _clients() -> tuple[Any, Any, Publisher]:
     return boto3.client("dynamodb"), boto3.client("cloudwatch"), boto3.client("sns")
 
 
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("ALERT_ROUTER_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 5
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("ALERT_ROUTER_RECOVERY_POINTER_INVALID")
+    os.environ["ALERT_ROUTER_CONFIG_TABLE_NAME"] = tables[1]
+    os.environ["ALERT_ROUTER_OCCURRENCE_TABLE_NAME"] = tables[2]
+    os.environ["ALERT_ROUTER_NOTIFICATION_TABLE_NAME"] = tables[4]
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -395,6 +418,7 @@ def lambda_handler(
     if event.get("mode") == "reconciliation":
         reconciliation_handler(event, _context)
         return {"batchItemFailures": []}
+    _resolve_recovery_table()
     records = event.get("Records")
     if not isinstance(records, list):
         raise RuntimeError("ALERT_ROUTER_EVENT_INVALID")

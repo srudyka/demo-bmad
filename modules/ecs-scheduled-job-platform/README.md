@@ -131,6 +131,20 @@ accelerated canary windows before production enablement.
 Rollback disables the specific health alarm actions or event-source mapping
 while retaining metrics, DLQs, logs, heartbeat evidence, the occurrence outbox,
 notification ledger, and CloudWatch alarm history.
+
+## Cell recovery
+
+The Cell exposes an encrypted recovery queue/DLQ, recovery manifest table, and
+scoped recovery controller. Recovery is account/Region-local and restores the
+namespace, CONFIG, occurrence/checkpoint, outbox, and notification tables to
+new encrypted tables at one PITR point. It disables launch before changing
+pointers, validates schema/index/CONFIG/ownership/task/deduplication invariants,
+replays retained evidence through the normalizer and Process Manager, and keeps
+launch disabled until canary and alert verification pass.
+
+Recovery is not automatic cross-Region failover. Use
+`docs/runbooks/cell-recovery.md`; retain source and recovery evidence until
+rollback and application-side-effect decisions are complete.
 - `incomplete_multipart_upload_days` is a bounded 1-365 day cleanup policy for
   incomplete uploads only. CONFIG object versions are retained until a later,
   registry-aware garbage collector proves them unreferenced.

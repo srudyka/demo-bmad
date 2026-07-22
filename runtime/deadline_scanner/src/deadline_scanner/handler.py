@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -36,6 +37,28 @@ def _required(name: str) -> str:
     if not value:
         raise RuntimeError(f"DEADLINE_SCANNER_CONFIGURATION_MISSING:{name}")
     return value
+
+
+def _resolve_recovery_table() -> None:
+    parameter = os.environ.get("DEADLINE_SCANNER_RECOVERY_POINTER_PARAMETER_NAME")
+    if not parameter:
+        return
+    import boto3  # type: ignore[import-untyped]
+
+    value = json.loads(
+        boto3.client("ssm").get_parameter(Name=parameter, WithDecryption=True)[
+            "Parameter"
+        ]["Value"]
+    )
+    tables = value.get("tables") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(tables, list)
+        or len(tables) < 4
+        or not all(isinstance(item, str) for item in tables)
+    ):
+        raise RuntimeError("DEADLINE_SCANNER_RECOVERY_POINTER_INVALID")
+    os.environ["DEADLINE_SCANNER_OCCURRENCE_TABLE_NAME"] = tables[2]
+    os.environ["DEADLINE_SCANNER_CHECKPOINT_TABLE_NAME"] = tables[3]
 
 
 def _plain(item: Mapping[str, Any]) -> dict[str, object]:
@@ -229,7 +252,8 @@ def scan_once(
 
 
 def lambda_handler(_event: Mapping[str, object], _context: object) -> dict[str, int]:
-    import boto3  # type: ignore[import-untyped]
+    _resolve_recovery_table()
+    import boto3
 
     count = scan_once(
         boto3.client("dynamodb"), boto3.client("sqs"), boto3.client("cloudwatch")

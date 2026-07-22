@@ -153,3 +153,15 @@ output "operator_commands" {
     operator_role_arn    = aws_iam_role.operator.arn
   }
 }
+
+output "cell_recovery" {
+  description = "Cell recovery controller, encrypted queue/DLQ, manifest table, and generation pointer identifiers."
+  value = {
+    controller_function_arn = aws_lambda_function.recovery_controller.arn
+    controller_role_arn     = aws_iam_role.recovery_controller.arn
+    queue_arn               = aws_sqs_queue.recovery_queue.arn
+    dlq_arn                 = aws_sqs_queue.recovery_dlq.arn
+    manifest_table_arn      = aws_dynamodb_table.recovery_manifests.arn
+    pointer_parameter_arn   = aws_ssm_parameter.recovery_generation.arn
+  }
+}
