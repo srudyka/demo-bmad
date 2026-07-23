@@ -1,25 +1,29 @@
 module "job" {
   source = "../.."
 
-  environment         = "dev"
-  application         = "sample"
-  job_name            = "daily"
-  owner               = "platform-example"
-  repository_id       = "123456789"
-  terraform_root_id   = "sample-root"
-  apply_role_id       = "sample-plan-role"
-  account_id          = "123456789012"
-  region              = "us-east-1"
-  ecs_cluster_arn     = "arn:aws:ecs:us-east-1:123456789012:cluster/example"
-  image               = "example.invalid/sample@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  schedule_expression = "rate(1 day)"
-  cpu                 = 256
-  memory              = 512
+  environment                   = "dev"
+  application                   = "sample"
+  job_name                      = "daily"
+  owner                         = "platform-example"
+  repository_id                 = "123456789"
+  terraform_root_id             = "sample-root"
+  apply_role_id                 = "sample-plan-role"
+  account_id                    = "123456789012"
+  region                        = "us-east-1"
+  ecs_cluster_arn               = "arn:aws:ecs:us-east-1:123456789012:cluster/example"
+  permissions_boundary_arn      = "arn:aws:iam::123456789012:policy/platform-example-job-boundary"
+  cell_process_manager_role_arn = "arn:aws:iam::123456789012:role/platform-example-process-manager-v1"
+  ecr_repository_arn            = "arn:aws:ecr:us-east-1:123456789012:repository/sample"
+  image                         = "example.invalid/sample@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  schedule_expression           = "rate(1 day)"
+  cpu                           = 256
+  memory                        = 512
   runtime = {
     max_runtime_seconds = 900
     idempotency         = "idempotent"
   }
   overlap_policy = "reject"
+  secret_mode    = "ecs-agent"
   networking = {
     subnet_ids         = ["subnet-0123456789abcdef0"]
     security_group_ids = ["sg-0123456789abcdef0"]

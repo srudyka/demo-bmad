@@ -152,19 +152,133 @@ variable "secret_references" {
   type        = list(string)
   default     = []
   validation {
-    condition     = alltrue([for value in var.secret_references : !strcontains(value, "=") && !strcontains(value, " ")])
-    error_message = "secret_references must contain references only, never key/value pairs or plaintext."
+    condition = alltrue([
+      for value in var.secret_references :
+      !strcontains(value, "=") && !strcontains(value, " ") && can(regex("^arn:[a-z0-9-]+:(secretsmanager|ssm):[a-z0-9-]+:[0-9]{12}:.+$", value))
+    ])
+    error_message = "secret_references must contain exact Secrets Manager or SSM ARNs only, never key/value pairs or plaintext."
+  }
+}
+
+variable "permissions_boundary_arn" {
+  description = "Cell-approved same-account customer-managed IAM permissions boundary required on all three job roles."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:policy/platform-[A-Za-z0-9/_+=,.@-]+$", var.permissions_boundary_arn))
+    error_message = "permissions_boundary_arn must be a platform-owned customer-managed IAM policy ARN."
+  }
+}
+
+variable "cell_process_manager_role_arn" {
+  description = "Exact stable Cell-major Process Manager role ARN allowed to assume the job-launch role."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/platform-[A-Za-z0-9/_+=,.@-]+$", var.cell_process_manager_role_arn))
+    error_message = "cell_process_manager_role_arn must be an exact same-account platform Process Manager role ARN."
+  }
+}
+
+variable "ecr_repository_arn" {
+  description = "Exact same-account ECR repository from which the immutable job image is pulled."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:ecr:[a-z0-9-]+:[0-9]{12}:repository/[A-Za-z0-9/_-]+$", var.ecr_repository_arn))
+    error_message = "ecr_repository_arn must be an exact ECR repository ARN."
+  }
+}
+
+variable "secret_mode" {
+  description = "Secret delivery mode: ecs-agent grants references to execution, application-pull grants them to task."
+  type        = string
+  default     = "ecs-agent"
+  validation {
+    condition     = contains(["ecs-agent", "application-pull"], var.secret_mode)
+    error_message = "secret_mode must be ecs-agent or application-pull."
+  }
+}
+
+variable "secret_kms_key_arn" {
+  description = "Optional same-account customer-managed KMS key used to decrypt the declared secret references."
+  type        = string
+  default     = null
+  nullable    = true
+  validation {
+    condition     = var.secret_kms_key_arn == null || can(regex("^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]+$", var.secret_kms_key_arn))
+    error_message = "secret_kms_key_arn must be a same-account KMS key ARN when provided."
+  }
+}
+
+variable "application_secret_network_path" {
+  description = "Secret-free network path metadata required when application-pull mode is selected; networking resources belong to Story 2.3."
+  type = object({
+    kind        = string
+    identifiers = set(string)
+  })
+  default  = null
+  nullable = true
+  validation {
+    condition = var.application_secret_network_path == null || (
+      contains(["vpc-endpoint", "private-subnets"], var.application_secret_network_path.kind) &&
+      length(var.application_secret_network_path.identifiers) > 0 &&
+      alltrue([for identifier in var.application_secret_network_path.identifiers : length(trimspace(identifier)) > 0])
+    )
+    error_message = "application_secret_network_path must name a supported private path and at least one identifier."
   }
 }
 
 variable "permissions" {
-  description = "Reviewable application permission declarations retained for the later IAM story."
+  description = "Reviewable task-role application permissions with stable statement IDs and optional StringEquals conditions."
   type = list(object({
-    actions    = set(string)
-    resources  = set(string)
-    conditions = optional(map(string), {})
+    statement_id = optional(string, "ApplicationPermission")
+    actions      = set(string)
+    resources    = set(string)
+    conditions   = optional(map(string), {})
   }))
   default = []
+  validation {
+    condition = alltrue(flatten([
+      for permission in var.permissions : [
+        length(trimspace(permission.statement_id)) > 0,
+        length(permission.actions) > 0,
+        length(permission.resources) > 0,
+        alltrue([for action in permission.actions : !contains([
+          "*", "iam:PassRole", "iam:CreateUser", "iam:CreateAccessKey", "iam:AttachRolePolicy",
+          "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy", "iam:PutRolePermissionsBoundary",
+          "iam:DeleteRolePermissionsBoundary", "iam:CreatePolicyVersion", "iam:SetDefaultPolicyVersion",
+          "iam:DeleteRole", "sts:AssumeRole", "dynamodb:PutItem", "s3:PutBucketPolicy"
+        ], action) && !strcontains(action, "*") && !startswith(action, "iam:") && !startswith(action, "organizations:")]),
+        alltrue([for resource in permission.resources : resource != "*" && !strcontains(resource, "*") && !strcontains(resource, "CONFIG")])
+      ]
+    ])) && length(distinct([for permission in var.permissions : permission.statement_id])) == length(var.permissions)
+    error_message = "permissions require unique nonempty statements with explicit non-wildcard same-account workload actions/resources; IAM, control-plane, ledger, CONFIG, and wildcard escalation is rejected."
+  }
+}
+
+variable "approved_customer_managed_policy_arns" {
+  description = "Cell-approved allowlist of same-account customer-managed policy ARNs permitted for this job."
+  type        = set(string)
+  default     = []
+}
+
+variable "customer_managed_policy_attachments" {
+  description = "Explicitly governed same-account policy attachments with a reviewed version and boundary-compatibility assertion."
+  type = list(object({
+    policy_arn          = string
+    version_id          = string
+    document_sha256     = string
+    allowlisted         = bool
+    boundary_compatible = bool
+  }))
+  default = []
+  validation {
+    condition = alltrue([
+      for attachment in var.customer_managed_policy_attachments :
+      can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:policy/[A-Za-z0-9/_+=,.@-]+$", attachment.policy_arn)) &&
+      length(trimspace(attachment.version_id)) > 0 && attachment.allowlisted && attachment.boundary_compatible
+      && can(regex("^[0-9a-f]{64}$", attachment.document_sha256))
+    ])
+    error_message = "customer-managed attachments must be same-account policy ARNs with nonempty governed versions, allowlisting, and boundary compatibility."
+  }
 }
 
 variable "runtime" {

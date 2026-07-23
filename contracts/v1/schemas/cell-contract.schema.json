@@ -51,6 +51,18 @@
       ],
       "type": "object"
     },
+    "iam": {
+      "additionalProperties": false,
+      "properties": {
+        "permissions_boundary_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        }
+      },
+      "required": [
+        "permissions_boundary_arn"
+      ],
+      "type": "object"
+    },
     "integrations": {
       "additionalProperties": {
         "additionalProperties": false,

@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "d03d9747311bfa0021c7a29596a3e0615760b33b10e9da341aadd73166d61048"},
+    {"path": "releases/1.0.0.json", "sha256": "a75a1d1a476bbd24bb36acfd00214eea968cd4aa653cba40822a821b26925bc8"},
     {"path": "v1/catalogs/commands.json", "sha256": "79394f4f120f8facfd3d1831b9e1269c955c73ff8b86bcb7fc26acf7312614a7"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
     {"path": "v1/catalogs/event-types.json", "sha256": "e21655f62fef37ec463f6a221b779ad4f840946a9cbdc0a832a90bac95a29d57"},
@@ -46,7 +46,7 @@
     {"path": "v1/fixtures/schemas/secret-safety-cases.json", "sha256": "72e5d90e91bc4219788f52aadcbfd39f292820d0782ccc6ad9ca5729fbe3ad08"},
     {"path": "v1/fixtures/schemas/valid-instances.json", "sha256": "4313f310fae024c38e69a70ba92d435ac6827f2b5f0a0b80d1b6d8bcc44b04a4"},
     {"path": "v1/schemas/alert.schema.json", "sha256": "b13a0bfff31ec7b10c608dbe76d36d8e246d148264427db37184b7abc1544052"},
-    {"path": "v1/schemas/cell-contract.schema.json", "sha256": "b4f6dda7b8db1d75a930e1e44b360dd0b63dcf4ac90fba180c80efbcdfddb24c"},
+    {"path": "v1/schemas/cell-contract.schema.json", "sha256": "c1ab67e4f6934e92487685084e6f061f1d1fa4e0f552253f4858d508cb4c9c07"},
     {"path": "v1/schemas/command.schema.json", "sha256": "0c88cd1df97802ee870126757e47f1bfe6f15c678f50c8c58be3a918328b8056"},
     {"path": "v1/schemas/common.schema.json", "sha256": "490da40ffffc771cba762c7099404906bf79d4bf5e9b5e54161c5d86ee03567b"},
     {"path": "v1/schemas/completion-signal.schema.json", "sha256": "56dbfe8c456ed56fc2e513e82c1e1eb10658104355122abf0bc6c9ee255c38b1"},

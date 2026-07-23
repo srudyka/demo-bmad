@@ -113,7 +113,7 @@ class RepositoryStructureTest(unittest.TestCase):
             (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
         )
         prohibited_blocks = re.compile(
-            r'^\s*(backend|terraform_remote_state|resource\s+"(?!terraform_data)|data\s+"(?!aws_(caller_identity|region|ssm_parameter)))',
+            r'^\s*(backend|terraform_remote_state|resource\s+"(?!((terraform_data|aws_iam_role|aws_iam_role_policy|aws_iam_role_policy_attachment)"))|data\s+"(?!aws_(caller_identity|region|partition|ssm_parameter|iam_policy_document|iam_policy)"))',
             re.MULTILINE,
         )
         for terraform_file in job_files:

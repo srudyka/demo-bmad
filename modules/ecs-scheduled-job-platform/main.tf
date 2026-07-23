@@ -576,6 +576,9 @@ locals {
     encryption = {
       kms_key_arn = var.kms_key_arn
     }
+    iam = {
+      permissions_boundary_arn = var.permissions_boundary_arn
+    }
     integrations     = local.contract_integrations
     metric_namespace = var.metric_namespace
     schema_version   = "1.0.0"
@@ -592,6 +595,7 @@ locals {
       var.kms_key_arn,
       var.metric_namespace,
       local.cell_contract_body.schema_version,
+      var.permissions_boundary_arn,
     ],
     values(local.supported_ranges),
     flatten([

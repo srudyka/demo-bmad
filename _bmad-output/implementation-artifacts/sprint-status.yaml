@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-last_updated: 2026-07-22T00:00:00-0500
+last_updated: 2026-07-23T00:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +68,7 @@ development_status:
 
   epic-2: in-progress
   2-1-declare-and-reserve-a-scheduled-job: done
-  2-2-create-least-privilege-job-iam-roles: backlog
+  2-2-create-least-privilege-job-iam-roles: done
   2-3-enforce-private-task-networking: backlog
   2-4-provision-the-fargate-task-and-structured-logs: backlog
   2-5-publish-phase-one-job-resources-and-config: backlog
