@@ -58,3 +58,17 @@ output "job_iam" {
     }]
   }
 }
+
+output "networking" {
+  description = "Validated non-sensitive private-network handoff for the future task definition and CONFIG publication."
+  value = {
+    vpc_id                    = var.networking.vpc_id
+    subnet_ids                = sort(tolist(var.networking.subnet_ids))
+    security_group_ids        = var.networking.security_group_mode == "create" ? [aws_security_group.job[0].id] : sort(tolist(var.networking.security_group_ids))
+    security_group_mode       = var.networking.security_group_mode
+    assign_public_ip          = "DISABLED"
+    network_policy_version    = var.networking.policy_version
+    dependency_reachability   = var.networking.dependency_reachability
+    created_security_group_id = var.networking.security_group_mode == "create" ? aws_security_group.job[0].id : null
+  }
+}

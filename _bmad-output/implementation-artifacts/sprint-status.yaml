@@ -69,7 +69,7 @@ development_status:
   epic-2: in-progress
   2-1-declare-and-reserve-a-scheduled-job: done
   2-2-create-least-privilege-job-iam-roles: done
-  2-3-enforce-private-task-networking: backlog
+  2-3-enforce-private-task-networking: done
   2-4-provision-the-fargate-task-and-structured-logs: backlog
   2-5-publish-phase-one-job-resources-and-config: backlog
   2-6-validate-and-acknowledge-job-configuration: backlog

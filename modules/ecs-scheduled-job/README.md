@@ -2,9 +2,13 @@
 
 This module owns one application's scheduled-job declaration and the three
 job-owned IAM roles introduced by Story 2.2: launch, ECS execution, and
-application task. It validates the Story 2.1 reservation and Cell Contract but
-does not create workload execution resources. It creates no resources for task
-definitions, schedules, networking, logs, alarms, CONFIG, or Cell ownership.
+application task. Story 2.3 adds fail-closed private-network validation and may
+create one job-owned security group with explicit bounded egress. It validates
+the Story 2.1 reservation and Cell Contract but does not create task
+definitions, schedules, routes, NAT gateways, endpoints, subnets, shared
+security groups, logs, alarms, CONFIG, or Cell ownership.
+It creates no resources for routes, NAT gateways, endpoints, subnets, or shared
+security groups.
 
 ## Required Providers
 
@@ -17,9 +21,10 @@ patch releases.
 
 ## Example
 
-See [`examples/basic`](examples/basic). It proves declaration and IAM wiring
-with synthetic ARNs; it does not contact AWS or contain credentials or secret
-values.
+See [`examples/basic`](examples/basic). It proves declaration, IAM wiring, and
+the private-network evidence shape with synthetic IDs; it does not contain
+credentials or secret values. A real plan must use trusted AWS evidence for
+the declared VPC, subnets, and existing security groups.
 
 ## Ownership And Assumptions
 
@@ -34,9 +39,13 @@ Inputs cover identity, immutable repository ownership, Cell discovery, ECS
 dependencies, the Cell permissions boundary and Process Manager role, the
 approved ECR repository, secret mode/KMS metadata, schedule, runtime,
 networking, notifications, configuration, permissions, governed policy
-attachments, and protected tags. Outputs expose the canonical job ID,
-validated Cell metadata, Registrar-confirmed reservation, protected tags,
-normalized schedule identity, and role ARNs/IDs.
+attachments, and protected tags. Networking requires a declared VPC, explicit
+subnets, a versioned network policy, private-subnet evidence, existing or
+created security-group mode, bounded created-group egress, and secret-free
+dependency reachability for ECR, S3, CloudWatch Logs, and selected secret
+providers. Outputs expose the canonical job ID, validated Cell metadata,
+Registrar-confirmed reservation, protected tags, normalized schedule identity,
+role ARNs/IDs, and non-sensitive network handoff metadata.
 
 ## Security And Observability
 
@@ -58,8 +67,12 @@ private network-path metadata for Story 2.3. No secret values are accepted or
 exposed.
 
 No task definition, network, secret injection, log group, metric, alarm,
-schedule, CONFIG, or Cell-owned resource is created here. Later stories own
-those controls. Customer-managed policy attachments must be same-account,
+schedule, CONFIG, or Cell-owned resource is created here. Network validation
+does not repair non-compliant shared groups or infer private status from names;
+unknown evidence blocks planning. Created groups have no ingress, no implicit
+default egress, and only explicitly bounded security-group, prefix-list, or
+CIDR egress. Later stories own task definition, logs, schedule, and CONFIG.
+Customer-managed policy attachments must be same-account,
 allowlisted, version-governed, and boundary-compatible; production exceptions
 remain owned by Story 3.4.
 
@@ -75,15 +88,21 @@ namespace, owner, and generation. An authoritative conditional Registrar must
 perform the claim before its receipt is passed as `registrar_receipt`; a
 missing, mismatched, or stale receipt fails planning. `RESERVED` does not
 grant launch authority, and tombstoned IDs must not be reused automatically.
-Rollback restores prior compatible inline policies and preserves all three
-roles while future task definitions or CONFIG reference them. Do not delete
-roles or enable a schedule as part of rollback.
+Rollback restores the prior network policy version, declaration, and evidence,
+keeps task generation disabled until revalidation, and preserves all three
+roles while future task definitions or CONFIG reference them. Do not delete or
+mutate shared subnets, routes, gateways, endpoints, or security groups, and do
+not enable a schedule as part of rollback. A job-created security group uses
+`prevent_destroy`; migrate references in a separate apply before explicit
+retirement, then remove it only after the task is quiesced and the replacement
+group is verified.
 
 ## Validation
 
 Run `terraform fmt -check`, backend-free Terraform init/validate for this
 module and `examples/basic`, Ruff, strict mypy, contract/runtime tests,
 IAM positive/negative/effective-policy tests, Checkov, repository hygiene,
-and `git diff --check`. These are credential-free checks and do not claim live
-IAM enforcement or deployed role qualification. Do not use real credentials or
-secret values in examples.
+network-policy positive/negative tests, and `git diff --check`. These are
+credential-free checks and do not claim live IAM or route/endpoint enforcement;
+trusted AWS qualification is separate. Do not use real credentials or secret
+values in examples.

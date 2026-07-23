@@ -11,7 +11,7 @@ def test_roles_have_stable_identity_and_boundary_contract() -> None:
     assert "path                 = local.role_path" in iam
     assert "permissions_boundary = var.permissions_boundary_arn" in iam
     assert 'local.role_path             = "/platform/ecs-scheduled-jobs/' not in main
-    assert 'role_path             = "/platform/ecs-scheduled-jobs/' in main
+    assert 'role_path = "/platform/ecs-scheduled-jobs/' in main
     for role in ("launch", "execution", "task"):
         assert f'resource "aws_iam_role" "{role}"' in iam
 
@@ -69,7 +69,6 @@ def test_story_boundary_excludes_future_workload_and_cell_resources() -> None:
         'resource "aws_ecs_task_definition"',
         'resource "aws_scheduler_schedule"',
         'resource "aws_cloudwatch_log_group"',
-        'resource "aws_security_group"',
         'resource "aws_dynamodb_table"',
         'resource "aws_sqs_queue"',
         'resource "aws_lambda_function"',

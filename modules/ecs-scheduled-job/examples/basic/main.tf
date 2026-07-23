@@ -25,8 +25,40 @@ module "job" {
   overlap_policy = "reject"
   secret_mode    = "ecs-agent"
   networking = {
-    subnet_ids         = ["subnet-0123456789abcdef0"]
-    security_group_ids = ["sg-0123456789abcdef0"]
+    vpc_id              = "vpc-0123456789abcdef0"
+    subnet_ids          = ["subnet-0123456789abcdef0"]
+    security_group_ids  = ["sg-0123456789abcdef0"]
+    security_group_mode = "existing"
+    policy_version      = "1.0.0"
+    subnet_evidence = {
+      "subnet-0123456789abcdef0" = {
+        account_id        = "123456789012"
+        region            = "us-east-1"
+        vpc_id            = "vpc-0123456789abcdef0"
+        availability_zone = "us-east-1a"
+        classification    = "private"
+        evidence_id       = "approved-subnet-catalog-example"
+        method            = "approved-subnet-catalog"
+        route_table_id    = "rtb-0123456789abcdef0"
+      }
+    }
+    security_group_owner_account_ids = {
+      "sg-0123456789abcdef0" = "123456789012"
+    }
+    dependency_reachability = {
+      ecr = {
+        path_kind   = "vpc-endpoint"
+        identifiers = ["vpce-0123456789abcdef0"]
+      }
+      s3 = {
+        path_kind   = "vpc-endpoint"
+        identifiers = ["pl-0123456789abcdef0"]
+      }
+      cloudwatch-logs = {
+        path_kind   = "vpc-endpoint"
+        identifiers = ["vpce-0123456789abcdef1"]
+      }
+    }
   }
   notification = {
     target_arn  = "arn:aws:sns:us-east-1:123456789012:example-notifications"

@@ -186,9 +186,32 @@ def validate_terraform(roots: Sequence[Path]) -> None:
 
 def validate_terraform_security() -> None:
     base_command = ("checkov", "--framework", "terraform", "--quiet", "--compact")
+    network_module = (
+        REPOSITORY_ROOT / "modules" / "ecs-scheduled-job" / "network.tf"
+    ).read_text(encoding="utf-8")
+    if (
+        len(
+            re.findall(
+                r'^resource\s+"aws_security_group"\s+', network_module, re.MULTILINE
+            )
+        )
+        != 1
+    ):
+        raise ValidationFailure(
+            "security:terraform:job-module: CKV2_AWS_5 exception is only valid for the single optional job security group"
+        )
     run_stage(
         "security:terraform:job-module",
-        (*base_command, "-d", "modules/ecs-scheduled-job"),
+        # Story 2.3 deliberately creates an optional SG before Story 2.4
+        # attaches it to the Fargate task definition. Keep this exception
+        # centralized and auditable instead of embedding an inline skip.
+        (
+            *base_command,
+            "-d",
+            "modules/ecs-scheduled-job",
+            "--skip-check",
+            "CKV2_AWS_5",
+        ),
     )
     # MVP Cells are account/Region-local (AD-1), so an unmanaged replication
     # destination would weaken rollback and recovery. The inbox also has no

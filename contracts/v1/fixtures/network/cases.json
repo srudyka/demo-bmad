@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {"name": "bounded-private-network", "input": {"subnets_private": true, "az_supported": true, "duplicate_subnets": false, "public_ingress": false, "unrestricted_egress": false, "dependency_reachable": true, "secret_path_matches": true, "policy_known": true}, "expected_findings": []},
+    {"name": "public-subnet", "input": {"subnets_private": false}, "expected_findings": ["NETWORK_SUBNET_NOT_PRIVATE"]},
+    {"name": "unsupported-az", "input": {"subnets_private": true, "az_supported": false}, "expected_findings": ["NETWORK_SUBNET_AZ_UNSUPPORTED"]},
+    {"name": "duplicate-subnets", "input": {"subnets_private": true, "duplicate_subnets": true}, "expected_findings": ["NETWORK_SUBNET_DUPLICATE"]},
+    {"name": "public-ingress", "input": {"subnets_private": true, "public_ingress": true}, "expected_findings": ["NETWORK_SECURITY_GROUP_PUBLIC_INGRESS"]},
+    {"name": "unrestricted-egress", "input": {"subnets_private": true, "unrestricted_egress": true}, "expected_findings": ["NETWORK_EGRESS_UNRESTRICTED"]},
+    {"name": "missing-dependency", "input": {"subnets_private": true, "dependency_reachable": false}, "expected_findings": ["NETWORK_DEPENDENCY_REACHABILITY_MISSING"]},
+    {"name": "unknown-policy", "input": {"subnets_private": true, "policy_known": false}, "expected_findings": ["NETWORK_POLICY_UNKNOWN"]},
+    {"name": "secret-path-mismatch", "input": {"subnets_private": true, "secret_path_matches": false}, "expected_findings": ["NETWORK_SECRET_PATH_MISMATCH"]}
+  ]
+}

@@ -303,18 +303,56 @@ variable "overlap_policy" {
 }
 
 variable "networking" {
-  description = "Private networking declaration reserved for later task resources."
+  description = "Explicit private-network declaration and secret-free reachability evidence consumed by later task resources."
   type = object({
-    subnet_ids         = set(string)
-    security_group_ids = set(string)
+    vpc_id              = string
+    subnet_ids          = list(string)
+    security_group_ids  = optional(set(string), [])
+    security_group_mode = optional(string, "existing")
+    policy_version      = string
+    subnet_evidence = optional(map(object({
+      account_id        = string
+      region            = string
+      vpc_id            = string
+      availability_zone = string
+      classification    = string
+      evidence_id       = string
+      method            = string
+      route_table_id    = string
+    })), {})
+    egress_rules = optional(map(object({
+      protocol                     = string
+      from_port                    = number
+      to_port                      = number
+      cidr_ipv4                    = optional(string)
+      cidr_ipv6                    = optional(string)
+      prefix_list_id               = optional(string)
+      referenced_security_group_id = optional(string)
+    })), {})
+    dependency_reachability = optional(map(object({
+      path_kind   = string
+      identifiers = set(string)
+    })), {})
+    application_dependencies         = optional(set(string), [])
+    security_group_owner_account_ids = optional(map(string), {})
   })
   validation {
     condition = (
-      length(var.networking.subnet_ids) > 0 && length(var.networking.security_group_ids) > 0 &&
+      can(regex("^vpc-[0-9a-f]{8,}$", var.networking.vpc_id)) &&
+      length(var.networking.subnet_ids) > 0 &&
+      length(distinct(var.networking.subnet_ids)) == length(var.networking.subnet_ids) &&
       alltrue([for subnet_id in var.networking.subnet_ids : can(regex("^subnet-[0-9a-f]{8,}$", subnet_id))]) &&
-      alltrue([for group_id in var.networking.security_group_ids : can(regex("^sg-[0-9a-f]{8,}$", group_id))])
+      alltrue([for group_id in var.networking.security_group_ids : can(regex("^sg-[0-9a-f]{8,}$", group_id))]) &&
+      contains(["existing", "create"], var.networking.security_group_mode) &&
+      can(regex("^1\\.0\\.0$", var.networking.policy_version))
+      && alltrue([for rule in values(var.networking.egress_rules) : (
+        (try(rule.cidr_ipv4, null) == null || can(cidrhost(rule.cidr_ipv4, 0))) &&
+        (try(rule.cidr_ipv6, null) == null || can(cidrhost(rule.cidr_ipv6, 0))) &&
+        (try(rule.prefix_list_id, null) == null || can(regex("^pl-[0-9a-f]{8,}$", rule.prefix_list_id))) &&
+        (try(rule.referenced_security_group_id, null) == null || can(regex("^sg-[0-9a-f]{8,}$", rule.referenced_security_group_id)))
+      )])
     )
-    error_message = "networking must declare at least one private subnet and security group."
+    error_message = "networking must declare canonical VPC/subnet/security-group IDs, an explicit mode, and supported policy version."
   }
 }
 

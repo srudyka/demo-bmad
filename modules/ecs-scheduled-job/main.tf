@@ -9,6 +9,59 @@ data "aws_ssm_parameter" "cell_contract" {
   with_decryption = false
 }
 
+data "aws_vpc" "declared" {
+  id = var.networking.vpc_id
+}
+
+data "aws_subnet" "declared" {
+  for_each = toset(var.networking.subnet_ids)
+  id       = each.value
+}
+
+data "aws_security_group" "existing" {
+  for_each = var.networking.security_group_mode == "existing" ? var.networking.security_group_ids : toset([])
+  id       = each.value
+}
+
+data "aws_vpc_security_group_rules" "existing" {
+  for_each = var.networking.security_group_mode == "existing" ? var.networking.security_group_ids : toset([])
+
+  filter {
+    name   = "group-id"
+    values = [each.value]
+  }
+}
+
+locals {
+  existing_rule_ids = toset(flatten([
+    for group_rules in values(data.aws_vpc_security_group_rules.existing) : group_rules.ids
+  ]))
+}
+
+data "aws_vpc_security_group_rule" "existing" {
+  for_each = local.existing_rule_ids
+
+  security_group_rule_id = each.value
+}
+
+data "aws_security_group" "egress_destination" {
+  for_each = toset([
+    for rule in values(var.networking.egress_rules) : try(rule.referenced_security_group_id, "")
+    if try(rule.referenced_security_group_id, "") != ""
+  ])
+
+  id = each.value
+}
+
+data "aws_prefix_list" "egress_destination" {
+  for_each = toset([
+    for rule in values(var.networking.egress_rules) : try(rule.prefix_list_id, "")
+    if try(rule.prefix_list_id, "") != ""
+  ])
+
+  prefix_list_id = each.value
+}
+
 locals {
   contract = try(jsondecode(data.aws_ssm_parameter.cell_contract.value), null)
   contract_without_checksum = try({
@@ -25,9 +78,22 @@ locals {
     ManagedBy   = "Terraform"
     Repository  = var.repository_id
   }
-  merged_tags           = merge(var.tags, local.protected_tags)
-  contract_integrations = try(local.contract.integrations, {})
-  role_path             = "/platform/ecs-scheduled-jobs/${try(local.contract.cell.cell_id, "unknown")}/v1/"
+  merged_tags                   = merge(var.tags, local.protected_tags)
+  contract_integrations         = try(local.contract.integrations, {})
+  network_catalog               = try(jsondecode(file("${path.module}/../../contracts/v1/catalogs/network.json")), null)
+  network_catalog_valid         = try(local.network_catalog.schema_version == "1.0.0" && local.network_catalog.policy_version == "1.0.0" && local.network_catalog.unknown_policy_disposition == "BLOCK" && length(local.network_catalog.finding_severity) > 0 && local.network_catalog.exception_policy.owner != "" && contains(local.network_catalog.enforcement_stages, local.network_catalog.exception_policy.enforcement_stage), false)
+  required_network_dependencies = toset(try(local.network_catalog.required_dependency_evidence, []))
+  secret_dependencies = toset(compact(concat(
+    [for reference in var.secret_references : strcontains(reference, ":secretsmanager:") ? "secrets-manager" : "ssm"],
+    var.secret_kms_key_arn == null ? [] : ["kms"],
+  )))
+  all_required_network_dependencies = setunion(local.required_network_dependencies, local.secret_dependencies, var.networking.application_dependencies)
+  existing_rules                    = values(data.aws_vpc_security_group_rule.existing)
+  network_path_findings = concat(
+    !local.network_catalog_valid || var.networking.policy_version != try(local.network_catalog.policy_version, "") ? ["NETWORK_POLICY_UNKNOWN"] : [],
+    flatten([for dependency in local.all_required_network_dependencies : contains(keys(var.networking.dependency_reachability), dependency) ? [] : ["NETWORK_DEPENDENCY_REACHABILITY_MISSING"]]),
+  )
+  role_path = "/platform/ecs-scheduled-jobs/${try(local.contract.cell.cell_id, "unknown")}/v1/"
   reservation_request = merge({
     pk                = "JOB#${local.job_id}"
     sk                = "RESERVATION"
@@ -185,6 +251,94 @@ resource "terraform_data" "declaration_validation" {
         for attachment in var.customer_managed_policy_attachments : !strcontains(lower(data.aws_iam_policy.customer_managed[attachment.policy_arn].policy), "secretsmanager:getsecretvalue") && !strcontains(lower(data.aws_iam_policy.customer_managed[attachment.policy_arn].policy), "ssm:getparameters") && !strcontains(lower(data.aws_iam_policy.customer_managed[attachment.policy_arn].policy), "kms:decrypt")
       ])
       error_message = "JOB_IAM_ATTACHMENT_SECRET_LEAK: ECS-agent secret/KMS permissions cannot be attached to the task role."
+    }
+
+    precondition {
+      condition = (
+        local.network_catalog_valid &&
+        var.networking.policy_version == try(local.network_catalog.policy_version, "")
+      )
+      error_message = "NETWORK_POLICY_UNKNOWN: network policy version is absent or unsupported."
+    }
+
+    precondition {
+      condition = (
+        length(var.networking.subnet_ids) > 0 &&
+        (var.networking.security_group_mode == "existing" ? length(var.networking.security_group_ids) > 0 : length(var.networking.security_group_ids) == 0) &&
+        setsubtract(toset(keys(var.networking.subnet_evidence)), var.networking.subnet_ids) == toset([]) &&
+        setsubtract(var.networking.subnet_ids, toset(keys(var.networking.subnet_evidence))) == toset([]) &&
+        alltrue([for subnet_id, evidence in var.networking.subnet_evidence : evidence.account_id == var.account_id && evidence.region == var.region && evidence.vpc_id == var.networking.vpc_id && evidence.classification == "private" && contains(try(local.network_catalog.private_subnet_evidence.accepted_methods, []), evidence.method) && length(trimspace(evidence.availability_zone)) > 0 && length(trimspace(evidence.evidence_id)) > 0 && data.aws_subnet.declared[subnet_id].availability_zone == evidence.availability_zone && can(regex(try(local.network_catalog.supported_az_pattern, "^$"), evidence.availability_zone))])
+      )
+      error_message = "NETWORK_SUBNET_NOT_PRIVATE: every subnet must have complete approved private-subnet evidence and match the declared network."
+    }
+
+    precondition {
+      condition = alltrue([for rule in values(var.networking.egress_rules) : (
+        rule.protocol != "-1" &&
+        rule.protocol != "all" &&
+        rule.from_port >= 0 && rule.to_port >= rule.from_port && rule.to_port <= 65535 &&
+        length(compact([try(rule.cidr_ipv4, null), try(rule.cidr_ipv6, null), try(rule.prefix_list_id, null), try(rule.referenced_security_group_id, null)])) == 1 &&
+        !contains(["0.0.0.0/0", "::/0"], try(rule.cidr_ipv4, "")) &&
+        !contains(["0.0.0.0/0", "::/0"], try(rule.cidr_ipv6, ""))
+      )])
+      error_message = "NETWORK_EGRESS_UNRESTRICTED / NETWORK_EGRESS_ALL_PROTOCOLS: created security-group egress must be explicit and bounded."
+    }
+
+    precondition {
+      condition = (
+        data.aws_vpc.declared.id == var.networking.vpc_id &&
+        data.aws_vpc.declared.owner_id == var.account_id &&
+        alltrue([for subnet in data.aws_subnet.declared : subnet.vpc_id == var.networking.vpc_id && subnet.owner_id == var.account_id && subnet.availability_zone != ""]) &&
+        alltrue([for group in data.aws_security_group.existing : group.vpc_id == var.networking.vpc_id]) &&
+        alltrue([for group in data.aws_security_group.egress_destination : group.vpc_id == var.networking.vpc_id]) &&
+        alltrue([for prefix_list in data.aws_prefix_list.egress_destination : length(prefix_list.cidr_blocks) > 0]) &&
+        setsubtract(keys(var.networking.security_group_owner_account_ids), var.networking.security_group_ids) == toset([]) &&
+        setsubtract(var.networking.security_group_ids, toset(keys(var.networking.security_group_owner_account_ids))) == toset([]) &&
+        alltrue([for group_id, owner_id in var.networking.security_group_owner_account_ids : owner_id == var.account_id])
+      )
+      error_message = "NETWORK_SUBNET_VPC_MISMATCH: VPC, subnet, security-group, account, or Region evidence does not match the declaration."
+    }
+
+    precondition {
+      condition     = alltrue([for evidence in values(var.networking.subnet_evidence) : evidence.classification == "private" && evidence.account_id == var.account_id && evidence.region == var.region && evidence.vpc_id == var.networking.vpc_id && contains(local.network_catalog.private_subnet_evidence.accepted_methods, evidence.method)])
+      error_message = "NETWORK_SUBNET_NOT_PRIVATE: every supplied subnet must have approved private-subnet evidence."
+    }
+
+    precondition {
+      condition = alltrue([
+        for rule in local.existing_rules : (
+          rule.is_egress &&
+          rule.ip_protocol != "-1" && rule.from_port >= 0 && rule.to_port >= rule.from_port && rule.to_port <= 65535 &&
+          length(compact([try(rule.cidr_ipv4, null), try(rule.cidr_ipv6, null), try(rule.prefix_list_id, null), try(rule.referenced_security_group_id, null)])) == 1 &&
+          !contains(["0.0.0.0/0", "::/0"], try(rule.cidr_ipv4, "")) && !contains(["0.0.0.0/0", "::/0"], try(rule.cidr_ipv6, ""))
+        )
+      ])
+      error_message = "NETWORK_SECURITY_GROUP_PUBLIC_INGRESS / NETWORK_EGRESS_UNRESTRICTED: existing security groups must have no ingress and no unrestricted or all-protocol egress."
+    }
+
+    precondition {
+      condition     = length(local.network_path_findings) == 0
+      error_message = "NETWORK_DEPENDENCY_REACHABILITY_MISSING: every required platform and secret dependency needs approved path evidence."
+    }
+
+    precondition {
+      condition = alltrue([
+        for dependency, reachability in var.networking.dependency_reachability : (
+          contains(try(local.network_catalog.dependency_paths, []), reachability.path_kind) &&
+          contains(local.all_required_network_dependencies, dependency) &&
+          length(reachability.identifiers) > 0 &&
+          alltrue([for identifier in reachability.identifiers : !strcontains(lower(identifier), "secret") && length(trimspace(identifier)) > 0])
+        )
+      ])
+      error_message = "NETWORK_DEPENDENCY_REACHABILITY_INVALID: dependency paths must use approved kinds and secret-free identifiers."
+    }
+
+    precondition {
+      condition = var.secret_mode != "application-pull" || (
+        length(var.secret_references) == 0 ||
+        (var.application_secret_network_path != null && alltrue([for dependency in local.secret_dependencies : contains(keys(var.networking.dependency_reachability), dependency) && var.networking.dependency_reachability[dependency].path_kind == var.application_secret_network_path.kind && var.networking.dependency_reachability[dependency].identifiers == toset(var.application_secret_network_path.identifiers)]))
+      )
+      error_message = "NETWORK_SECRET_PATH_MISMATCH: application-pull secret access requires an exact declared private dependency path."
     }
   }
 }
