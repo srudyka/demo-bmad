@@ -66,9 +66,7 @@ def test_secret_modes_are_mutually_exclusive_and_outputs_are_secret_free() -> No
 def test_story_boundary_excludes_future_workload_and_cell_resources() -> None:
     terraform = "\n".join(path.read_text() for path in MODULE.glob("*.tf"))
     for prohibited in (
-        'resource "aws_ecs_task_definition"',
         'resource "aws_scheduler_schedule"',
-        'resource "aws_cloudwatch_log_group"',
         'resource "aws_dynamodb_table"',
         'resource "aws_sqs_queue"',
         'resource "aws_lambda_function"',

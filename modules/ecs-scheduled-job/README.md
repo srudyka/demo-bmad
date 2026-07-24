@@ -3,12 +3,13 @@
 This module owns one application's scheduled-job declaration and the three
 job-owned IAM roles introduced by Story 2.2: launch, ECS execution, and
 application task. Story 2.3 adds fail-closed private-network validation and may
-create one job-owned security group with explicit bounded egress. It validates
-the Story 2.1 reservation and Cell Contract but does not create task
-definitions, schedules, routes, NAT gateways, endpoints, subnets, shared
-security groups, logs, alarms, CONFIG, or Cell ownership.
-It creates no resources for routes, NAT gateways, endpoints, subnets, or shared
-security groups.
+create one job-owned security group with explicit bounded egress. Story 2.4
+adds one immutable Fargate task-definition family revision and one encrypted,
+retained job log group. It validates the Story 2.1 reservation and Cell
+Contract but does not create schedules, routes, NAT gateways, endpoints,
+subnets, shared security groups, alarms, CONFIG, or Cell ownership.
+It creates no resources for routes, NAT gateways, endpoints, subnets, shared
+security groups, Scheduler schedules, or Cell runtime state.
 
 ## Required Providers
 
@@ -39,13 +40,21 @@ Inputs cover identity, immutable repository ownership, Cell discovery, ECS
 dependencies, the Cell permissions boundary and Process Manager role, the
 approved ECR repository, secret mode/KMS metadata, schedule, runtime,
 networking, notifications, configuration, permissions, governed policy
-attachments, and protected tags. Networking requires a declared VPC, explicit
-subnets, a versioned network policy, private-subnet evidence, existing or
-created security-group mode, bounded created-group egress, and secret-free
-dependency reachability for ECR, S3, CloudWatch Logs, and selected secret
-providers. Outputs expose the canonical job ID, validated Cell metadata,
+attachments, protected tags, immutable image/deployment identity, Fargate
+platform/storage settings, command/entrypoint, non-secret configuration, and
+log retention. Networking requires a declared VPC, explicit subnets, a
+versioned network policy, private-subnet evidence, existing or created
+security-group mode, bounded created-group egress, and secret-free dependency
+reachability for ECR, S3, CloudWatch Logs, and selected secret providers.
+Outputs expose the canonical job ID, validated Cell metadata,
 Registrar-confirmed reservation, protected tags, normalized schedule identity,
-role ARNs/IDs, and non-sensitive network handoff metadata.
+role ARNs/IDs, task-definition and log-group identity, Deployment Identity,
+and non-sensitive network handoff metadata.
+
+The `task_definition` and `deployment_identity` outputs are the authoritative
+handoff for the later launch/CONFIG story. They include the approved
+`platform_version`; the later launch operation must pass that exact value to
+ECS and must not substitute `LATEST` for a pinned version.
 
 ## Security And Observability
 
@@ -66,9 +75,12 @@ execution; `application-pull` places it on task and requires secret-free
 private network-path metadata for Story 2.3. No secret values are accepted or
 exposed.
 
-No task definition, network, secret injection, log group, metric, alarm,
-schedule, CONFIG, or Cell-owned resource is created here. Network validation
-does not repair non-compliant shared groups or infer private status from names;
+The task definition uses Fargate `awsvpc`, the exact Story 2.2 roles, immutable
+image digests, and `awslogs` to the exact encrypted job log group. Secret
+references use ECS's locator-only `secrets` contract and never ordinary
+environment values. No metric, alarm, schedule, CONFIG, or Cell-owned resource
+is created here. Network validation does not repair non-compliant shared groups
+or infer private status from names;
 unknown evidence blocks planning. Created groups have no ingress, no implicit
 default egress, and only explicitly bounded security-group, prefix-list, or
 CIDR egress. Later stories own task definition, logs, schedule, and CONFIG.
@@ -76,9 +88,41 @@ Customer-managed policy attachments must be same-account,
 allowlisted, version-governed, and boundary-compatible; production exceptions
 remain owned by Story 3.4.
 
-Denied AssumeRole, PassRole, secret retrieval, and task execution signals are
+Structured start, success, and failure records are documented evidence for the
+later Job Completion Contract. Every record asserts the job, Occurrence ID,
+CONFIG version, attempt, timestamp, status, and sanitized error reason; an
+isolated success marker or zero exit is not authoritative completion. Denied
+AssumeRole, PassRole, secret retrieval, and task execution signals are
 operational handoffs for later stories; this module creates no alarms or
 dashboards.
+
+Secret delivery is mode-specific: `ecs-agent` uses ECS `secrets` locator
+entries, while `application-pull` exposes only `SECRET_MODE`, the JSON list of
+non-sensitive `SECRET_REFERENCE_LOCATORS`, and `SECRET_NETWORK_PATH`; it never
+renders ECS-agent secret injection for application-pull.
+
+The completion contract uses these secret-free shapes:
+
+```json
+{"event":"start","job_id":"dev/sample/daily","occurrence_id":"occ-123","config_version":"cfg-7","attempt_no":1,"timestamp":"2026-07-24T12:00:00Z","status":"started"}
+```
+
+```json
+{"event":"success","job_id":"dev/sample/daily","occurrence_id":"occ-123","config_version":"cfg-7","attempt_no":1,"timestamp":"2026-07-24T12:02:00Z","status":"succeeded","exit_code":0}
+```
+
+```json
+{"event":"failure","job_id":"dev/sample/daily","occurrence_id":"occ-123","config_version":"cfg-7","attempt_no":1,"timestamp":"2026-07-24T12:02:00Z","status":"failed","exit_code":1,"error_reason":"dependency_unavailable"}
+```
+
+Every record requires `job_id`, `occurrence_id`, `config_version`,
+`attempt_no`, an RFC 3339 UTC `timestamp`, and `status`; failure records use a
+sanitized bounded `error_reason`. A zero exit code or isolated success marker
+is not authoritative completion.
+
+The reserved runtime fields `JOB_ID`, `OCCURRENCE_ID`, `CONFIG_VERSION`,
+`ATTEMPT_NO`/`attempt_no`, and `TASK_ARN` cannot be overridden by consumer environment
+configuration. `DEPLOYMENT_IDENTITY` is bounded, non-secret metadata.
 
 ## Reservation and rollback
 
@@ -92,7 +136,10 @@ Rollback restores the prior network policy version, declaration, and evidence,
 keeps task generation disabled until revalidation, and preserves all three
 roles while future task definitions or CONFIG reference them. Do not delete or
 mutate shared subnets, routes, gateways, endpoints, or security groups, and do
-not enable a schedule as part of rollback. A job-created security group uses
+not enable a schedule as part of rollback. Task-definition revisions remain
+available while referenced by CONFIG, occurrences, investigations, or rollback
+windows, and the log group preserves history with `skip_destroy`. A job-created
+security group uses
 `prevent_destroy`; migrate references in a separate apply before explicit
 retirement, then remove it only after the task is quiesced and the replacement
 group is verified.

@@ -89,6 +89,19 @@ locals {
   )))
   all_required_network_dependencies = setunion(local.required_network_dependencies, local.secret_dependencies, var.networking.application_dependencies)
   existing_rules                    = values(data.aws_vpc_security_group_rule.existing)
+  log_group_name                    = "/platform/jobs/${replace(local.job_id, "/", "-")}"
+  effective_log_retention_days      = var.log_retention_days == null ? (var.environment == "prod" ? 90 : 30) : var.log_retention_days
+  deployment_identity = {
+    source_revision  = var.source_revision
+    module_version   = var.module_version
+    image            = var.image
+    account_id       = var.account_id
+    region           = var.region
+    environment      = var.environment
+    job_id           = local.job_id
+    platform_version = var.platform_version
+  }
+  deployment_identity_json = jsonencode(local.deployment_identity)
   network_path_findings = concat(
     !local.network_catalog_valid || var.networking.policy_version != try(local.network_catalog.policy_version, "") ? ["NETWORK_POLICY_UNKNOWN"] : [],
     flatten([for dependency in local.all_required_network_dependencies : contains(keys(var.networking.dependency_reachability), dependency) ? [] : ["NETWORK_DEPENDENCY_REACHABILITY_MISSING"]]),
@@ -192,6 +205,7 @@ resource "terraform_data" "declaration_validation" {
         can(regex("^arn:${data.aws_partition.current.partition}:iam::${var.account_id}:role/", var.cell_process_manager_role_arn)) &&
         can(regex("^arn:${data.aws_partition.current.partition}:ecr:${var.region}:${var.account_id}:repository/", var.ecr_repository_arn)) &&
         (var.secret_kms_key_arn == null || can(regex("^arn:${data.aws_partition.current.partition}:kms:${var.region}:${var.account_id}:key/", var.secret_kms_key_arn))) &&
+        can(regex("^arn:${data.aws_partition.current.partition}:kms:${var.region}:${var.account_id}:key/", try(local.contract.encryption.kms_key_arn, ""))) &&
         try(local.contract_integrations.process_manager.arn, "") == var.cell_process_manager_role_arn &&
         try(local.contract.iam.permissions_boundary_arn, "") == var.permissions_boundary_arn
       )

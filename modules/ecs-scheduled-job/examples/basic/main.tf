@@ -15,6 +15,8 @@ module "job" {
   cell_process_manager_role_arn = "arn:aws:iam::123456789012:role/platform-example-process-manager-v1"
   ecr_repository_arn            = "arn:aws:ecr:us-east-1:123456789012:repository/sample"
   image                         = "example.invalid/sample@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  source_revision               = "example-revision-0001"
+  module_version                = "1.0.0"
   schedule_expression           = "rate(1 day)"
   cpu                           = 256
   memory                        = 512
@@ -78,3 +80,7 @@ module "job" {
     transfer_state   = "quiescent"
   }
 }
+
+# The application emits structured start, success, and failure completion
+# records with job_id, occurrence_id, config_version, attempt_no, timestamp,
+# status, and sanitized error_reason. No secret values are present here.

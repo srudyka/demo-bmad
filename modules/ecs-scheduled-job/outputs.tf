@@ -72,3 +72,41 @@ output "networking" {
     created_security_group_id = var.networking.security_group_mode == "create" ? aws_security_group.job[0].id : null
   }
 }
+
+output "task_definition" {
+  description = "Immutable Fargate task-definition identity and runtime settings for later CONFIG publication; no secrets are exposed."
+  value = {
+    arn                      = aws_ecs_task_definition.job.arn
+    family                   = aws_ecs_task_definition.job.family
+    revision                 = aws_ecs_task_definition.job.revision
+    image                    = var.image
+    execution_role_arn       = aws_ecs_task_definition.job.execution_role_arn
+    task_role_arn            = aws_ecs_task_definition.job.task_role_arn
+    network_mode             = aws_ecs_task_definition.job.network_mode
+    requires_compatibilities = aws_ecs_task_definition.job.requires_compatibilities
+    platform_version         = var.platform_version
+    cpu_architecture         = var.cpu_architecture
+    operating_system_family  = var.operating_system_family
+    ephemeral_storage_gib    = var.ephemeral_storage_gib
+  }
+}
+
+output "log_group" {
+  description = "Job-owned encrypted CloudWatch log-group identity and retention settings."
+  value = {
+    name              = aws_cloudwatch_log_group.job.name
+    arn               = aws_cloudwatch_log_group.job.arn
+    retention_in_days = aws_cloudwatch_log_group.job.retention_in_days
+    kms_key_id        = aws_cloudwatch_log_group.job.kms_key_id
+  }
+}
+
+output "deployment_identity" {
+  description = "Bounded, secret-free deployment identity for the task revision and later CONFIG publication."
+  value = merge(local.deployment_identity, {
+    task_definition_arn = aws_ecs_task_definition.job.arn
+    task_family         = aws_ecs_task_definition.job.family
+    task_revision       = aws_ecs_task_definition.job.revision
+    log_group_name      = aws_cloudwatch_log_group.job.name
+  })
+}

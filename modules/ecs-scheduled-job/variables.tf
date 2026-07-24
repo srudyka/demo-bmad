@@ -121,7 +121,7 @@ variable "cpu" {
         "4096:8192", "4096:9216", "4096:10240", "4096:11264", "4096:12288", "4096:13312", "4096:14336", "4096:15360", "4096:16384", "4096:17408", "4096:18432", "4096:19456", "4096:20480", "4096:21504", "4096:22528", "4096:23552", "4096:24576", "4096:25600", "4096:26624", "4096:27648", "4096:28672", "4096:29696", "4096:30720",
       ],
       format("%.0f:%.0f", var.cpu, var.memory),
-    )
+    ) && floor(var.cpu) == var.cpu && floor(var.memory) == var.memory
     error_message = "cpu must be within the supported positive Fargate range."
   }
 }
@@ -130,8 +130,48 @@ variable "memory" {
   description = "Requested Fargate memory MiB for later task-definition creation."
   type        = number
   validation {
-    condition     = var.memory > 0 && var.memory <= 122880
+    condition     = var.memory > 0 && var.memory <= 122880 && floor(var.memory) == var.memory
     error_message = "memory must be within the supported positive Fargate range."
+  }
+}
+
+variable "platform_version" {
+  description = "Pinned Linux Fargate platform version used by the task definition."
+  type        = string
+  default     = "1.4.0"
+  validation {
+    condition     = contains(["1.4.0", "1.5.0", "LATEST"], var.platform_version)
+    error_message = "platform_version must be an approved Fargate platform version."
+  }
+}
+
+variable "operating_system_family" {
+  description = "Fargate runtime operating-system family for the task definition."
+  type        = string
+  default     = "LINUX"
+  validation {
+    condition     = var.operating_system_family == "LINUX"
+    error_message = "Only the approved Linux Fargate operating-system family is supported."
+  }
+}
+
+variable "cpu_architecture" {
+  description = "Fargate CPU architecture for the immutable task runtime."
+  type        = string
+  default     = "X86_64"
+  validation {
+    condition     = contains(["X86_64", "ARM64"], var.cpu_architecture)
+    error_message = "cpu_architecture must be X86_64 or ARM64."
+  }
+}
+
+variable "ephemeral_storage_gib" {
+  description = "Optional Fargate ephemeral storage in GiB; values must use the supported expanded-storage range."
+  type        = number
+  default     = 21
+  validation {
+    condition     = var.ephemeral_storage_gib >= 21 && var.ephemeral_storage_gib <= 200 && floor(var.ephemeral_storage_gib) == var.ephemeral_storage_gib
+    error_message = "ephemeral_storage_gib must be a whole number from 21 through 200 GiB."
   }
 }
 
@@ -141,10 +181,30 @@ variable "command" {
   default     = []
 }
 
+variable "entrypoint" {
+  description = "Optional non-secret container entrypoint declaration."
+  type        = list(string)
+  default     = []
+}
+
 variable "environment_variables" {
   description = "Non-secret application configuration retained for later task publication."
   type        = map(string)
   default     = {}
+  validation {
+    condition = alltrue([
+      for name, value in var.environment_variables : (
+        can(regex("^[A-Z][A-Z0-9_]{0,127}$", name)) &&
+        !contains(["JOB_ID", "OCCURRENCE_ID", "CONFIG_VERSION", "ATTEMPT_NO", "TASK_ARN", "DEPLOYMENT_IDENTITY", "SOURCE_REVISION", "MODULE_VERSION", "SECRET_MODE", "SECRET_REFERENCE_LOCATORS", "SECRET_NETWORK_PATH"], name) &&
+        !strcontains(lower(name), "secret") &&
+        !strcontains(lower(name), "password") &&
+        !strcontains(lower(name), "token") &&
+        !strcontains(lower(name), "credential") &&
+        !strcontains(value, "=")
+      )
+    ])
+    error_message = "environment_variables must be uppercase non-secret names and cannot override reserved runtime identity fields."
+  }
 }
 
 variable "secret_references" {
@@ -157,6 +217,52 @@ variable "secret_references" {
       !strcontains(value, "=") && !strcontains(value, " ") && can(regex("^arn:[a-z0-9-]+:(secretsmanager|ssm):[a-z0-9-]+:[0-9]{12}:.+$", value))
     ])
     error_message = "secret_references must contain exact Secrets Manager or SSM ARNs only, never key/value pairs or plaintext."
+  }
+}
+
+variable "secret_environment_names" {
+  description = "Non-secret environment names paired by position with secret_references; values are never accepted."
+  type        = list(string)
+  default     = []
+  validation {
+    condition = (
+      (length(var.secret_references) == 0 && length(var.secret_environment_names) == 0) ||
+      length(var.secret_environment_names) == length(var.secret_references)
+      ) && length(distinct(var.secret_environment_names)) == length(var.secret_environment_names) && alltrue([
+        for name in var.secret_environment_names : can(regex("^[A-Z][A-Z0-9_]{0,127}$", name)) && !contains(["JOB_ID", "OCCURRENCE_ID", "CONFIG_VERSION", "ATTEMPT_NO", "TASK_ARN", "DEPLOYMENT_IDENTITY", "SOURCE_REVISION", "MODULE_VERSION", "SECRET_MODE", "SECRET_REFERENCE_LOCATORS", "SECRET_NETWORK_PATH"], name)
+    ])
+    error_message = "secret_environment_names must be unique, uppercase, non-reserved names matching secret_references by position."
+  }
+}
+
+variable "log_retention_days" {
+  description = "Optional CloudWatch log retention override; non-production defaults to 30 days and production to 90 days."
+  type        = number
+  default     = null
+  nullable    = true
+  validation {
+    condition     = var.log_retention_days == null || contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
+    error_message = "log_retention_days must be an AWS-supported retention value."
+  }
+}
+
+variable "source_revision" {
+  description = "Immutable source revision recorded in Deployment Identity; no source contents are accepted."
+  type        = string
+  default     = "unknown"
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]{1,128}$", var.source_revision)) && !strcontains(var.source_revision, "secret")
+    error_message = "source_revision must be a bounded non-secret revision identifier."
+  }
+}
+
+variable "module_version" {
+  description = "Semantic module version recorded in Deployment Identity."
+  type        = string
+  default     = "1.0.0"
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.module_version))
+    error_message = "module_version must be a semantic version."
   }
 }
 
