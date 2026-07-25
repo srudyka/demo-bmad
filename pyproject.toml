@@ -36,6 +36,7 @@ pythonpath = [
   "runtime/command_handler/src",
   "runtime/lifecycle_gc/src",
   "runtime/job_registrar/src",
+  "runtime/config_publisher/src",
 ]
 
 [tool.ruff]
@@ -55,4 +56,5 @@ mypy_path = [
   "runtime/command_handler/src",
   "runtime/lifecycle_gc/src",
   "runtime/job_registrar/src",
+  "runtime/config_publisher/src",
 ]

@@ -110,3 +110,22 @@ output "deployment_identity" {
     log_group_name      = aws_cloudwatch_log_group.job.name
   })
 }
+
+output "phase_one" {
+  description = "Secret-free disabled phase-one schedule, delivery role, CONFIG publication, and PUBLISHED lifecycle handoff."
+  value = {
+    lifecycle                   = "PUBLISHED"
+    schedule_arn                = aws_scheduler_schedule.job.arn
+    schedule_group_arn          = local.contract_integrations.scheduler_schedule_group.arn
+    scheduler_delivery_role_arn = aws_iam_role.scheduler_delivery.arn
+    scheduler_delivery_role_id  = aws_iam_role.scheduler_delivery.unique_id
+    task_definition_arn         = aws_ecs_task_definition.job.arn
+    launch_role_arn             = aws_iam_role.launch.arn
+    config_version              = local.config_version
+    config_key                  = "jobs/${local.job_id}/config/${local.config_version}.json"
+    owner_generation            = try(var.registrar_receipt.owner_generation, 0)
+    activation_start            = var.activation_start
+    deployment_identity         = local.deployment_identity
+    launch_authorized           = false
+  }
+}

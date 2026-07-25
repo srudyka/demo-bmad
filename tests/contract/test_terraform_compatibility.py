@@ -25,8 +25,10 @@ class TerraformCompatibilityTest(unittest.TestCase):
             )
             with self.subTest(root=relative_root):
                 self.assertIn('required_version = ">= 1.10, < 2.0"', versions)
-                self.assertIn('source  = "hashicorp/aws"', versions)
-                self.assertIn('version = ">= 6.0, < 7.0"', versions)
+                self.assertIn("source", versions)
+                self.assertIn('"hashicorp/aws"', versions)
+                self.assertIn("version", versions)
+                self.assertIn('">= 6.0, < 7.0"', versions)
 
     def test_every_root_owns_a_provider_lock(self) -> None:
         for relative_root in terraform_roots():

@@ -70,6 +70,15 @@ variable "account_id" {
   }
 }
 
+variable "config_publisher_role_arn" {
+  description = "Dedicated same-account Cell publisher role used for create-only CONFIG publication."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.config_publisher_role_arn))
+    error_message = "config_publisher_role_arn must be an exact IAM role ARN."
+  }
+}
+
 variable "region" {
   description = "Target AWS Region that must match the discovered Cell Contract."
   type        = string
@@ -102,10 +111,62 @@ variable "schedule_expression" {
   type        = string
   validation {
     condition = (
-      can(regex("^rate\\([1-9][0-9]* (minute|minutes|hour|hours|day|days)\\)$", var.schedule_expression)) ||
-      (can(regex("^cron\\([^()]+\\)$", var.schedule_expression)) && length(split(" ", trimprefix(trimsuffix(var.schedule_expression, ")"), "cron("))) == 6)
+      can(regex("^rate\\((1 (minute|hour|day)|[1-9][0-9]* (minutes|hours|days))\\)$", var.schedule_expression)) ||
+      can(regex("^cron\\([0-9*/,-]+ [0-9*/,-]+ \\* \\* \\? \\*\\)$", var.schedule_expression)) ||
+      can(regex("^cron\\([0-9*/,-]+ [0-9*/,-]+ \\? \\* [A-Z0-7?,L-]+ \\*\\)$", var.schedule_expression)) ||
+      can(regex("^cron\\([0-9*/,-]+ [0-9*/,-]+ [0-9,L?*/-]+ \\* \\? \\*\\)$", var.schedule_expression))
     )
     error_message = "schedule_expression must be a rate(...) or cron(...) expression."
+  }
+}
+
+variable "schedule_time_zone" {
+  description = "IANA time zone used by the disabled recurring Scheduler schedule."
+  type        = string
+  default     = "UTC"
+  validation {
+    condition     = can(regex("^(UTC|[A-Za-z]+/[A-Za-z0-9_.+-]+)$", var.schedule_time_zone))
+    error_message = "schedule_time_zone must be UTC or an IANA Area/Location time zone."
+  }
+}
+
+variable "activation_start" {
+  description = "RFC 3339 UTC future anchor for the phase-one schedule and CONFIG contract."
+  type        = string
+  validation {
+    condition     = can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.activation_start)) && can(regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$", var.activation_start))
+    error_message = "activation_start must be a canonical RFC 3339 UTC timestamp with millisecond precision."
+  }
+}
+
+variable "activation_end" {
+  description = "Optional RFC 3339 UTC exclusive end of the activation window."
+  type        = string
+  default     = null
+  nullable    = true
+  validation {
+    condition     = var.activation_end == null || (can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.activation_end)) && can(regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$", var.activation_end)))
+    error_message = "activation_end must be null or a canonical RFC 3339 UTC timestamp with millisecond precision."
+  }
+}
+
+variable "maximum_retry_attempts" {
+  description = "EventBridge Scheduler delivery retry attempts for the disabled schedule."
+  type        = number
+  default     = 3
+  validation {
+    condition     = var.maximum_retry_attempts >= 0 && var.maximum_retry_attempts <= 185 && floor(var.maximum_retry_attempts) == var.maximum_retry_attempts
+    error_message = "maximum_retry_attempts must be a whole number from 0 through 185."
+  }
+}
+
+variable "maximum_event_age_seconds" {
+  description = "Maximum age of an undelivered Scheduler event in seconds."
+  type        = number
+  default     = 3600
+  validation {
+    condition     = var.maximum_event_age_seconds >= 60 && var.maximum_event_age_seconds <= 86400 && floor(var.maximum_event_age_seconds) == var.maximum_event_age_seconds
+    error_message = "maximum_event_age_seconds must be a whole number from 60 through 86400."
   }
 }
 
@@ -394,7 +455,7 @@ variable "runtime" {
     idempotency         = string
   })
   validation {
-    condition     = var.runtime.max_runtime_seconds > 0 && contains(["idempotent", "application-lock", "duplicate-safe"], var.runtime.idempotency)
+    condition     = var.runtime.max_runtime_seconds > 0 && floor(var.runtime.max_runtime_seconds) == var.runtime.max_runtime_seconds && contains(["idempotent", "application-lock", "duplicate-safe"], var.runtime.idempotency)
     error_message = "runtime must declare a positive max runtime and a supported idempotency mode."
   }
 }

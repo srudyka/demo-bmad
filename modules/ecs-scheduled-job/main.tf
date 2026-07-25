@@ -102,6 +102,68 @@ locals {
     platform_version = var.platform_version
   }
   deployment_identity_json = jsonencode(local.deployment_identity)
+  config_secret_references = [
+    for reference in var.secret_references : strcontains(reference, ":secretsmanager:") ? {
+      provider   = "secrets_manager"
+      arn        = reference
+      version_id = "AWSCURRENT"
+      } : {
+      provider = "ssm_parameter"
+      name     = trimprefix(split(":", reference)[5], "parameter/")
+      version  = 1
+    }
+  ]
+  schedule_body = {
+    activation_end       = var.activation_end
+    activation_start     = var.activation_start
+    expression           = var.schedule_expression
+    flexible_time_window = "OFF"
+    evaluator_version    = "schedule-evaluator/1.0.0"
+    start_anchor         = var.activation_start
+    time_zone            = var.schedule_time_zone
+    tzdb_version         = "2026b"
+  }
+  schedule_generation           = sha256("schedule/v1\n${jsonencode(local.schedule_body)}")
+  scheduler_schedule_group_name = try(regex("^arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule-group/([^/]+)$", local.contract_integrations.scheduler_schedule_group.arn)[0], "")
+  schedule_arn                  = "arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule/${local.scheduler_schedule_group_name}/${local.name_prefix}"
+  config_body = {
+    cluster_arn               = var.ecs_cluster_arn
+    completion_window_seconds = var.runtime.max_runtime_seconds
+    contract_version          = local.contract.contract_version
+    deployment_identity_id    = sha256(local.deployment_identity_json)
+    deployment_identity       = local.deployment_identity
+    job_id                    = local.job_id
+    logs = {
+      log_group_arn  = aws_cloudwatch_log_group.job.arn
+      retention_days = local.effective_log_retention_days
+    }
+    network = {
+      assign_public_ip   = "DISABLED"
+      security_group_ids = sort(tolist(var.networking.security_group_mode == "create" ? toset([aws_security_group.job[0].id]) : var.networking.security_group_ids))
+      subnet_ids         = sort(tolist(var.networking.subnet_ids))
+    }
+    notification_target_arn  = var.notification.target_arn
+    notification_runbook_uri = var.notification.runbook_uri
+    overlap_policy           = var.overlap_policy == "allow" ? "APPLICATION_IDEMPOTENT" : "APPLICATION_LOCKED"
+    owner_generation         = try(var.registrar_receipt.owner_generation, 0)
+    role_arns = {
+      execution = aws_iam_role.execution.arn
+      launch    = aws_iam_role.launch.arn
+      task      = aws_iam_role.task.arn
+    }
+    schedule                   = local.schedule_body
+    schedule_arn               = local.schedule_arn
+    schedule_generation        = local.schedule_generation
+    scheduler_delivery_role_id = aws_iam_role.scheduler_delivery.unique_id
+    network_policy_version     = var.networking.policy_version
+    policy_versions            = { cell_contract = local.contract.contract_version, network = var.networking.policy_version, module = var.module_version }
+    secret_references          = local.config_secret_references
+    task_definition_arn        = aws_ecs_task_definition.job.arn
+  }
+  config_json          = jsonencode(local.config_body)
+  config_version       = lower(sha256(local.config_json))
+  config_document      = { config = local.config_body, config_version = local.config_version, schema_version = "1.0.0" }
+  config_document_json = jsonencode(local.config_document)
   network_path_findings = concat(
     !local.network_catalog_valid || var.networking.policy_version != try(local.network_catalog.policy_version, "") ? ["NETWORK_POLICY_UNKNOWN"] : [],
     flatten([for dependency in local.all_required_network_dependencies : contains(keys(var.networking.dependency_reachability), dependency) ? [] : ["NETWORK_DEPENDENCY_REACHABILITY_MISSING"]]),
@@ -125,6 +187,13 @@ locals {
     tombstoned        = false
     transfer_state    = "quiescent"
   }, try(var.registrar_receipt, {}))
+}
+
+check "config_hash_canonicalization" {
+  assert {
+    condition     = length(regexall("\\\\u[0-9a-fA-F]{4}", local.config_json)) == 0
+    error_message = "CONFIG contains characters Terraform escapes but RFC 8785 emits literally; use RFC-8785-safe CONFIG values so config_version matches the publisher."
+  }
 }
 
 resource "terraform_data" "declaration_validation" {
@@ -173,6 +242,16 @@ resource "terraform_data" "declaration_validation" {
           try(integration.schema_range, "") != "" &&
           can(regex("^arn:[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:.+$", try(integration.arn, "")))
         )]) &&
+        try(local.contract_integrations.scheduler_schedule_group.owner, "") == "cell-root" &&
+        can(regex("^arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule-group/[^/]+$", try(local.contract_integrations.scheduler_schedule_group.arn, ""))) &&
+        can(regex("^arn:${data.aws_partition.current.partition}:sqs:${var.region}:${var.account_id}:[A-Za-z0-9_-]+$", try(local.contract_integrations.scheduler_ingress.arn, ""))) &&
+        can(regex("^arn:${data.aws_partition.current.partition}:sqs:${var.region}:${var.account_id}:[A-Za-z0-9_-]+$", try(local.contract_integrations.scheduler_dlq.arn, ""))) &&
+        can(regex("^arn:${data.aws_partition.current.partition}:s3:::[A-Za-z0-9.-]+$", try(local.contract_integrations.config_inbox.arn, ""))) &&
+        try(local.contract_integrations.config_publisher.owner, "") == "cell-root" &&
+        can(regex("^arn:${data.aws_partition.current.partition}:lambda:${var.region}:${var.account_id}:function:[A-Za-z0-9_-]+$", try(local.contract_integrations.config_publisher.arn, ""))) &&
+        try(local.contract_integrations.config_publisher.protocol_version, "") == "config-publisher/1.0.0" &&
+        try(local.contract_integrations.config_publisher.auth_mode, "") == "AWS_IAM_PRIVATE_API" &&
+        can(regex("^https://.+$", try(local.contract_integrations.config_publisher.endpoint_url, ""))) &&
         try(local.contract_integrations.namespace_registry.owner, "") == "cell-root" &&
         try(local.contract_integrations.namespace_registry.arn, "") != ""
       )
@@ -182,6 +261,14 @@ resource "terraform_data" "declaration_validation" {
     precondition {
       condition     = var.account_id == data.aws_caller_identity.current.account_id && var.region == data.aws_region.current.name
       error_message = "JOB_DECLARATION_CELL_MISMATCH: account_id and region must match provider identity."
+    }
+
+    precondition {
+      condition = (
+        can(regex("^arn:${data.aws_partition.current.partition}:iam::${var.account_id}:role/", var.config_publisher_role_arn)) &&
+        var.activation_start > timestamp()
+      )
+      error_message = "CONFIG_PUBLISHER_OR_ACTIVATION_INVALID: CONFIG requires a same-account publisher role and genuinely future UTC anchor."
     }
 
     precondition {
@@ -353,6 +440,16 @@ resource "terraform_data" "declaration_validation" {
         (var.application_secret_network_path != null && alltrue([for dependency in local.secret_dependencies : contains(keys(var.networking.dependency_reachability), dependency) && var.networking.dependency_reachability[dependency].path_kind == var.application_secret_network_path.kind && var.networking.dependency_reachability[dependency].identifiers == toset(var.application_secret_network_path.identifiers)]))
       )
       error_message = "NETWORK_SECRET_PATH_MISMATCH: application-pull secret access requires an exact declared private dependency path."
+    }
+
+    precondition {
+      condition     = var.activation_end == null || timecmp(var.activation_end, var.activation_start) > 0
+      error_message = "JOB_ACTIVATION_WINDOW_INVALID: activation_end must be later than activation_start."
+    }
+
+    precondition {
+      condition     = var.runtime.max_runtime_seconds >= 60 && var.runtime.max_runtime_seconds <= 86400
+      error_message = "JOB_RUNTIME_DEADLINE_INVALID: max_runtime_seconds must fit the CONFIG completion window bounds."
     }
   }
 }

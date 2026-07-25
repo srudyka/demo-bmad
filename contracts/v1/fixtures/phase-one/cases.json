@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {
+      "name": "disabled-schedule-exact-queue",
+      "state": "DISABLED",
+      "target": "scheduler-ingress",
+      "expected": {"queue": "contract.scheduler_ingress", "dlq": "contract.scheduler_dlq", "flexible_window": "OFF"}
+    },
+    {
+      "name": "reject-direct-ecs-target",
+      "state": "DISABLED",
+      "target": "ecs:RunTask",
+      "expected_error": "PHASE_ONE_DIRECT_ECS_TARGET_FORBIDDEN"
+    },
+    {
+      "name": "reject-config-secret-value",
+      "body": {"secret_references": ["arn:aws:secretsmanager:us-east-1:123456789012:secret:job"], "password": "plaintext"},
+      "expected_error": "CONFIG_SECRET_VALUE_FORBIDDEN"
+    },
+    {
+      "name": "config-hash-is-content-addressed",
+      "body": {"config": {"job_id": "dev/sample/daily", "owner_generation": 1}, "schema_version": "1.0.0"},
+      "config_version": "aa66746473a69ffe979355e4e8f7e505947c0bd9f225ba4f1acad78ba1e863d5"
+    },
+    {
+      "name": "reject-wrong-job-config-prefix",
+      "request": {"key": "jobs/dev/other/config/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json"},
+      "expected_error": "CONFIG_JOB_PREFIX_FORBIDDEN"
+    },
+    {
+      "name": "reject-protected-cell-state-write",
+      "request": {"action": "dynamodb:PutItem", "resource": "arn:aws:dynamodb:us-east-1:123456789012:table/platform-cell-state"},
+      "expected_error": "CELL_STATE_WRITE_FORBIDDEN"
+    },
+    {
+      "name": "reject-overwrite-without-if-none-match",
+      "request": {"action": "s3:PutObject", "headers": {"If-None-Match": null}},
+      "expected_error": "CONFIG_OVERWRITE_FORBIDDEN"
+    },
+    {
+      "name": "reject-cross-account-schedule-group",
+      "request": {"schedule_group_arn": "arn:aws:scheduler:us-east-1:999999999999:schedule-group/platform"},
+      "expected_error": "SCHEDULE_GROUP_IDENTITY_FORBIDDEN"
+    }
+  ]
+}

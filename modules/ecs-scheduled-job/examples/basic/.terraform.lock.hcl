@@ -1,6 +1,15 @@
 # This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
+provider "registry.terraform.io/demo-bmad/cell" {
+  version     = "0.1.0"
+  constraints = "0.1.0"
+  hashes = [
+    "h1:IiCMDAzfLM9I/kJcy4gGRaL5QKqTTaNJXa0Ym+i7cGw=",
+    "h1:zRIOer7lT3/xkBR/d4W+FM8qeE9ab2dvshMQGvS5eaU=",
+  ]
+}
+
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "6.54.0"
   constraints = ">= 6.0.0, < 7.0.0"

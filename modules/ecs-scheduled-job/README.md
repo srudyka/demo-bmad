@@ -5,11 +5,13 @@ job-owned IAM roles introduced by Story 2.2: launch, ECS execution, and
 application task. Story 2.3 adds fail-closed private-network validation and may
 create one job-owned security group with explicit bounded egress. Story 2.4
 adds one immutable Fargate task-definition family revision and one encrypted,
-retained job log group. It validates the Story 2.1 reservation and Cell
-Contract but does not create schedules, routes, NAT gateways, endpoints,
-subnets, shared security groups, alarms, CONFIG, or Cell ownership.
+retained job log group. Story 2.5 adds one disabled Scheduler schedule,
+Scheduler delivery role, and encrypted content-addressed CONFIG publication.
+It validates the Story 2.1 reservation and Cell Contract but does not create
+routes, NAT gateways, endpoints, subnets, shared security groups, alarms, or
+Cell ownership.
 It creates no resources for routes, NAT gateways, endpoints, subnets, shared
-security groups, Scheduler schedules, or Cell runtime state.
+security groups, or Cell runtime state.
 
 ## Required Providers
 
@@ -51,6 +53,28 @@ Registrar-confirmed reservation, protected tags, normalized schedule identity,
 role ARNs/IDs, task-definition and log-group identity, Deployment Identity,
 and non-sensitive network handoff metadata.
 
+Phase one also publishes one disabled EventBridge Scheduler schedule and a
+separate Scheduler delivery role targeting the Cell Contract's scheduler
+ingress queue and DLQ. It writes one encrypted, content-addressed CONFIG
+candidate at `jobs/<job_id>/config/<config_version>.json`, where the lowercase
+SHA-256 version is calculated from the exact canonical secret-free document.
+The publisher validates the same CONFIG JSON Schema before hashing. Terraform
+also rejects JSON escape sequences that would make its `jsonencode` bytes differ
+from the publisher's RFC 8785 bytes, so the content hash is computed by one
+explicitly compatible canonicalization profile at both boundaries.
+CONFIG is published through the dedicated `demo-bmad/cell` provider, which
+SigV4-authenticates the Cell publisher API as the caller's IAM role. The Cell
+service requires the caller role's exact `PlatformEcsScheduledJobId` tag and
+performs the atomic `If-None-Match: *` write. Configure the provider endpoint
+from the Cell Contract and grant the caller only this job's create-only policy.
+The content-addressed key and create-only provider resource prevent Terraform
+replacement. If a deployment must retire
+a schedule, first disable and drain it, publish a successor version, and only
+then perform an explicitly approved state migration because the schedule and
+CONFIG resources use `prevent_destroy`.
+The `phase_one` output reports `PUBLISHED` and `launch_authorized = false`;
+Cell acknowledgement and schedule activation belong to later stories.
+
 The `task_definition` and `deployment_identity` outputs are the authoritative
 handoff for the later launch/CONFIG story. They include the approved
 `platform_version`; the later launch operation must pass that exact value to
@@ -78,12 +102,12 @@ exposed.
 The task definition uses Fargate `awsvpc`, the exact Story 2.2 roles, immutable
 image digests, and `awslogs` to the exact encrypted job log group. Secret
 references use ECS's locator-only `secrets` contract and never ordinary
-environment values. No metric, alarm, schedule, CONFIG, or Cell-owned resource
-is created here. Network validation does not repair non-compliant shared groups
+environment values. No metric or alarm is created here. Network validation
+does not repair non-compliant shared groups
 or infer private status from names;
 unknown evidence blocks planning. Created groups have no ingress, no implicit
 default egress, and only explicitly bounded security-group, prefix-list, or
-CIDR egress. Later stories own task definition, logs, schedule, and CONFIG.
+CIDR egress. Later stories own Cell acknowledgement and schedule activation.
 Customer-managed policy attachments must be same-account,
 allowlisted, version-governed, and boundary-compatible; production exceptions
 remain owned by Story 3.4.
@@ -100,6 +124,11 @@ Secret delivery is mode-specific: `ecs-agent` uses ECS `secrets` locator
 entries, while `application-pull` exposes only `SECRET_MODE`, the JSON list of
 non-sensitive `SECRET_REFERENCE_LOCATORS`, and `SECRET_NETWORK_PATH`; it never
 renders ECS-agent secret injection for application-pull.
+
+Scheduler delivery uses bounded retry/max-age settings, an explicit IANA time
+zone, a future UTC activation anchor, flexible window `OFF`, and a literal
+`<aws.scheduler.scheduled-time>` field for later Cell normalization. The
+schedule never targets ECS directly and remains disabled during phase one.
 
 The completion contract uses these secret-free shapes:
 

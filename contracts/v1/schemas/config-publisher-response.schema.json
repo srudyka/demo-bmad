@@ -1,0 +1,19 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config-publisher-response",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": { "const": "config-publisher/1.0.0" },
+    "lifecycle": { "const": "PUBLISHED" },
+    "result": { "enum": ["PUBLISHED", "ALREADY_PUBLISHED"], "type": "string" },
+    "job_id": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id" },
+    "config_version": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+    "object_key": { "type": "string" },
+    "contract_version": { "pattern": "^1\\.[0-9]+\\.[0-9]+$", "type": "string" },
+    "ownership_generation": { "minimum": 1, "type": "integer" }
+    ,"operation_id": { "pattern": "^cfgpub-[0-9a-f]{32}$", "type": "string" }
+  },
+  "required": ["protocol_version", "lifecycle", "result", "job_id", "config_version", "object_key", "contract_version", "ownership_generation", "operation_id"],
+  "title": "Conditional CONFIG publisher response",
+  "type": "object"
+}

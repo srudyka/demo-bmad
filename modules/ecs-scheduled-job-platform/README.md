@@ -351,6 +351,18 @@ and the absence of premature runtime resources.
 
 ## Rollback And Recovery
 
+### Conditional CONFIG publisher
+
+The CONFIG publisher is exposed through a private API Gateway endpoint backed by
+the Cell-owned Lambda. Invocation requires the approved interface VPC endpoint,
+IAM authorization, and the caller's explicit publisher-role assumption. The
+publisher validates the Registrar ownership generation before issuing an
+encrypted S3 create-only write. Investigate `PublishResult` metrics for
+`CONFIG_VERSION_CONFLICT`, `JOB_ID_AUTHORIZATION_FAILED`, and validation errors;
+never bypass the publisher with a direct S3 writer. Rollback disables the API
+route or publisher deployment while retaining existing CONFIG objects and the
+previous provider version.
+
 Story 1.7 adds the encrypted occurrence ledger and the Process Manager mapping.
 The Process Manager accepts only authenticated materializer `occurrence.expected.v1`
 records, reads the exact verified CONFIG snapshot, and writes the processed-event

@@ -1,5 +1,16 @@
+provider "cell" {
+  alias              = "publisher"
+  endpoint_url       = "https://example.execute-api.us-east-1.amazonaws.com/publish"
+  region             = "us-east-1"
+  publisher_role_arn = "arn:aws:iam::123456789012:role/platform-example-config-publisher"
+}
+
 module "job" {
   source = "../.."
+
+  providers = {
+    cell.publisher = cell.publisher
+  }
 
   environment                   = "dev"
   application                   = "sample"
@@ -9,6 +20,7 @@ module "job" {
   terraform_root_id             = "sample-root"
   apply_role_id                 = "sample-plan-role"
   account_id                    = "123456789012"
+  config_publisher_role_arn     = "arn:aws:iam::123456789012:role/platform-example-config-publisher"
   region                        = "us-east-1"
   ecs_cluster_arn               = "arn:aws:ecs:us-east-1:123456789012:cluster/example"
   permissions_boundary_arn      = "arn:aws:iam::123456789012:policy/platform-example-job-boundary"
@@ -18,6 +30,10 @@ module "job" {
   source_revision               = "example-revision-0001"
   module_version                = "1.0.0"
   schedule_expression           = "rate(1 day)"
+  schedule_time_zone            = "UTC"
+  activation_start              = "2099-01-01T00:00:00.000Z"
+  maximum_retry_attempts        = 3
+  maximum_event_age_seconds     = 3600
   cpu                           = 256
   memory                        = 512
   runtime = {

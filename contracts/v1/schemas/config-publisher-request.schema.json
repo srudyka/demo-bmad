@@ -1,0 +1,17 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config-publisher-request",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": { "const": "config-publisher/1.0.0" },
+    "job_id": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id" },
+    "config_version": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+    "object_key": { "pattern": "^jobs/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/config/[0-9a-f]{64}\\.json$", "type": "string" },
+    "config_document": { "type": "object" },
+    "contract_version": { "pattern": "^1\\.[0-9]+\\.[0-9]+$", "type": "string" },
+    "ownership_generation": { "minimum": 1, "type": "integer" }
+  },
+  "required": ["protocol_version", "job_id", "config_version", "object_key", "config_document", "contract_version", "ownership_generation"],
+  "title": "Conditional CONFIG publisher request",
+  "type": "object"
+}

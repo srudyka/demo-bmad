@@ -71,7 +71,8 @@ development_status:
   2-2-create-least-privilege-job-iam-roles: done
   2-3-enforce-private-task-networking: done
   2-4-provision-the-fargate-task-and-structured-logs: done
-  2-5-publish-phase-one-job-resources-and-config: backlog
+  2-5-publish-phase-one-job-resources-and-config: review
+  2-5a-cell-owned-conditional-config-publisher: done
   2-6-validate-and-acknowledge-job-configuration: backlog
   2-7-activate-the-non-production-schedule-safely: backlog
   2-8-connect-completion-evidence-and-alert-metadata: backlog

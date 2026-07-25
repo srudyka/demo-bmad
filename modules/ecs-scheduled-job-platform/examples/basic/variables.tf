@@ -46,6 +46,30 @@ variable "metric_namespace" {
   default     = "Platform/EcsScheduledJobs"
 }
 
+variable "config_publisher_vpc_endpoint_ids" {
+  description = "Fictitious interface endpoint IDs for private API validation."
+  type        = set(string)
+  default     = ["vpce-0123456789abcdef0"]
+}
+
+variable "config_publisher" {
+  description = "Example immutable publisher artifact controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    reserved_concurrency = number
+    timeout_seconds      = number
+    log_retention_days   = number
+  })
+  default = {
+    artifact_path        = "/tmp/config-publisher.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    reserved_concurrency = 2
+    timeout_seconds      = 30
+    log_retention_days   = 365
+  }
+}
+
 variable "enable_recovery_protection" {
   description = "Example non-production recovery protection setting."
   type        = bool

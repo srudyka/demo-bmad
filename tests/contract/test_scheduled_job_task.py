@@ -18,7 +18,7 @@ def test_task_definition_and_log_group_are_job_owned_and_fargate_bound() -> None
     assert "aws_iam_role.execution.arn" in terraform
     assert "aws_iam_role.task.arn" in terraform
     assert 'resource "aws_ecs_service"' not in terraform
-    assert 'resource "aws_scheduler_schedule"' not in terraform
+    assert 'resource "aws_scheduler_schedule" "job"' in terraform
     assert 'resource "aws_cloudwatch_metric_alarm"' not in terraform
 
 

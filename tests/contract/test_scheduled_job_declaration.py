@@ -50,7 +50,6 @@ def test_job_module_has_required_iam_interface_and_no_future_workload_resources(
     assert 'output "reservation"' in outputs
     assert 'output "job_iam"' in outputs
     for prohibited in (
-        'resource "aws_scheduler_schedule"',
         'resource "aws_cloudwatch_metric_alarm"',
         "terraform_remote_state",
         "null_resource",

@@ -6,5 +6,9 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 6.0, < 7.0"
     }
+    cell = {
+      source  = "demo-bmad/cell"
+      version = "0.1.0"
+    }
   }
 }

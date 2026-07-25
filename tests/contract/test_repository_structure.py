@@ -72,7 +72,16 @@ class RepositoryStructureTest(unittest.TestCase):
             "aws_cloudwatch_event_target",
             "aws_lambda_event_source_mapping",
             "aws_lambda_function",
+            "aws_lambda_function_url",
             "aws_lambda_permission",
+            "aws_api_gateway_rest_api",
+            "aws_api_gateway_resource",
+            "aws_api_gateway_method",
+            "aws_api_gateway_request_validator",
+            "aws_api_gateway_integration",
+            "aws_api_gateway_deployment",
+            "aws_api_gateway_stage",
+            "aws_api_gateway_method_settings",
             "aws_scheduler_schedule_group",
             "aws_sqs_queue",
             "aws_sqs_queue_policy",
@@ -113,7 +122,7 @@ class RepositoryStructureTest(unittest.TestCase):
             (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
         )
         prohibited_blocks = re.compile(
-            r'^\s*(backend|terraform_remote_state|resource\s+"(?!((terraform_data|aws_iam_role|aws_iam_role_policy|aws_iam_role_policy_attachment|aws_security_group|aws_vpc_security_group_egress_rule|aws_ecs_task_definition|aws_cloudwatch_log_group)"))|data\s+"(?!aws_(caller_identity|region|partition|ssm_parameter|iam_policy_document|iam_policy|vpc|subnet|security_group|prefix_list|vpc_security_group_rules|vpc_security_group_rule)"))',
+            r'^\s*(backend|terraform_remote_state|resource\s+"(?!((terraform_data|cell_config_publication|aws_iam_role|aws_iam_role_policy|aws_iam_role_policy_attachment|aws_security_group|aws_vpc_security_group_egress_rule|aws_ecs_task_definition|aws_cloudwatch_log_group|aws_scheduler_schedule|aws_s3_object)"))|data\s+"(?!aws_(caller_identity|region|partition|ssm_parameter|iam_policy_document|iam_policy|vpc|subnet|security_group|prefix_list|vpc_security_group_rules|vpc_security_group_rule)"))',
             re.MULTILINE,
         )
         for terraform_file in job_files:

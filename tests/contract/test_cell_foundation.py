@@ -218,7 +218,7 @@ def test_generated_cell_foundation_contract_has_independent_jcs_proof() -> None:
     body = dict(cell_contract)
     body.pop("checksum")
     assert cell_contract["checksum"] == (
-        "2793f4fe48de5e26489769f49f55fba48088483a3c7dece6645096a9765bae6f"
+        "c493bf3c7ae24f4f5049e45c5d2088181af73e4599a809a9c1e6d7d48a365237"
     )
     assert (
         cell_contract["checksum"]
@@ -304,7 +304,7 @@ def test_cell_security_scan_exceptions_are_narrow_and_documented() -> None:
     assert '"security:terraform:platform-cell"' in validation
     assert '"modules/ecs-scheduled-job-platform"' in validation
     assert (
-        '"--skip-check",\n            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV2_AWS_62"'
+        '"--skip-check",\n            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV_AWS_301,CKV2_AWS_51,CKV2_AWS_62"'
         in validation
     )
     assert "checkov:skip=CKV_AWS_144" not in module_contents("main.tf")

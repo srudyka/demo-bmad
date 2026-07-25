@@ -263,6 +263,36 @@ variable "normalizer" {
   }
 }
 
+variable "config_publisher" {
+  description = "Cell-owned conditional CONFIG publisher Lambda artifact and bounded runtime controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    reserved_concurrency = number
+    timeout_seconds      = number
+    log_retention_days   = number
+  })
+  validation {
+    condition = (
+      length(var.config_publisher.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.config_publisher.artifact_source_hash)) &&
+      var.config_publisher.reserved_concurrency >= 2 && var.config_publisher.reserved_concurrency <= 1000 &&
+      var.config_publisher.timeout_seconds >= 1 && var.config_publisher.timeout_seconds <= 900 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.config_publisher.log_retention_days)
+    )
+    error_message = "config_publisher must use a published artifact and bounded Lambda controls."
+  }
+}
+
+variable "config_publisher_vpc_endpoint_ids" {
+  description = "Approved interface VPC endpoint IDs allowed to invoke the private CONFIG publisher API."
+  type        = set(string)
+  validation {
+    condition     = length(var.config_publisher_vpc_endpoint_ids) > 0 && alltrue([for id in var.config_publisher_vpc_endpoint_ids : can(regex("^vpce-[0-9a-f]+$", id))])
+    error_message = "config_publisher_vpc_endpoint_ids must contain at least one exact interface endpoint ID."
+  }
+}
+
 variable "log_ingestor" {
   description = "Explicit trusted completion log-ingestor artifact and bounded Lambda controls."
   type = object({

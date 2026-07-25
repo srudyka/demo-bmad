@@ -2,6 +2,8 @@ data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
 
+data "aws_partition" "current" {}
+
 data "aws_iam_policy_document" "config_inbox" {
   # Explicit deny statements must use the wildcard principal so they constrain
   # every identity policy, including future job-root principals.
@@ -123,6 +125,12 @@ data "aws_iam_policy_document" "config_inbox" {
       test     = "Null"
       variable = "aws:PrincipalTag/PlatformEcsScheduledJobId"
       values   = ["true"]
+    }
+
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:PrincipalArn"
+      values   = [aws_iam_role.config_publisher.arn]
     }
   }
 
@@ -518,6 +526,14 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges.config
     }
+    config_publisher = {
+      arn              = aws_lambda_function.config_publisher.arn
+      owner            = "cell-root"
+      schema_range     = local.compatibility_catalog.component_ranges.config
+      protocol_version = "config-publisher/1.0.0"
+      auth_mode        = "AWS_IAM_PRIVATE_API"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/publish"
+    }
     normalizer_ingress = {
       arn          = aws_sqs_queue.normalizer_ingress.arn
       owner        = "cell-root"
@@ -603,6 +619,9 @@ locals {
         integration.arn,
         integration.owner,
         integration.schema_range,
+        try(integration.protocol_version, ""),
+        try(integration.auth_mode, ""),
+        try(integration.endpoint_url, ""),
       ]
     ]),
   )
@@ -1011,6 +1030,281 @@ resource "aws_iam_role_policy" "deadline_scanner" {
   name   = "${local.name_prefix}-deadline-scanner"
   role   = aws_iam_role.deadline_scanner.id
   policy = data.aws_iam_policy_document.deadline_scanner.json
+}
+
+resource "aws_cloudwatch_log_group" "config_publisher" {
+  name              = "/aws/lambda/${local.name_prefix}-config-publisher"
+  retention_in_days = var.config_publisher.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "config_publisher_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "config_publisher" {
+  name                 = "${local.name_prefix}-config-publisher"
+  path                 = "/platform/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.config_publisher_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+data "aws_iam_policy_document" "config_publisher" {
+  statement {
+    sid       = "WriteOnlyConfigCandidates"
+    effect    = "Allow"
+    actions   = ["s3:PutObject", "s3:GetObject"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/*/config/*.json"]
+  }
+  statement {
+    sid       = "UseConfigInboxKey"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:aws:s3:arn"
+      values   = ["${aws_s3_bucket.config_inbox.arn}/*"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${data.aws_region.current.name}.amazonaws.com"]
+    }
+  }
+  statement {
+    sid       = "ReadCallerRoleTags"
+    effect    = "Allow"
+    actions   = ["iam:ListRoleTags"]
+    resources = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/platform/ecs-scheduled-jobs/*"]
+  }
+  statement {
+    sid       = "ReadJobReservation"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.namespace_registry.arn]
+  }
+  statement {
+    sid       = "WriteOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.config_publisher.arn}:*"]
+  }
+  statement {
+    sid       = "PublishBoundedMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "config_publisher" {
+  name   = "${local.name_prefix}-config-publisher"
+  role   = aws_iam_role.config_publisher.id
+  policy = data.aws_iam_policy_document.config_publisher.json
+}
+
+resource "aws_lambda_function" "config_publisher" {
+  function_name                  = "${local.name_prefix}-config-publisher"
+  filename                       = var.config_publisher.artifact_path
+  source_code_hash               = var.config_publisher.artifact_source_hash
+  handler                        = "config_publisher.handler.lambda_handler"
+  role                           = aws_iam_role.config_publisher.arn
+  runtime                        = "python3.14"
+  timeout                        = var.config_publisher.timeout_seconds
+  reserved_concurrent_executions = var.config_publisher.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+
+  environment {
+    variables = {
+      CONFIG_BUCKET_NAME            = aws_s3_bucket.config_inbox.bucket
+      CONFIG_KMS_KEY_ARN            = var.kms_key_arn
+      NAMESPACE_REGISTRY_TABLE_NAME = aws_dynamodb_table.namespace_registry.name
+      METRIC_NAMESPACE              = var.metric_namespace
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.config_publisher]
+  tags       = local.common_tags
+}
+
+resource "aws_api_gateway_rest_api" "config_publisher" {
+  name = "${local.name_prefix}-config-publisher"
+
+  endpoint_configuration {
+    types            = ["PRIVATE"]
+    vpc_endpoint_ids = var.config_publisher_vpc_endpoint_ids
+  }
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "execute-api:Invoke"
+      Resource  = "execute-api:/*"
+      Condition = { StringEquals = { "aws:SourceVpce" = tolist(var.config_publisher_vpc_endpoint_ids) } }
+    }]
+  })
+  tags = local.common_tags
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_api_gateway_resource" "config_publisher" {
+  rest_api_id = aws_api_gateway_rest_api.config_publisher.id
+  parent_id   = aws_api_gateway_rest_api.config_publisher.root_resource_id
+  path_part   = "publish"
+}
+
+resource "aws_api_gateway_method" "config_publisher" {
+  rest_api_id          = aws_api_gateway_rest_api.config_publisher.id
+  resource_id          = aws_api_gateway_resource.config_publisher.id
+  http_method          = "POST"
+  authorization        = "AWS_IAM"
+  request_validator_id = aws_api_gateway_request_validator.config_publisher.id
+}
+
+resource "aws_api_gateway_request_validator" "config_publisher" {
+  name                        = "${local.name_prefix}-config-publisher-validator"
+  rest_api_id                 = aws_api_gateway_rest_api.config_publisher.id
+  validate_request_body       = true
+  validate_request_parameters = true
+}
+
+resource "aws_api_gateway_integration" "config_publisher" {
+  rest_api_id             = aws_api_gateway_rest_api.config_publisher.id
+  resource_id             = aws_api_gateway_resource.config_publisher.id
+  http_method             = aws_api_gateway_method.config_publisher.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.config_publisher.invoke_arn
+}
+
+resource "aws_lambda_permission" "config_publisher_api" {
+  statement_id  = "AllowPrivateApiInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.config_publisher.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.config_publisher.execution_arn}/*/POST/publish"
+}
+
+resource "aws_cloudwatch_log_group" "config_publisher_api" {
+  name              = "/aws/apigateway/${local.name_prefix}-config-publisher"
+  retention_in_days = var.config_publisher.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = local.common_tags
+}
+
+resource "aws_api_gateway_deployment" "config_publisher" {
+  rest_api_id = aws_api_gateway_rest_api.config_publisher.id
+  depends_on  = [aws_api_gateway_integration.config_publisher]
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_api_gateway_stage" "config_publisher" {
+  rest_api_id           = aws_api_gateway_rest_api.config_publisher.id
+  deployment_id         = aws_api_gateway_deployment.config_publisher.id
+  stage_name            = "publish"
+  cache_cluster_enabled = true
+  cache_cluster_size    = "0.5"
+  xray_tracing_enabled  = true
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.config_publisher_api.arn
+    format          = jsonencode({ requestId = "$context.requestId", status = "$context.status", route = "$context.resourcePath" })
+  }
+  tags = local.common_tags
+}
+
+resource "aws_api_gateway_method_settings" "config_publisher" {
+  rest_api_id = aws_api_gateway_rest_api.config_publisher.id
+  stage_name  = aws_api_gateway_stage.config_publisher.stage_name
+  method_path = "*/*"
+
+  settings {
+    caching_enabled      = true
+    cache_data_encrypted = true
+    cache_ttl_in_seconds = 300
+    logging_level        = "INFO"
+    metrics_enabled      = true
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_errors" {
+  alarm_name          = "${local.name_prefix}-config-publisher-errors"
+  alarm_description   = "Conditional CONFIG publisher failures require platform investigation."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.config_publisher.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_throttles" {
+  alarm_name          = "${local.name_prefix}-config-publisher-throttles"
+  alarm_description   = "Conditional CONFIG publisher throttling requires platform investigation."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Throttles"
+  dimensions          = { FunctionName = aws_lambda_function.config_publisher.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_conflicts" {
+  alarm_name          = "${local.name_prefix}-config-publisher-conflicts"
+  alarm_description   = "Repeated CONFIG conditional-write conflicts require ownership investigation."
+  namespace           = var.metric_namespace
+  metric_name         = "PublishResult"
+  dimensions          = { ResultCode = "CONFIG_VERSION_CONFLICT" }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_authorization" {
+  alarm_name          = "${local.name_prefix}-config-publisher-authorization"
+  alarm_description   = "CONFIG publisher authorization rejections require Registrar and role-tag investigation."
+  namespace           = var.metric_namespace
+  metric_name         = "PublishResult"
+  dimensions          = { ResultCode = "JOB_ID_AUTHORIZATION_FAILED" }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
 }
 
 resource "aws_lambda_function" "deadline_scanner" {
