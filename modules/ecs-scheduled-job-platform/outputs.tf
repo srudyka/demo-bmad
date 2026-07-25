@@ -23,13 +23,15 @@ output "config_publisher" {
   description = "Cell-owned IAM-authenticated conditional CONFIG publisher endpoint and alarms."
   value = {
     function_arn = aws_lambda_function.config_publisher.arn
-    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/publish"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/publish"
     role_arn     = aws_iam_role.config_publisher.arn
     alarm_arns = [
       aws_cloudwatch_metric_alarm.config_publisher_errors.arn,
       aws_cloudwatch_metric_alarm.config_publisher_throttles.arn,
       aws_cloudwatch_metric_alarm.config_publisher_conflicts.arn,
       aws_cloudwatch_metric_alarm.config_publisher_authorization.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_validation.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_latency.arn,
     ]
     protocol_version = "config-publisher/1.0.0"
   }

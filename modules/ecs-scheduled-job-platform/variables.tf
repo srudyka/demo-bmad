@@ -271,6 +271,7 @@ variable "config_publisher" {
     reserved_concurrency = number
     timeout_seconds      = number
     log_retention_days   = number
+    invoker_role_arns    = set(string)
   })
   validation {
     condition = (
@@ -278,7 +279,9 @@ variable "config_publisher" {
       can(regex("^[A-Za-z0-9+/]{43}=$", var.config_publisher.artifact_source_hash)) &&
       var.config_publisher.reserved_concurrency >= 2 && var.config_publisher.reserved_concurrency <= 1000 &&
       var.config_publisher.timeout_seconds >= 1 && var.config_publisher.timeout_seconds <= 900 &&
-      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.config_publisher.log_retention_days)
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.config_publisher.log_retention_days) &&
+      length(var.config_publisher.invoker_role_arns) > 0 &&
+      alltrue([for arn in var.config_publisher.invoker_role_arns : can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/", arn))])
     )
     error_message = "config_publisher must use a published artifact and bounded Lambda controls."
   }

@@ -218,7 +218,7 @@ def test_generated_cell_foundation_contract_has_independent_jcs_proof() -> None:
     body = dict(cell_contract)
     body.pop("checksum")
     assert cell_contract["checksum"] == (
-        "c493bf3c7ae24f4f5049e45c5d2088181af73e4599a809a9c1e6d7d48a365237"
+        "42ed9d18a3d0e7d09873c5f14eabc00a28625deaf19904251f12d85f3ea5c857"
     )
     assert (
         cell_contract["checksum"]

@@ -1,6 +1,6 @@
 provider "cell" {
   alias              = "publisher"
-  endpoint_url       = "https://example.execute-api.us-east-1.amazonaws.com/publish"
+  endpoint_url       = "https://example.execute-api.us-east-1.amazonaws.com/v1/publish"
   region             = "us-east-1"
   publisher_role_arn = "arn:aws:iam::123456789012:role/platform-example-config-publisher"
 }

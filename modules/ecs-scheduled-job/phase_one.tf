@@ -118,6 +118,7 @@ resource "cell_config_publication" "config" {
   config_document       = local.config_document_json
   contract_version      = local.contract.contract_version
   ownership_generation  = try(var.registrar_receipt.owner_generation, 0)
+  publisher_role_arn    = var.config_publisher_role_arn
 
   depends_on = [terraform_data.declaration_validation]
 

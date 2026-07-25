@@ -36,18 +36,29 @@ def _response(status: int, body: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-def _emit_metric(client: Any, result_code: str) -> None:
+def _emit_metric(
+    client: Any, result_code: str, latency_ms: float | None = None
+) -> None:
     try:
+        metrics: list[dict[str, object]] = [
+            {
+                "MetricName": "PublishResult",
+                "Dimensions": [{"Name": "ResultCode", "Value": result_code}],
+                "Value": 1,
+                "Unit": "Count",
+            }
+        ]
+        if latency_ms is not None:
+            metrics.append(
+                {
+                    "MetricName": "PublishLatency",
+                    "Value": latency_ms,
+                    "Unit": "Milliseconds",
+                }
+            )
         client.put_metric_data(
             Namespace=os.environ.get("METRIC_NAMESPACE", "Platform/EcsScheduledJobs"),
-            MetricData=[
-                {
-                    "MetricName": "PublishResult",
-                    "Dimensions": [{"Name": "ResultCode", "Value": result_code}],
-                    "Value": 1,
-                    "Unit": "Count",
-                }
-            ],
+            MetricData=metrics,
         )
     except Exception:
         LOGGER.warning("publisher_metric_failed", extra={"result_code": result_code})
@@ -59,6 +70,8 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
     cloudwatch: object | None = None
     try:
         import boto3  # type: ignore[import-untyped]
+
+        cloudwatch = boto3.client("cloudwatch")
 
         auth = event.get("requestContext", {})
         iam = (
@@ -81,7 +94,6 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         request = PublishRequest.from_mapping(request_value)
         account_id, role_name = _caller_identity(user_arn)
         iam_client = boto3.client("iam")
-        cloudwatch = boto3.client("cloudwatch")
         tags = iam_client.list_role_tags(RoleName=role_name).get("Tags", [])
         tag_map = {
             item["Key"]: item["Value"]
@@ -102,11 +114,19 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             )
             .get("Item", {})
         )
+        try:
+            reservation_generation = int(
+                reservation.get("owner_generation", {}).get("N", "0")
+            )
+        except (TypeError, ValueError) as error:
+            raise PublisherError("OWNERSHIP_AUTHORIZATION_FAILED") from error
         if (
             reservation.get("account_id", {}).get("S") != account_id
             or reservation.get("region", {}).get("S") != os.environ["AWS_REGION"]
-            or int(reservation.get("owner_generation", {}).get("N", "0"))
-            != request.ownership_generation
+            or reservation.get("lifecycle", {}).get("S") != "RESERVED"
+            or reservation.get("tombstoned", {}).get("BOOL") is not False
+            or reservation.get("transfer_state", {}).get("S") != "quiescent"
+            or reservation_generation != request.ownership_generation
         ):
             raise PublisherError("OWNERSHIP_AUTHORIZATION_FAILED")
         result = publish(
@@ -116,7 +136,9 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             kms_key_arn=os.environ["CONFIG_KMS_KEY_ARN"],
             authenticated_job_id=request.job_id,
         )
-        _emit_metric(cloudwatch, str(result["result"]))
+        _emit_metric(
+            cloudwatch, str(result["result"]), (time.monotonic() - started) * 1000
+        )
         LOGGER.info(
             "config_publish_complete",
             extra={
@@ -129,7 +151,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         return _response(200, result)
     except PublisherError as error:
         if cloudwatch is not None:
-            _emit_metric(cloudwatch, error.code)
+            _emit_metric(cloudwatch, error.code, (time.monotonic() - started) * 1000)
         metadata: dict[str, object] = {
             "protocol_version": "config-publisher/1.0.0",
             "error_code": error.code,
@@ -150,6 +172,12 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             metadata,
         )
     except Exception:
+        if cloudwatch is not None:
+            _emit_metric(
+                cloudwatch,
+                "PUBLISHER_INTERNAL_ERROR",
+                (time.monotonic() - started) * 1000,
+            )
         LOGGER.exception("publisher_internal_error")
         return _response(
             500,

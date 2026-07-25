@@ -5,7 +5,7 @@
     "environment": "dev",
     "region": "us-east-1"
   },
-  "checksum": "c493bf3c7ae24f4f5049e45c5d2088181af73e4599a809a9c1e6d7d48a365237",
+  "checksum": "42ed9d18a3d0e7d09873c5f14eabc00a28625deaf19904251f12d85f3ea5c857",
   "contract_version": "1.0.0",
   "discovery_path": "/platform/ecs-scheduled-jobs/dev/us-east-1/contract",
   "encryption": {
@@ -23,7 +23,7 @@
       "schema_range": ">=1.0.0,<2.0.0",
       "protocol_version": "config-publisher/1.0.0",
     "auth_mode": "AWS_IAM_PRIVATE_API",
-    "endpoint_url": "https://example.execute-api.us-east-1.amazonaws.com/publish"
+    "endpoint_url": "https://example.execute-api.us-east-1.amazonaws.com/v1/publish"
     },
     "config_inbox": {
       "arn": "arn:aws:s3:::dev-platform-cfg-111111111111-us-east-1",

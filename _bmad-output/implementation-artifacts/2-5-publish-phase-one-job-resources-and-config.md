@@ -4,7 +4,7 @@ baseline_commit: 51842d8
 
 # Story 2.5: Publish Phase-One Job Resources and CONFIG
 
-Status: review
+Status: done
 
 ## Story
 
@@ -66,7 +66,7 @@ so that the Cell can review exact AWS identities and configuration before any oc
 
 ### Review Findings
 
-- [ ] [Review][Deferred] Use a Cell publisher API/provider that supports the required `If-None-Match: *` create-only precondition. The dedicated publisher role and required job identity tag are wired, but AWS provider 6.54's `aws_s3_object` resource cannot send that header [modules/ecs-scheduled-job/phase_one.tf:98]
+- [x] [Review][Resolved] Use a Cell publisher API/provider that supports the required `If-None-Match: *` create-only precondition. The dedicated publisher role and required job identity tag are wired, but AWS provider 6.54's `aws_s3_object` resource cannot send that header [modules/ecs-scheduled-job/phase_one.tf:98]
 - [x] [Review][Patch] Gate CONFIG publication on declaration and Cell-contract validation [modules/ecs-scheduled-job/phase_one.tf:98]
 - [x] [Review][Patch] Render CONFIG secret references as the structured provider/version locator objects required by the normative schema [modules/ecs-scheduled-job/main.tf:143]
 - [x] [Review][Patch] Include complete launch provenance in CONFIG, including Deployment Identity metadata, contract/policy versions, network policy version, and notification runbook metadata [modules/ecs-scheduled-job/main.tf:118]
@@ -78,6 +78,25 @@ so that the Cell can review exact AWS identities and configuration before any oc
 - [x] [Review][Patch] Add effective IAM-negative coverage for wrong-job prefixes, protected Cell state, overwrite attempts, stale identities, and cross-account/group inputs [tests/contract/test_scheduled_job_phase_one.py:10]
 - [x] [Review][Patch] Remove stale Story 2.4 ownership claims from the README and correct the example timestamp format [modules/ecs-scheduled-job/README.md:7]
 - [x] [Review][Patch] Guard schedule-group ARN parsing and document a disabled replacement/migration path for the `prevent_destroy` schedule [modules/ecs-scheduled-job/main.tf:116]
+
+#### Review pass: 2026-07-24
+
+- [x] [Review][Patch] Make the publisher role assumable by the Terraform provider's same-account invocation identity; the role currently trusts only `lambda.amazonaws.com`, so the provider's explicit STS assumption fails before publication. [modules/ecs-scheduled-job-platform/main.tf:1042; tools/terraform-provider-cell/main.go:137]
+- [x] [Review][Patch] Correct the private API endpoint path; the contract endpoint uses stage `publish` while the API resource path is also `publish`, requiring `/publish/publish` rather than the currently advertised `/publish`. [modules/ecs-scheduled-job-platform/main.tf:1167; modules/ecs-scheduled-job-platform/main.tf:1218]
+- [x] [Review][Patch] Enforce the complete Registrar ownership state before publication, including `lifecycle`, `tombstoned`, and `transfer_state`, not only account, Region, and generation. [runtime/config_publisher/src/config_publisher/handler.py:93]
+- [x] [Review][Patch] Bind the job's declared `config_publisher_role_arn` to the provider configuration and enforce the exact effective role; it is currently validated but not wired into `cell_config_publication`. [modules/ecs-scheduled-job/phase_one.tf:112]
+- [x] [Review][Patch] Add a deterministic API Gateway deployment trigger so publisher Lambda/integration changes produce a new deployed stage instead of leaving stale code live. [modules/ecs-scheduled-job-platform/main.tf:1212]
+- [x] [Review][Patch] Reject activation windows where `activation_end` is not strictly after `activation_start`. [modules/ecs-scheduled-job/variables.tf:142]
+- [x] [Review][Patch] Validate actual IANA time-zone availability rather than accepting syntactically shaped but nonexistent zones. [modules/ecs-scheduled-job/variables.tf:123]
+- [x] [Review][Patch] Require `protocol_version` in the runtime request and validate the submitted contract version against the discovered Cell Contract rather than accepting any `1.x.y` value. [runtime/config_publisher/src/config_publisher/domain.py:121]
+- [x] [Review][Patch] Validate response `contract_version` and `ownership_generation` against the publication request before accepting provider success. [tools/terraform-provider-cell/main.go:102]
+- [x] [Review][Patch] Implement provider refresh behavior for a missing CONFIG object instead of making `Read` a no-op that preserves stale Terraform state. [tools/terraform-provider-cell/main.go:44]
+- [x] [Review][Patch] Prevent publisher rejection/error bodies from echoing arbitrary response data into Terraform diagnostics. [tools/terraform-provider-cell/main.go:99]
+- [x] [Review][Patch] Extend the response schema to model stable rejection responses as well as successful publication responses. [contracts/v1/schemas/config-publisher-response.schema.json:8]
+- [x] [Review][Patch] Convert malformed Registrar `owner_generation` data into a stable authorization rejection instead of an internal error. [runtime/config_publisher/src/config_publisher/handler.py:105]
+- [x] [Review][Patch] Cover early validation and authorization failures with bounded metrics/structured telemetry and add the required validation and latency alarm coverage. [runtime/config_publisher/src/config_publisher/handler.py:120; modules/ecs-scheduled-job-platform/main.tf:1246]
+- [x] [Review][Patch] Add effective IAM-negative tests for the configured apply/provider roles, exact CONFIG prefixes, overwrite attempts, and protected Cell resources rather than only text/fixture assertions. [tests/contract/test_scheduled_job_phase_one.py:8]
+- [x] [Review][Patch] Restore exact provider compatibility assertions and explicit child-module validation coverage instead of relying on generic substring checks and a validation skip. [scripts/validate.py:214; tests/contract/test_terraform_compatibility.py:25]
 
 ## Dev Notes
 

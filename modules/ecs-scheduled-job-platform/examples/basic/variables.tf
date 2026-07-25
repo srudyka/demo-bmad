@@ -60,6 +60,7 @@ variable "config_publisher" {
     reserved_concurrency = number
     timeout_seconds      = number
     log_retention_days   = number
+    invoker_role_arns    = set(string)
   })
   default = {
     artifact_path        = "/tmp/config-publisher.zip"
@@ -67,6 +68,7 @@ variable "config_publisher" {
     reserved_concurrency = 2
     timeout_seconds      = 30
     log_retention_days   = 365
+    invoker_role_arns    = ["arn:aws:iam::000000000000:role/example-job-apply"]
   }
 }
 

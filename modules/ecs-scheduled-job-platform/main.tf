@@ -532,7 +532,7 @@ locals {
       schema_range     = local.compatibility_catalog.component_ranges.config
       protocol_version = "config-publisher/1.0.0"
       auth_mode        = "AWS_IAM_PRIVATE_API"
-      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/publish"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/publish"
     }
     normalizer_ingress = {
       arn          = aws_sqs_queue.normalizer_ingress.arn
@@ -1048,6 +1048,15 @@ data "aws_iam_policy_document" "config_publisher_assume_role" {
       identifiers = ["lambda.amazonaws.com"]
     }
   }
+  statement {
+    sid     = "AllowSameAccountPublisherInvoker"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = var.config_publisher.invoker_role_arns
+    }
+  }
 }
 
 resource "aws_iam_role" "config_publisher" {
@@ -1135,6 +1144,7 @@ resource "aws_lambda_function" "config_publisher" {
       CONFIG_KMS_KEY_ARN            = var.kms_key_arn
       NAMESPACE_REGISTRY_TABLE_NAME = aws_dynamodb_table.namespace_registry.name
       METRIC_NAMESPACE              = var.metric_namespace
+      CELL_CONTRACT_VERSION         = var.contract_version
     }
   }
 
@@ -1212,13 +1222,21 @@ resource "aws_cloudwatch_log_group" "config_publisher_api" {
 resource "aws_api_gateway_deployment" "config_publisher" {
   rest_api_id = aws_api_gateway_rest_api.config_publisher.id
   depends_on  = [aws_api_gateway_integration.config_publisher]
+  triggers = {
+    publisher_revision = sha256(jsonencode({
+      api_method    = aws_api_gateway_method.config_publisher.id
+      integration   = aws_api_gateway_integration.config_publisher.uri
+      lambda_sha256 = aws_lambda_function.config_publisher.source_code_hash
+      validator     = aws_api_gateway_request_validator.config_publisher.id
+    }))
+  }
   lifecycle { create_before_destroy = true }
 }
 
 resource "aws_api_gateway_stage" "config_publisher" {
   rest_api_id           = aws_api_gateway_rest_api.config_publisher.id
   deployment_id         = aws_api_gateway_deployment.config_publisher.id
-  stage_name            = "publish"
+  stage_name            = "v1"
   cache_cluster_enabled = true
   cache_cluster_size    = "0.5"
   xray_tracing_enabled  = true
@@ -1301,6 +1319,37 @@ resource "aws_cloudwatch_metric_alarm" "config_publisher_authorization" {
   period              = 300
   evaluation_periods  = 1
   threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_validation" {
+  alarm_name          = "${local.name_prefix}-config-publisher-validation"
+  alarm_description   = "Repeated CONFIG publisher validation rejections require contract investigation."
+  namespace           = var.metric_namespace
+  metric_name         = "PublishResult"
+  dimensions          = { ResultCode = "CONFIG_DOCUMENT_INVALID" }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_publisher_latency" {
+  alarm_name          = "${local.name_prefix}-config-publisher-latency"
+  alarm_description   = "CONFIG publisher latency exceeded the bounded operational threshold."
+  namespace           = var.metric_namespace
+  metric_name         = "PublishLatency"
+  extended_statistic  = "p99"
+  period              = 300
+  evaluation_periods  = 3
+  threshold           = 5000
   comparison_operator = "GreaterThanOrEqualToThreshold"
   treat_missing_data  = "notBreaching"
   alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []

@@ -42,17 +42,20 @@ func provider() *schema.Provider {
 		ResourcesMap: map[string]*schema.Resource{
 			"cell_config_publication": {
 				Create: publish,
-				Read:   func(*schema.ResourceData, interface{}) error { return nil },
+				Read: func(_ *schema.ResourceData, _ interface{}) error {
+					return fmt.Errorf("Cell publisher does not support remote refresh; recreate the publication if the CONFIG object is missing")
+				},
 				Delete: func(*schema.ResourceData, interface{}) error { return nil },
 				Schema: map[string]*schema.Schema{
-					"job_id":               {Type: schema.TypeString, Required: true, ForceNew: true},
-					"config_version":       {Type: schema.TypeString, Required: true, ForceNew: true},
-					"object_key":           {Type: schema.TypeString, Required: true, ForceNew: true},
+					"job_id":                {Type: schema.TypeString, Required: true, ForceNew: true},
+					"config_version":        {Type: schema.TypeString, Required: true, ForceNew: true},
+					"object_key":            {Type: schema.TypeString, Required: true, ForceNew: true},
 					"contract_endpoint_url": {Type: schema.TypeString, Required: true, ForceNew: true},
-					"config_document":      {Type: schema.TypeString, Required: true, ForceNew: true, Sensitive: true},
-					"contract_version":     {Type: schema.TypeString, Required: true, ForceNew: true},
-					"ownership_generation": {Type: schema.TypeInt, Required: true, ForceNew: true},
-					"result":               {Type: schema.TypeString, Computed: true},
+					"config_document":       {Type: schema.TypeString, Required: true, ForceNew: true, Sensitive: true},
+					"contract_version":      {Type: schema.TypeString, Required: true, ForceNew: true},
+					"ownership_generation":  {Type: schema.TypeInt, Required: true, ForceNew: true},
+					"publisher_role_arn":    {Type: schema.TypeString, Required: true, ForceNew: true},
+					"result":                {Type: schema.TypeString, Computed: true},
 				},
 			},
 		},
@@ -64,6 +67,9 @@ func publish(data *schema.ResourceData, raw interface{}) error {
 	config := raw.(*clientConfig)
 	if data.Get("contract_endpoint_url").(string) != config.endpoint {
 		return fmt.Errorf("Cell publisher endpoint does not match the discovered contract")
+	}
+	if data.Get("publisher_role_arn").(string) != config.roleARN || config.roleARN == "" {
+		return fmt.Errorf("Cell publisher role does not match the declared provider role")
 	}
 	document := json.RawMessage(data.Get("config_document").(string))
 	payload := map[string]interface{}{
@@ -97,16 +103,18 @@ func publish(data *schema.ResourceData, raw interface{}) error {
 		return fmt.Errorf("read Cell publisher response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Cell publisher rejected request: status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+		return fmt.Errorf("Cell publisher rejected request: status=%d", resp.StatusCode)
 	}
 	var result struct {
-		ProtocolVersion string `json:"protocol_version"`
-		Lifecycle       string `json:"lifecycle"`
-		Result          string `json:"result"`
-		JobID           string `json:"job_id"`
-		ConfigVersion   string `json:"config_version"`
-		ObjectKey       string `json:"object_key"`
-		OperationID     string `json:"operation_id"`
+		ProtocolVersion     string `json:"protocol_version"`
+		Lifecycle           string `json:"lifecycle"`
+		Result              string `json:"result"`
+		JobID               string `json:"job_id"`
+		ConfigVersion       string `json:"config_version"`
+		ObjectKey           string `json:"object_key"`
+		ContractVersion     string `json:"contract_version"`
+		OwnershipGeneration int    `json:"ownership_generation"`
+		OperationID         string `json:"operation_id"`
 	}
 	if err := json.Unmarshal(responseBody, &result); err != nil {
 		return fmt.Errorf("decode Cell publisher response: %w", err)
@@ -114,7 +122,8 @@ func publish(data *schema.ResourceData, raw interface{}) error {
 	if result.ProtocolVersion != protocolVersion || result.Lifecycle != "PUBLISHED" ||
 		(result.Result != "PUBLISHED" && result.Result != "ALREADY_PUBLISHED") ||
 		result.JobID != data.Get("job_id") || result.ConfigVersion != data.Get("config_version") ||
-		result.ObjectKey != data.Get("object_key") || !strings.HasPrefix(result.OperationID, "cfgpub-") {
+		result.ObjectKey != data.Get("object_key") || result.ContractVersion != data.Get("contract_version") ||
+		result.OwnershipGeneration != data.Get("ownership_generation") || !strings.HasPrefix(result.OperationID, "cfgpub-") {
 		return fmt.Errorf("Cell publisher returned an invalid response contract")
 	}
 	data.SetId(fmt.Sprintf("%s/%s", data.Get("job_id"), data.Get("config_version")))

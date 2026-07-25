@@ -84,6 +84,7 @@ def request() -> PublishRequest:
     }
     return PublishRequest.from_mapping(
         {
+            "protocol_version": "config-publisher/1.0.0",
             "job_id": "dev/sample/daily",
             "config_version": version,
             "object_key": f"jobs/dev/sample/daily/config/{version}.json",
@@ -152,6 +153,7 @@ def test_request_rejects_secret_values() -> None:
     with pytest.raises(PublisherError, match="CONFIG_SECRET_VALUE_FORBIDDEN"):
         PublishRequest.from_mapping(
             {
+                "protocol_version": "config-publisher/1.0.0",
                 "job_id": "dev/sample/daily",
                 "config_version": "0" * 64,
                 "object_key": "jobs/dev/sample/daily/config/" + "0" * 64 + ".json",
@@ -169,6 +171,7 @@ def test_request_rejects_schema_invalid_config() -> None:
     with pytest.raises(PublisherError, match="CONFIG_DOCUMENT_INVALID"):
         PublishRequest.from_mapping(
             {
+                "protocol_version": "config-publisher/1.0.0",
                 "job_id": current.job_id,
                 "config_version": current.config_version,
                 "object_key": current.object_key,

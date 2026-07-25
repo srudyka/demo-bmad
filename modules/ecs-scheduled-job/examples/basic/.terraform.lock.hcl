@@ -5,8 +5,8 @@ provider "registry.terraform.io/demo-bmad/cell" {
   version     = "0.1.0"
   constraints = "0.1.0"
   hashes = [
-    "h1:IiCMDAzfLM9I/kJcy4gGRaL5QKqTTaNJXa0Ym+i7cGw=",
-    "h1:zRIOer7lT3/xkBR/d4W+FM8qeE9ab2dvshMQGvS5eaU=",
+    "h1:1m0rshj2GWpukOYb8iu0lPGGr4/v6jSMQl8WYNimdEw=",
+    "h1:t9LAgsblGb+pjAkg1IefTLFhNiVSrLpMPdwnhDJ6TvA=",
   ]
 }
 

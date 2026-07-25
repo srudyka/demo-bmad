@@ -33,6 +33,7 @@ data "aws_vpc_security_group_rules" "existing" {
 }
 
 locals {
+  supported_time_zones = compact(split("\n", trimspace(file("${path.module}/iana-timezones.txt"))))
   existing_rule_ids = toset(flatten([
     for group_rules in values(data.aws_vpc_security_group_rules.existing) : group_rules.ids
   ]))
@@ -450,6 +451,10 @@ resource "terraform_data" "declaration_validation" {
     precondition {
       condition     = var.runtime.max_runtime_seconds >= 60 && var.runtime.max_runtime_seconds <= 86400
       error_message = "JOB_RUNTIME_DEADLINE_INVALID: max_runtime_seconds must fit the CONFIG completion window bounds."
+    }
+    precondition {
+      condition     = contains(local.supported_time_zones, var.schedule_time_zone)
+      error_message = "SCHEDULE_TIME_ZONE_INVALID: schedule_time_zone must be an available IANA time zone from the pinned tzdb catalog."
     }
   }
 }

@@ -16,6 +16,13 @@ def test_phase_one_owns_disabled_scheduler_and_config_only() -> None:
     assert 'resource "cell_config_publication" "config"' in terraform
     assert "provider" in (MODULE / "phase_one.tf").read_text()
     assert "cell.publisher" in (MODULE / "phase_one.tf").read_text()
+    assert (
+        "publisher_role_arn    = var.config_publisher_role_arn"
+        in (MODULE / "phase_one.tf").read_text()
+    )
+    assert (
+        "config_publisher_role_arn" in (MODULE / "examples/basic/main.tf").read_text()
+    )
     assert 'resource "aws_ecs_task_definition" "job"' in terraform
     assert 'resource "aws_scheduler_schedule" "job"' in terraform
     assert "arn      = local.contract_integrations.scheduler_ingress.arn" in terraform
@@ -36,10 +43,12 @@ def test_scheduler_delivery_role_is_exact_and_separate() -> None:
     assert 'variable = "aws:SourceArn"' in phase_one
     assert "local.contract_integrations.scheduler_schedule_group.arn" in phase_one
     assert 'actions   = ["sqs:SendMessage"]' in phase_one
+    assert 'actions   = ["sqs:SendMessage", "sqs:*"' not in phase_one
     assert 'actions   = ["kms:GenerateDataKey", "kms:Decrypt"]' in phase_one
     assert "local.contract_integrations.scheduler_ingress.arn" in phase_one
     assert "local.contract_integrations.scheduler_dlq.arn" in phase_one
-    assert 'actions   = ["sqs:SendMessage", "sqs:*"' not in phase_one
+    assert "ACTIVATION_WINDOW_INVALID" in (MODULE / "main.tf").read_text()
+    assert "iana-timezones.txt" in (MODULE / "main.tf").read_text()
 
 
 def test_schedule_and_config_are_content_addressed_and_secret_safe() -> None:
@@ -59,6 +68,15 @@ def test_schedule_and_config_are_content_addressed_and_secret_safe() -> None:
     assert "occurrence_id" not in main
     assert "secret_values" not in main
     assert '"config_version"' in schema
+
+
+def test_publisher_role_and_cell_policy_are_not_ambient() -> None:
+    phase_one = (MODULE / "phase_one.tf").read_text()
+    platform = (ROOT / "modules" / "ecs-scheduled-job-platform" / "main.tf").read_text()
+    assert "publisher_role_arn    = var.config_publisher_role_arn" in phase_one
+    assert 'resource = "cell_config_publication"' not in phase_one
+    assert "s3:PutObject" in platform
+    assert "jobs/*/config/*.json" in platform
 
 
 def test_phase_one_outputs_publish_without_authorizing_launch() -> None:

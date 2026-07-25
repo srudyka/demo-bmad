@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import uuid
 from collections.abc import Mapping
@@ -87,6 +88,7 @@ class PublishRequest:
             "config_document",
             "contract_version",
             "ownership_generation",
+            "protocol_version",
         )
         if any(key not in value for key in required):
             raise PublisherError("PUBLISH_REQUEST_INVALID")
@@ -118,12 +120,12 @@ class PublishRequest:
             or generation < 1
         ):
             raise PublisherError("OWNERSHIP_GENERATION_INVALID")
-        protocol = value.get("protocol_version", PROTOCOL)
+        protocol = value["protocol_version"]
         contract = value["contract_version"]
         if (
             protocol != PROTOCOL
             or not isinstance(contract, str)
-            or not re.fullmatch(r"1\.[0-9]+\.[0-9]+", contract)
+            or contract != os.environ.get("CELL_CONTRACT_VERSION", "1.0.0")
         ):
             raise PublisherError("PUBLISH_PROTOCOL_UNSUPPORTED")
         body = rfc8785.dumps(cast(Any, document["config"]))
