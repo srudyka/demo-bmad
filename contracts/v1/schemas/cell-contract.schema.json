@@ -92,6 +92,9 @@
             "endpoint_url": {
               "pattern": "^https://.+$",
               "type": "string"
+            },
+            "notification_target_arn": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
             }
         },
         "required": [

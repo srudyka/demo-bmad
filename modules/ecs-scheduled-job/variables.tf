@@ -404,6 +404,65 @@ variable "module_version" {
   }
 }
 
+variable "workflow_identity" {
+  description = "Optional bounded non-sensitive workflow identity recorded in Deployment Identity and operational evidence."
+  type        = string
+  default     = ""
+  validation {
+    condition = var.workflow_identity == "" || (
+      can(regex("^[A-Za-z0-9._:/=-]{1,128}$", var.workflow_identity)) &&
+      !strcontains(lower(var.workflow_identity), "secret") &&
+      !strcontains(lower(var.workflow_identity), "password") &&
+      !strcontains(lower(var.workflow_identity), "token") &&
+      !strcontains(var.workflow_identity, "{") &&
+      !strcontains(var.workflow_identity, "}")
+    )
+    error_message = "workflow_identity must be empty or a bounded non-sensitive identifier; raw JSON and secret-like values are forbidden."
+  }
+}
+
+variable "deployment_run_reference" {
+  description = "Optional bounded non-sensitive deployment run reference recorded in Deployment Identity and operational evidence."
+  type        = string
+  default     = ""
+  validation {
+    condition = var.deployment_run_reference == "" || (
+      can(regex("^[A-Za-z0-9._:/=-]{1,128}$", var.deployment_run_reference)) &&
+      !strcontains(lower(var.deployment_run_reference), "secret") &&
+      !strcontains(lower(var.deployment_run_reference), "password") &&
+      !strcontains(lower(var.deployment_run_reference), "token") &&
+      !strcontains(var.deployment_run_reference, "{") &&
+      !strcontains(var.deployment_run_reference, "}")
+    )
+    error_message = "deployment_run_reference must be empty or a bounded non-sensitive identifier; raw JSON and secret-like values are forbidden."
+  }
+}
+
+variable "dashboard" {
+  description = "Optional bounded per-job CloudWatch operational dashboard; required alarms and Cell health do not depend on it."
+  type = object({
+    enabled                    = optional(bool, false)
+    time_range_hours           = optional(number, 24)
+    refresh_seconds            = optional(number, 300)
+    max_widgets                = optional(number, 8)
+    max_metrics                = optional(number, 40)
+    max_queries                = optional(number, 2)
+    estimated_monthly_cost_usd = optional(number, 25)
+  })
+  default = {}
+  validation {
+    condition = (
+      var.dashboard.time_range_hours >= 1 && var.dashboard.time_range_hours <= 168 && floor(var.dashboard.time_range_hours) == var.dashboard.time_range_hours &&
+      var.dashboard.refresh_seconds >= 60 && var.dashboard.refresh_seconds <= 900 && floor(var.dashboard.refresh_seconds) == var.dashboard.refresh_seconds &&
+      var.dashboard.max_widgets >= 1 && var.dashboard.max_widgets <= 8 && floor(var.dashboard.max_widgets) == var.dashboard.max_widgets &&
+      var.dashboard.max_metrics >= 1 && var.dashboard.max_metrics <= 40 && floor(var.dashboard.max_metrics) == var.dashboard.max_metrics &&
+      var.dashboard.max_queries >= 0 && var.dashboard.max_queries <= 2 && floor(var.dashboard.max_queries) == var.dashboard.max_queries &&
+      var.dashboard.estimated_monthly_cost_usd >= 0 && var.dashboard.estimated_monthly_cost_usd <= 25
+    )
+    error_message = "dashboard limits must be bounded: time range 1-168h, refresh 60-900s, widgets <=8, metrics <=40, queries <=2, and estimated cost <=25 USD/month."
+  }
+}
+
 variable "permissions_boundary_arn" {
   description = "Cell-approved same-account customer-managed IAM permissions boundary required on all three job roles."
   type        = string

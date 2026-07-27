@@ -79,8 +79,21 @@ locals {
     ManagedBy   = "Terraform"
     Repository  = var.repository_id
   }
-  merged_tags                   = merge(var.tags, local.protected_tags)
+  # ECS assigns the revision only after this resource is created, so resource
+  # tags use the pre-create identity material to avoid a Terraform dependency
+  # cycle. CONFIG, runtime metadata, alerts, and outputs use the final ID.
+  deployment_identity_seed_json = jsonencode(local.deployment_identity_base)
+  deployment_identity_seed_id   = sha256(local.deployment_identity_seed_json)
+  merged_tags                   = merge(var.tags, local.protected_tags, { DeploymentIdentity = local.deployment_identity_seed_id })
   contract_integrations         = try(local.contract.integrations, {})
+  required_operational_integrations_available = alltrue([
+    try(local.contract_integrations.scheduler_schedule_group.owner, "") == "cell-root",
+    try(local.contract_integrations.scheduler_ingress.owner, "") == "cell-root",
+    try(local.contract_integrations.scheduler_dlq.owner, "") == "cell-root",
+    try(local.contract_integrations.occurrence_ledger.arn, "") != "",
+    try(local.contract_integrations.alert_router.arn, "") != "",
+    try(local.contract_integrations.alert_router.notification_target_arn, "") == var.notification.target_arn,
+  ])
   completion_filter_pattern     = "{ $.schema_version = \"1.0.0\" && $.marker_status = * }"
   network_catalog               = try(jsondecode(file("${path.module}/../../contracts/v1/catalogs/network.json")), null)
   network_catalog_valid         = try(local.network_catalog.schema_version == "1.0.0" && local.network_catalog.policy_version == "1.0.0" && local.network_catalog.unknown_policy_disposition == "BLOCK" && length(local.network_catalog.finding_severity) > 0 && local.network_catalog.exception_policy.owner != "" && contains(local.network_catalog.enforcement_stages, local.network_catalog.exception_policy.enforcement_stage), false)
@@ -93,17 +106,29 @@ locals {
   existing_rules                    = values(data.aws_vpc_security_group_rule.existing)
   log_group_name                    = "/platform/jobs/${replace(local.job_id, "/", "-")}"
   effective_log_retention_days      = var.log_retention_days == null ? (var.environment == "prod" ? 90 : 30) : var.log_retention_days
-  deployment_identity = {
-    source_revision  = var.source_revision
-    module_version   = var.module_version
-    image            = var.image
-    account_id       = var.account_id
-    region           = var.region
-    environment      = var.environment
-    job_id           = local.job_id
-    platform_version = var.platform_version
+  deployment_identity_base = {
+    source_revision          = var.source_revision
+    module_version           = var.module_version
+    image                    = var.image
+    image_digest             = try(split("@", var.image)[1], "")
+    account_id               = var.account_id
+    region                   = var.region
+    environment              = var.environment
+    job_id                   = local.job_id
+    platform_version         = var.platform_version
+    workflow_identity        = var.workflow_identity
+    deployment_run_reference = var.deployment_run_reference
+    schedule_generation      = local.schedule_generation
+    cell_contract_version    = try(local.contract.contract_version, "")
+    cell_contract_checksum   = try(local.contract.checksum, "")
   }
-  deployment_identity_json = jsonencode(local.deployment_identity)
+  deployment_identity = merge(local.deployment_identity_base, {
+    task_definition_revision = try(aws_ecs_task_definition.job.revision, 0)
+    config_hash              = try(local.config_hash, "")
+  })
+  deployment_identity_json      = jsonencode(local.deployment_identity)
+  deployment_identity_id        = sha256(local.deployment_identity_json)
+  acknowledgement_evidence_hash = try(sha256(cell_config_acknowledgement.config.validation_evidence), "")
   config_secret_references = [
     for reference in var.secret_references : strcontains(reference, ":secretsmanager:") ? {
       provider   = "secrets_manager"
@@ -126,15 +151,13 @@ locals {
     tzdb_version         = "2026b"
   }
   schedule_generation           = sha256("schedule/v1\n${jsonencode(local.schedule_body)}")
-  scheduler_schedule_group_name = try(regex("^arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule-group/([^/]+)$", local.contract_integrations.scheduler_schedule_group.arn)[0], "")
+  scheduler_schedule_group_name = try(regex("^arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule-group/([^/]+)$", try(local.contract_integrations.scheduler_schedule_group.arn, ""))[0], "")
   schedule_arn                  = "arn:${data.aws_partition.current.partition}:scheduler:${var.region}:${var.account_id}:schedule/${local.scheduler_schedule_group_name}/${local.name_prefix}"
-  config_body = {
+  config_body_base = {
     cluster_arn               = var.ecs_cluster_arn
     completion_window_seconds = var.runtime.max_runtime_seconds
     contract_version          = local.contract.contract_version
     contract_checksum         = local.contract.checksum
-    deployment_identity_id    = sha256(local.deployment_identity_json)
-    deployment_identity       = local.deployment_identity
     job_id                    = local.job_id
     logs = {
       log_group_arn  = aws_cloudwatch_log_group.job.arn
@@ -169,6 +192,7 @@ locals {
     schedule                   = local.schedule_body
     schedule_arn               = local.schedule_arn
     schedule_generation        = local.schedule_generation
+    task_definition_revision   = aws_ecs_task_definition.job.revision
     scheduler_delivery_role_id = aws_iam_role.scheduler_delivery.unique_id
     network_policy_version     = var.networking.policy_version
     policy_versions            = { cell_contract = local.contract.contract_version, network = var.networking.policy_version, module = var.module_version }
@@ -180,6 +204,11 @@ locals {
       destination_arn = try(local.contract_integrations.log_ingestor.arn, "")
     }
   }
+  config_hash = lower(sha256(jsonencode(local.config_body_base)))
+  config_body = merge(local.config_body_base, {
+    deployment_identity_id = local.deployment_identity_id
+    deployment_identity    = local.deployment_identity
+  })
   config_json          = jsonencode(local.config_body)
   config_version       = lower(sha256(local.config_json))
   config_document      = { config = local.config_body, config_version = local.config_version, schema_version = "1.0.0" }
@@ -285,6 +314,8 @@ resource "terraform_data" "declaration_validation" {
         try(local.contract_integrations.log_ingestor.auth_mode, "") == "CELL_LOG_SUBSCRIPTION" &&
         can(regex("^arn:${data.aws_partition.current.partition}:lambda:${var.region}:${var.account_id}:function:[A-Za-z0-9_-]+$", try(local.contract_integrations.log_ingestor.arn, ""))) &&
         try(local.contract_integrations.log_ingestor.filter_pattern, "") == local.completion_filter_pattern
+        && try(local.contract_integrations.alert_router.owner, "") == "cell-root"
+        && try(local.contract_integrations.alert_router.notification_target_arn, "") == var.notification.target_arn
       )
       error_message = "CELL_CONTRACT_INVALID_OR_INCOMPATIBLE: discovered Cell Contract is not exact and compatible."
     }

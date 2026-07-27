@@ -594,9 +594,10 @@ locals {
       schema_range = local.compatibility_catalog.component_ranges["alert-router"]
     }
     alert_router = {
-      arn          = aws_lambda_function.alert_router.arn
-      owner        = "cell-root"
-      schema_range = local.compatibility_catalog.component_ranges["alert-router"]
+      arn                     = aws_lambda_function.alert_router.arn
+      owner                   = "cell-root"
+      schema_range            = local.compatibility_catalog.component_ranges["alert-router"]
+      notification_target_arn = var.alert_router.notification_target_arn
     }
     log_ingestor = {
       arn              = aws_lambda_function.log_ingestor.arn

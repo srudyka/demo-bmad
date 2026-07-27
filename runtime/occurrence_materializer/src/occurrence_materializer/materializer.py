@@ -158,12 +158,9 @@ def _assert_config_bindings(
             raise MaterializationError("MATERIALIZER_OPERATIONAL_METADATA_INVALID")
         if registration.owner and operational.get("owner") != registration.owner:
             raise MaterializationError("MATERIALIZER_OWNER_METADATA_MISMATCH")
-        if (
-            operational.get("notification_target_arn")
-            != config.get("notification_target_arn")
-            or operational.get("runbook_uri")
-            != config.get("notification_runbook_uri")
-        ):
+        if operational.get("notification_target_arn") != config.get(
+            "notification_target_arn"
+        ) or operational.get("runbook_uri") != config.get("notification_runbook_uri"):
             raise MaterializationError("MATERIALIZER_OPERATIONAL_METADATA_MISMATCH")
         if operational.get("detection_mode") not in {"occurrence-aware", "best-effort"}:
             raise MaterializationError("MATERIALIZER_DETECTION_MODE_INVALID")
@@ -173,7 +170,10 @@ def _assert_config_bindings(
             raise MaterializationError("MATERIALIZER_COMPLETION_METADATA_INVALID")
         if completion.get("detection_mode") not in {"occurrence-aware", "best-effort"}:
             raise MaterializationError("MATERIALIZER_DETECTION_MODE_INVALID")
-        if completion.get("filter_pattern") != '{ $.schema_version = "1.0.0" && $.marker_status = * }':
+        if (
+            completion.get("filter_pattern")
+            != '{ $.schema_version = "1.0.0" && $.marker_status = * }'
+        ):
             raise MaterializationError("MATERIALIZER_COMPLETION_FILTER_INVALID")
         _assert_arn_binding(completion.get("destination_arn"), registration, "lambda")
     logs = config.get("logs")

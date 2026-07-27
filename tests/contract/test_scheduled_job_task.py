@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 
@@ -80,7 +81,7 @@ def test_task_preserves_revisions_and_publishes_platform_handoff() -> None:
     main = (MODULE / "main.tf").read_text()
     outputs = (MODULE / "outputs.tf").read_text()
     assert "skip_destroy             = true" in task
-    assert "platform_version = var.platform_version" in main
+    assert re.search(r"platform_version\s*=\s*var\.platform_version", main)
     assert "platform_version         = var.platform_version" in outputs
 
 

@@ -3,6 +3,7 @@
     "catalogs": [
       "compatibility",
       "commands",
+      "dashboard",
       "event-types",
       "iam",
       "keys-and-correlation",
@@ -65,5 +66,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "d7833354a6b7eaa32718fe88ecaaf95fee8aa6ed7abd816dbaa8ca5f84949875"
+  "semantic_surface_sha256": "ffe19b55955ff518d9f7ecfc6833aa1ed8d32ee858311a9026a8a9c30a1f8acb"
 }

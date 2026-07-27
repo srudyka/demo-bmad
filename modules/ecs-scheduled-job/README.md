@@ -53,6 +53,48 @@ Registrar-confirmed reservation, protected tags, normalized schedule identity,
 role ARNs/IDs, task-definition and log-group identity, Deployment Identity,
 and non-sensitive network handoff metadata.
 
+## Operational Outputs
+
+The stable `job_identity`, `schedule`, `task`, `logs`, `config`, `operations`,
+`alarms`, and `dashboard` outputs are the supported operator handoff. They
+contain resource identifiers, hashes, bounded policy metadata, lifecycle
+source, and approved Cell references. They do not contain raw CONFIG,
+validation evidence, secret values, credentials, or log contents. The
+`config.evidence_hash` value is a correlation hash, not the evidence payload.
+
+The lifecycle fields distinguish the requested state from the authoritative
+Cell CONFIG acknowledgement. A requested `ENABLED` state is not evidence that
+launch is authorized until the acknowledgement reports the exact compatible
+generation.
+
+Operators may use the output values with approved short-lived access:
+
+```bash
+aws scheduler get-schedule --name <schedule-name> --group-name <schedule-group>
+aws ecs describe-task-definition --task-definition <task-family>:<revision>
+aws ecs describe-tasks --cluster <cluster-arn> --tasks <task-arn-from-approved-evidence>
+aws logs tail <log-group-name> --since 1h
+aws cloudwatch describe-alarms --alarm-names <alarm-name>
+```
+
+Occurrence state, CONFIG acknowledgement, notification routing, and Cell
+health are reached through the `operations` and `alarms` references and the
+Cell runbook. The output references identify the occurrence ledger, CONFIG
+validator endpoint, Alert Router, and Cell-health contract; use the approved
+short-lived operator procedure in the runbook for the corresponding console
+or CLI view. Routine operation never requires platform or consumer Terraform
+state inspection commands, direct Cell datastore access, or workload roles.
+
+The optional per-job CloudWatch dashboard is disabled by default. When
+enabled, it is a bounded informational view with seven health-plane widgets,
+one scope/runbook text widget, no unrestricted log query, and a documented
+maximum of eight widgets, forty metrics, and two queries. Dashboard absence or
+failure does not affect logs, occurrence tracking, deadlines, alarms,
+notification routing, or Cell health. Dashboard rollback is performed by
+restoring the previous compatible body or setting `dashboard.enabled = false`;
+it does not change the schedule, task revision, CONFIG, occurrences, or
+alarms.
+
 Phase one also publishes one disabled EventBridge Scheduler schedule and a
 separate Scheduler delivery role targeting the Cell Contract's scheduler
 ingress queue and DLQ. It writes one encrypted, content-addressed CONFIG
@@ -131,8 +173,9 @@ later Job Completion Contract. Every record asserts the job, Occurrence ID,
 CONFIG version, attempt, timestamp, status, and sanitized error reason; an
 isolated success marker or zero exit is not authoritative completion. Denied
 AssumeRole, PassRole, secret retrieval, and task execution signals are
-operational handoffs for later stories; this module creates no alarms or
-dashboards.
+operational handoffs for later stories; required Cell alarms and routing are
+exposed through the authoritative contract, while the optional job dashboard
+is independently managed and never required for alerting.
 
 Secret delivery is mode-specific: `ecs-agent` uses ECS `secrets` locator
 entries, while `application-pull` exposes only `SECRET_MODE`, the JSON list of

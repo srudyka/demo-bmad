@@ -67,6 +67,7 @@ class RepositoryStructureTest(unittest.TestCase):
             "aws_iam_role",
             "aws_iam_role_policy",
             "aws_cloudwatch_log_group",
+            "aws_cloudwatch_dashboard",
             "aws_cloudwatch_metric_alarm",
             "aws_cloudwatch_event_rule",
             "aws_cloudwatch_event_target",
@@ -122,7 +123,7 @@ class RepositoryStructureTest(unittest.TestCase):
             (REPOSITORY_ROOT / "modules" / "ecs-scheduled-job").glob("**/*.tf")
         )
         prohibited_blocks = re.compile(
-            r'^\s*(backend|terraform_remote_state|resource\s+"(?!((terraform_data|cell_config_publication|cell_config_acknowledgement|aws_iam_role|aws_iam_role_policy|aws_iam_role_policy_attachment|aws_security_group|aws_vpc_security_group_egress_rule|aws_ecs_task_definition|aws_cloudwatch_log_group|aws_scheduler_schedule|aws_s3_object|aws_lambda_permission|aws_cloudwatch_log_subscription_filter|aws_cloudwatch_log_metric_filter)"))|data\s+"(?!aws_(caller_identity|region|partition|ssm_parameter|iam_policy_document|iam_policy|vpc|subnet|security_group|prefix_list|vpc_security_group_rules|vpc_security_group_rule)"))',
+            r'^\s*(backend|terraform_remote_state|resource\s+"(?!((terraform_data|cell_config_publication|cell_config_acknowledgement|aws_iam_role|aws_iam_role_policy|aws_iam_role_policy_attachment|aws_security_group|aws_vpc_security_group_egress_rule|aws_ecs_task_definition|aws_cloudwatch_log_group|aws_scheduler_schedule|aws_s3_object|aws_lambda_permission|aws_cloudwatch_log_subscription_filter|aws_cloudwatch_log_metric_filter|aws_cloudwatch_dashboard)"))|data\s+"(?!aws_(caller_identity|region|partition|ssm_parameter|iam_policy_document|iam_policy|vpc|subnet|security_group|prefix_list|vpc_security_group_rules|vpc_security_group_rule)"))',
             re.MULTILINE,
         )
         for terraform_file in job_files:

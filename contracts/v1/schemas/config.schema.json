@@ -27,7 +27,12 @@
             "module_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
             "platform_version": { "type": "string" },
             "region": { "pattern": "^[a-z0-9-]+$", "type": "string" },
-            "source_revision": { "minLength": 1, "type": "string" }
+            "source_revision": { "minLength": 1, "type": "string" },
+            "workflow_identity": { "type": "string" },
+            "deployment_run_reference": { "type": "string" },
+            "schedule_generation": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "cell_contract_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+            "cell_contract_checksum": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" }
           },
           "required": ["source_revision", "module_version", "image", "account_id", "region", "environment", "job_id", "platform_version"],
           "type": "object"

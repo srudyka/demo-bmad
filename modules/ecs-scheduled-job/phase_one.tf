@@ -176,7 +176,7 @@ resource "cell_config_acknowledgement" "config" {
   ownership_generation        = try(var.registrar_receipt.owner_generation, 0)
   schedule_generation         = local.schedule_generation
   schedule_arn                = local.schedule_arn
-  schedule_group_arn          = local.contract_integrations.scheduler_schedule_group.arn
+  schedule_group_arn          = try(local.contract_integrations.scheduler_schedule_group.arn, "")
   scheduler_delivery_role_arn = aws_iam_role.scheduler_delivery.arn
   scheduler_delivery_role_id  = aws_iam_role.scheduler_delivery.unique_id
   task_family                 = aws_ecs_task_definition.job.family

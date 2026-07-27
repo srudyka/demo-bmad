@@ -136,7 +136,9 @@ def build_occurrence_alert(
         raise AlertRoutingError("RUNBOOK_METADATA_MISMATCH")
     if not isinstance(configured_owner, str) or not configured_owner.strip():
         raise AlertRoutingError("OWNER_INVALID")
-    if not isinstance(configured_runbook, str) or not configured_runbook.startswith("https://"):
+    if not isinstance(configured_runbook, str) or not configured_runbook.startswith(
+        "https://"
+    ):
         raise AlertRoutingError("RUNBOOK_INVALID")
     return {
         "schema_version": "1.0.0",

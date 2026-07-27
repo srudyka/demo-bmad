@@ -35,7 +35,9 @@ resource "aws_ecs_task_definition" "job" {
           { name = "JOB_ID", value = local.job_id },
           { name = "SOURCE_REVISION", value = var.source_revision },
           { name = "MODULE_VERSION", value = var.module_version },
-          { name = "DEPLOYMENT_IDENTITY", value = local.deployment_identity_json },
+          { name = "DEPLOYMENT_IDENTITY", value = local.deployment_identity_seed_json },
+          { name = "WORKFLOW_IDENTITY", value = var.workflow_identity },
+          { name = "DEPLOYMENT_RUN_REFERENCE", value = var.deployment_run_reference },
           { name = "SECRET_MODE", value = var.secret_mode },
         ],
         var.secret_mode == "application-pull" ? [
