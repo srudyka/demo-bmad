@@ -129,3 +129,21 @@ output "phase_one" {
     launch_authorized           = false
   }
 }
+
+output "phase_two" {
+  description = "Explicit non-production activation handoff and exact materialized acknowledgement identity."
+  value = {
+    lifecycle              = var.activation.enabled ? "ENABLED" : var.activation.lifecycle
+    schedule_state         = var.activation.enabled ? "ENABLED" : "DISABLED"
+    launch_authorized      = var.activation.enabled
+    job_id                 = local.job_id
+    config_version         = local.config_version
+    schedule_arn           = local.schedule_arn
+    schedule_generation    = local.schedule_generation
+    owner_generation       = try(var.registrar_receipt.owner_generation, 0)
+    horizon_watermark      = var.activation.horizon_watermark
+    conformance_result     = var.activation.conformance_result
+    validation_evidence    = var.activation.validation_evidence
+    deployment_identity_id = var.activation.deployment_identity_id
+  }
+}

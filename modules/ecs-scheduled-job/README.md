@@ -72,8 +72,22 @@ replacement. If a deployment must retire
 a schedule, first disable and drain it, publish a successor version, and only
 then perform an explicitly approved state migration because the schedule and
 CONFIG resources use `prevent_destroy`.
-The `phase_one` output reports `PUBLISHED` and `launch_authorized = false`;
-Cell acknowledgement and schedule activation belong to later stories.
+The `phase_one` output reports `PUBLISHED` and `launch_authorized = false`.
+When phase-two activation is requested, the Cell validator provider requires an
+authoritative `MATERIALIZED` snapshot before Terraform can enable Scheduler.
+
+Phase two is opt-in through the `activation` object. Its default keeps the
+existing schedule `DISABLED`; setting `activation.enabled = true` requires an
+exact non-production `MATERIALIZED` Cell acknowledgement, `PASS` conformance,
+matching config/schedule/role/task/owner identity, and at least 24 hours of
+expected horizon. The module still targets the Cell scheduler ingress queue;
+it never adds a direct Scheduler-to-ECS target. Disablement retains task,
+CONFIG, registry, occurrence, log, alarm, and ownership evidence. Production
+activation remains blocked until the governed delivery and readiness stories
+provide their controls. Platform alarms cover validator errors, throttles,
+rejections, conflicts, scheduler queue age/depth, and queue DLQs; operators
+must disable launch first, retain evidence, restore a compatible generation,
+and repeat validation before rollback.
 
 The `task_definition` and `deployment_identity` outputs are the authoritative
 handoff for the later launch/CONFIG story. They include the approved

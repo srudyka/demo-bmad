@@ -31,6 +31,17 @@ func TestProviderAcknowledgementContractRequiresImmutableBindings(t *testing.T) 
 	}
 }
 
+func TestProviderSupportsMaterializedActivationAcknowledgements(t *testing.T) {
+	resource := provider().ResourcesMap["cell_config_acknowledgement"]
+	field, ok := resource.Schema["required_lifecycle"]
+	if !ok || !field.Optional || !field.ForceNew || field.Default != "VALIDATED" {
+		t.Fatal("required_lifecycle must default to VALIDATED and be immutable")
+	}
+	if _, ok := resource.Schema["conformance_result"]; !ok {
+		t.Fatal("conformance_result must be exposed from the authoritative acknowledgement")
+	}
+}
+
 func TestAcknowledgementRejectsWrongEndpointBeforeAuthentication(t *testing.T) {
 	p := provider()
 	data := schema.TestResourceDataRaw(t, p.ResourcesMap["cell_config_acknowledgement"].Schema, map[string]interface{}{

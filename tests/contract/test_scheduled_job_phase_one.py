@@ -12,7 +12,11 @@ MODULE = ROOT / "modules" / "ecs-scheduled-job"
 def test_phase_one_owns_disabled_scheduler_and_config_only() -> None:
     terraform = "\n".join(path.read_text() for path in MODULE.glob("*.tf"))
     assert 'resource "aws_scheduler_schedule" "job"' in terraform
-    assert 'state                        = "DISABLED"' in terraform
+    assert (
+        'state                        = var.activation.enabled ? "ENABLED" : "DISABLED"'
+        in terraform
+    )
+    assert 'state                        = "ENABLED"' not in terraform
     assert 'resource "cell_config_publication" "config"' in terraform
     assert "provider" in (MODULE / "phase_one.tf").read_text()
     assert "cell.publisher" in (MODULE / "phase_one.tf").read_text()
@@ -95,6 +99,55 @@ def test_phase_one_outputs_publish_without_authorizing_launch() -> None:
         "activation_start",
     ):
         assert term in outputs
+
+
+def test_phase_two_requires_exact_materialized_acknowledgement() -> None:
+    phase_one = (MODULE / "phase_one.tf").read_text()
+    variables = (MODULE / "variables.tf").read_text()
+    outputs = (MODULE / "outputs.tf").read_text()
+    assert 'variable "activation"' in variables
+    for field in (
+        "lifecycle",
+        "config_version",
+        "schedule_generation",
+        "schedule_arn",
+        "owner_generation",
+        "horizon_watermark",
+        "conformance_result",
+    ):
+        assert field in variables
+    for field in (
+        "config_version",
+        "schedule_generation",
+        "schedule_arn",
+        "owner_generation",
+        "horizon_watermark",
+    ):
+        assert f"activation.{field}" in phase_one
+    assert "activation.lifecycle" in variables
+    assert "activation.conformance_result" in variables
+    assert "activation.enabled" in phase_one
+    assert "sha256(local.deployment_identity_json)" in phase_one
+    assert (
+        'required_lifecycle          = var.activation.enabled ? "MATERIALIZED" : "VALIDATED"'
+        in phase_one
+    )
+    assert 'cell_config_acknowledgement.config.result == "MATERIALIZED"' in phase_one
+    assert "cell_config_acknowledgement.config.horizon_watermark" in phase_one
+    assert "cell_config_acknowledgement.config.validation_evidence" in phase_one
+    assert "cell_config_acknowledgement.config]" in phase_one
+    assert 'regex("^(dev|test|qa|staging)' in variables
+    assert "maximum_event_age_seconds" in phase_one
+    assert "maximum_retry_attempts" in phase_one
+    assert '"MATERIALIZED"' in variables
+    assert 'output "phase_two"' in outputs
+
+
+def test_phase_two_preserves_brokered_cell_target() -> None:
+    phase_one = (MODULE / "phase_one.tf").read_text()
+    assert "local.contract_integrations.scheduler_ingress.arn" in phase_one
+    assert "arn      = aws_ecs_cluster" not in phase_one
+    assert "ecs:RunTask" not in phase_one
 
 
 def test_phase_one_fixture_covers_forbidden_boundaries() -> None:

@@ -5,6 +5,7 @@ import pytest
 from occurrence_materializer.handler import (
     _assert_authoritative_aws,
     _assert_namespace,
+    _materialized_snapshot,
     _validation_request,
 )
 from occurrence_materializer.materializer import (
@@ -58,6 +59,53 @@ def document(**overrides: object) -> dict[str, object]:
     }
     values.update(overrides)
     return {"config": values}
+
+
+def test_materialized_snapshot_requires_exact_current_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MATERIALIZER_CONFIG_REGISTRY_TABLE", "config-registry")
+    current = registration(
+        schedule_group_arn=GROUP,
+        scheduler_delivery_role_arn=f"{AWS_ARN}:iam::{ACCOUNT}:role/scheduler",
+        launch_role_arn=f"{AWS_ARN}:iam::{ACCOUNT}:role/launch",
+        task_family="daily",
+        task_definition_arn=f"{AWS_ARN}:ecs:{REGION}:{ACCOUNT}:task-definition/daily:1",
+        repository_id="repo",
+        terraform_root_id="root",
+    )
+    item = {
+        "job_id": {"S": current.job_id},
+        "config_version": {"S": current.config_version},
+        "schedule_generation": {"S": current.schedule_generation},
+        "schedule_arn": {"S": current.schedule_arn},
+        "schedule_group_arn": {"S": current.schedule_group_arn},
+        "scheduler_delivery_role_arn": {"S": current.scheduler_delivery_role_arn},
+        "scheduler_delivery_role_id": {"S": current.scheduler_delivery_role_id},
+        "launch_role_arn": {"S": current.launch_role_arn},
+        "launch_role_id": {"S": current.launch_role_id},
+        "task_family": {"S": current.task_family},
+        "task_definition_arn": {"S": current.task_definition_arn},
+        "repository_id": {"S": current.repository_id},
+        "terraform_root_id": {"S": current.terraform_root_id},
+        "owner_generation": {"S": str(current.owner_generation)},
+        "validation_state": {"S": "VALIDATED"},
+        "materialization_state": {"S": "MATERIALIZED"},
+        "conformance_result": {"S": "PASS"},
+        "horizon_watermark": {"S": "2027-01-02T00:00:00.000Z"},
+        "validation_evidence": {"S": "evidence"},
+    }
+
+    class Store:
+        def get_item(self, **_: object) -> dict[str, object]:
+            return {"Item": item}
+
+    assert _materialized_snapshot(Store(), current)["materialization_state"] == {
+        "S": "MATERIALIZED"
+    }
+    item["schedule_generation"] = {"S": "stale"}
+    with pytest.raises(MaterializationError, match="MATERIALIZER_ACK_NOT_MATERIALIZED"):
+        _materialized_snapshot(Store(), current)
 
 
 class ECS:

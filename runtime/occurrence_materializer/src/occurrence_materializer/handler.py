@@ -362,6 +362,48 @@ def _record_rejection(
         return
 
 
+def _materialized_snapshot(
+    dynamodb: object,
+    registration: MaterializerRegistration,
+) -> Mapping[str, Mapping[str, str]]:
+    response = dynamodb.get_item(  # type: ignore[attr-defined]
+        TableName=_required("MATERIALIZER_CONFIG_REGISTRY_TABLE"),
+        ConsistentRead=True,
+        Key={
+            "pk": {"S": f"JOB#{registration.job_id}"},
+            "sk": {"S": f"CONFIG#{registration.config_version}"},
+        },
+    )
+    item = response.get("Item", {})
+    required = {
+        "job_id": registration.job_id,
+        "config_version": registration.config_version,
+        "schedule_generation": registration.schedule_generation,
+        "schedule_arn": registration.schedule_arn,
+        "schedule_group_arn": registration.schedule_group_arn,
+        "scheduler_delivery_role_arn": registration.scheduler_delivery_role_arn,
+        "scheduler_delivery_role_id": registration.scheduler_delivery_role_id,
+        "launch_role_arn": registration.launch_role_arn,
+        "launch_role_id": registration.launch_role_id,
+        "task_family": registration.task_family,
+        "task_definition_arn": registration.task_definition_arn,
+        "repository_id": registration.repository_id,
+        "terraform_root_id": registration.terraform_root_id,
+        "owner_generation": str(registration.owner_generation),
+    }
+    if (
+        not isinstance(item, Mapping)
+        or item.get("validation_state", {}).get("S") != "VALIDATED"
+        or item.get("materialization_state", {}).get("S") != "MATERIALIZED"
+        or item.get("conformance_result", {}).get("S") != "PASS"
+        or not item.get("horizon_watermark", {}).get("S")
+        or not item.get("validation_evidence", {}).get("S")
+        or any(item.get(key, {}).get("S") != value for key, value in required.items())
+    ):
+        raise MaterializationError("MATERIALIZER_ACK_NOT_MATERIALIZED")
+    return item
+
+
 def _validation_handler(event: Mapping[str, object]) -> dict[str, object]:
     """Validate and acknowledge one CONFIG without materializing expectations."""
 
@@ -374,6 +416,9 @@ def _validation_handler(event: Mapping[str, object]) -> dict[str, object]:
     import boto3
 
     registration = _registration(request)
+    required_lifecycle = request.get("required_lifecycle", "VALIDATED")
+    if required_lifecycle not in {"VALIDATED", "MATERIALIZED"}:
+        raise RuntimeError("MATERIALIZER_REQUIRED_LIFECYCLE_INVALID")
     contracts_root = Path(_required("MATERIALIZER_CONTRACTS_ROOT"))
     schemas, schema_registry = build_schema_registry(contracts_root / "schemas")
     secret_policy = load_json_strict(contracts_root / "catalogs" / "secret-safety.json")
@@ -453,10 +498,22 @@ def _validation_handler(event: Mapping[str, object]) -> dict[str, object]:
             "error_code": code,
             "error_reason": _rejection_reason(code),
         }
+    materialized_item: Mapping[str, Mapping[str, str]] = {}
+    if required_lifecycle == "MATERIALIZED":
+        try:
+            materialized_item = _materialized_snapshot(dynamodb, registration)
+        except MaterializationError as error:
+            code = _safe_error_code(error)
+            _metric(metrics, registration, "rejected")
+            return {
+                "rejected": True,
+                "error_code": code,
+                "error_reason": _rejection_reason(code),
+            }
     _metric(metrics, registration, "validated", conformance_result="PASS")
     return {
         "validated": True,
-        "lifecycle": "VALIDATED",
+        "lifecycle": required_lifecycle,
         "job_id": registration.job_id,
         "config_version": registration.config_version,
         "ownership_generation": registration.owner_generation,
@@ -475,8 +532,15 @@ def _validation_handler(event: Mapping[str, object]) -> dict[str, object]:
         "terraform_root_id": registration.terraform_root_id,
         "contract_version": result.snapshot["contract_version"],
         "contract_checksum": result.snapshot["contract_checksum"],
-        "horizon_watermark": result.snapshot["horizon_watermark"],
-        "validation_evidence": result.snapshot["validation_evidence"],
+        "horizon_watermark": materialized_item.get("horizon_watermark", {}).get(
+            "S", result.snapshot["horizon_watermark"]
+        ),
+        "validation_evidence": materialized_item.get("validation_evidence", {}).get(
+            "S", result.snapshot["validation_evidence"]
+        ),
+        "conformance_result": materialized_item.get("conformance_result", {}).get(
+            "S", result.snapshot["conformance_result"]
+        ),
         "validated_at": result.snapshot["validated_at"],
     }
 

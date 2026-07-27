@@ -67,7 +67,7 @@ resource "aws_scheduler_schedule" "job" {
   schedule_expression_timezone = var.schedule_time_zone
   start_date                   = var.activation_start
   end_date                     = var.activation_end
-  state                        = "DISABLED"
+  state                        = var.activation.enabled ? "ENABLED" : "DISABLED"
 
   flexible_time_window {
     mode = "OFF"
@@ -104,9 +104,40 @@ resource "aws_scheduler_schedule" "job" {
 
   lifecycle {
     prevent_destroy = true
+
+    precondition {
+      condition     = !var.activation.enabled || var.activation.task_definition_arn == aws_ecs_task_definition.job.arn
+      error_message = "ACTIVATION_TASK_REVISION_MISMATCH: phase-two enablement must bind the exact task-definition revision published by this job module."
+    }
+
+    precondition {
+      condition = (
+        !var.activation.enabled || (
+          var.activation.account_id == var.account_id &&
+          var.activation.region == var.region &&
+          var.activation.job_id == local.job_id &&
+          var.activation.config_version == local.config_version &&
+          var.activation.contract_version == local.contract.contract_version &&
+          var.activation.contract_checksum == local.contract.checksum &&
+          var.activation.schedule_generation == local.schedule_generation &&
+          var.activation.schedule_arn == local.schedule_arn &&
+          var.activation.schedule_group_arn == local.contract_integrations.scheduler_schedule_group.arn &&
+          var.activation.scheduler_delivery_role_id == aws_iam_role.scheduler_delivery.unique_id &&
+          var.activation.launch_role_id == aws_iam_role.launch.unique_id &&
+          var.activation.owner_generation == try(var.registrar_receipt.owner_generation, 0) &&
+          try(timecmp(var.activation.horizon_watermark, timeadd(var.activation_start, "24h")), -1) >= 0 &&
+          var.activation.deployment_identity_id == sha256(local.deployment_identity_json) &&
+          cell_config_acknowledgement.config.result == "MATERIALIZED" &&
+          cell_config_acknowledgement.config.conformance_result == var.activation.conformance_result &&
+          cell_config_acknowledgement.config.horizon_watermark == var.activation.horizon_watermark &&
+          cell_config_acknowledgement.config.validation_evidence == var.activation.validation_evidence
+        )
+      )
+      error_message = "ACTIVATION_ACK_MISMATCH: only the exact current MATERIALIZED generation with at least 24 hours of expected horizon may enable the schedule."
+    }
   }
 
-  depends_on = [terraform_data.declaration_validation]
+  depends_on = [terraform_data.declaration_validation, cell_config_acknowledgement.config]
 }
 
 resource "cell_config_publication" "config" {
@@ -155,6 +186,7 @@ resource "cell_config_acknowledgement" "config" {
   publisher_role_arn          = var.config_validator_role_arn != "" ? var.config_validator_role_arn : var.config_publisher_role_arn
   repository_id               = var.repository_id
   terraform_root_id           = var.terraform_root_id
+  required_lifecycle          = var.activation.enabled ? "MATERIALIZED" : "VALIDATED"
 
   depends_on = [cell_config_publication.config]
 

@@ -2,8 +2,8 @@ variable "environment" {
   description = "Non-production deployment environment for this scheduled job."
   type        = string
   validation {
-    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.environment)) && !contains(["prod", "latest", "current"], var.environment)
-    error_message = "environment must be lowercase and non-production for Epic 2."
+    condition     = can(regex("^(dev|test|qa|staging)(-[a-z0-9-]+)?$", var.environment))
+    error_message = "environment must use an explicit non-production name: dev, test, qa, or staging, optionally with a bounded suffix."
   }
 }
 
@@ -150,6 +150,69 @@ variable "activation_start" {
   validation {
     condition     = can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.activation_start)) && can(regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$", var.activation_start))
     error_message = "activation_start must be a canonical RFC 3339 UTC timestamp with millisecond precision."
+  }
+}
+
+variable "activation" {
+  description = "Explicit phase-two materialized acknowledgement. Keep disabled until the exact Cell generation has a verified horizon."
+  type = object({
+    enabled                    = bool
+    lifecycle                  = string
+    account_id                 = string
+    region                     = string
+    job_id                     = string
+    config_version             = string
+    contract_version           = string
+    contract_checksum          = string
+    schedule_generation        = string
+    schedule_arn               = string
+    schedule_group_arn         = string
+    scheduler_delivery_role_id = string
+    launch_role_id             = string
+    task_definition_arn        = string
+    owner_generation           = number
+    horizon_watermark          = string
+    conformance_result         = string
+    validation_evidence        = string
+    deployment_identity_id     = string
+  })
+  default = {
+    enabled                    = false
+    lifecycle                  = "PUBLISHED"
+    account_id                 = ""
+    region                     = ""
+    job_id                     = ""
+    config_version             = ""
+    contract_version           = ""
+    contract_checksum          = ""
+    schedule_generation        = ""
+    schedule_arn               = ""
+    schedule_group_arn         = ""
+    scheduler_delivery_role_id = ""
+    launch_role_id             = ""
+    task_definition_arn        = ""
+    owner_generation           = 0
+    horizon_watermark          = ""
+    conformance_result         = "PENDING"
+    validation_evidence        = ""
+    deployment_identity_id     = ""
+  }
+
+  validation {
+    condition = (
+      !var.activation.enabled || (
+        var.environment != "prod" &&
+        var.activation.lifecycle == "MATERIALIZED" &&
+        var.activation.conformance_result == "PASS" &&
+        var.activation.owner_generation >= 1 &&
+        can(regex("^[0-9a-f]{64}$", var.activation.config_version)) &&
+        can(regex("^[0-9a-f]{64}$", var.activation.schedule_generation)) &&
+        can(regex("^[0-9a-f]{64}$", var.activation.contract_checksum)) &&
+        length(var.activation.validation_evidence) > 0 &&
+        can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.activation.horizon_watermark))
+      )
+    )
+    error_message = "ACTIVATION_ACK_INVALID: phase-two enablement requires a non-production MATERIALIZED acknowledgement with PASS conformance, immutable hashes, evidence, and a valid horizon."
   }
 }
 

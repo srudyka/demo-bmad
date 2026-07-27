@@ -89,10 +89,12 @@ func provider() *schema.Provider {
 					"task_definition_arn":         {Type: schema.TypeString, Required: true, ForceNew: true},
 					"repository_id":               {Type: schema.TypeString, Required: true, ForceNew: true},
 					"terraform_root_id":           {Type: schema.TypeString, Required: true, ForceNew: true},
+					"required_lifecycle":          {Type: schema.TypeString, Optional: true, Default: "VALIDATED", ForceNew: true},
 					"result":                      {Type: schema.TypeString, Computed: true},
 					"validated_at":                {Type: schema.TypeString, Computed: true},
 					"horizon_watermark":           {Type: schema.TypeString, Computed: true},
 					"validation_evidence":         {Type: schema.TypeString, Computed: true},
+					"conformance_result":          {Type: schema.TypeString, Computed: true},
 				},
 			},
 		},
@@ -128,6 +130,7 @@ func acknowledge(data *schema.ResourceData, raw interface{}) error {
 		"terraform_root_id":           data.Get("terraform_root_id"),
 		"contract_version":            data.Get("contract_version"),
 		"contract_checksum":           data.Get("contract_checksum"),
+		"required_lifecycle":          data.Get("required_lifecycle"),
 	}
 	body, err := json.Marshal(map[string]interface{}{"registration": registration})
 	if err != nil {
@@ -196,13 +199,14 @@ func acknowledge(data *schema.ResourceData, raw interface{}) error {
 		ScheduleGeneration string `json:"schedule_generation"`
 		Repository         string `json:"repository_id"`
 		TerraformRoot      string `json:"terraform_root_id"`
+		Conformance        string `json:"conformance_result"`
 		Watermark          string `json:"horizon_watermark"`
 		Evidence           string `json:"validation_evidence"`
 	}
 	if err := json.Unmarshal(acknowledgement, &result); err != nil {
 		return fmt.Errorf("decode Cell acknowledgement: %w", err)
 	}
-	if !result.Validated || result.Lifecycle != "VALIDATED" || result.JobID != data.Get("job_id") ||
+	if !result.Validated || result.Lifecycle != data.Get("required_lifecycle") || result.JobID != data.Get("job_id") ||
 		result.Config != data.Get("config_version") || result.Generation != data.Get("ownership_generation") ||
 		result.Account != data.Get("account_id") || result.Environment != data.Get("environment") ||
 		result.Contract != data.Get("contract_version") || result.ContractHash != data.Get("contract_checksum") ||
@@ -226,7 +230,10 @@ func acknowledge(data *schema.ResourceData, raw interface{}) error {
 	if err := data.Set("horizon_watermark", result.Watermark); err != nil {
 		return err
 	}
-	return data.Set("validation_evidence", result.Evidence)
+	if err := data.Set("validation_evidence", result.Evidence); err != nil {
+		return err
+	}
+	return data.Set("conformance_result", result.Conformance)
 }
 
 func publish(data *schema.ResourceData, raw interface{}) error {
