@@ -125,7 +125,18 @@ def build_occurrence_alert(
             raise ValueError
     except ValueError as error:
         raise AlertRoutingError("ALERT_DETECTED_AT_INVALID") from error
-    if not isinstance(runbook_uri, str) or not runbook_uri.startswith("https://"):
+    operational = config.get("operational_metadata", {})
+    if not isinstance(operational, Mapping):
+        raise AlertRoutingError("OPERATIONAL_METADATA_INVALID")
+    configured_owner = operational.get("owner", owner)
+    configured_runbook = operational.get("runbook_uri", runbook_uri)
+    if operational.get("notification_target_arn", target) != target:
+        raise AlertRoutingError("NOTIFICATION_TARGET_METADATA_MISMATCH")
+    if config.get("notification_runbook_uri", configured_runbook) != configured_runbook:
+        raise AlertRoutingError("RUNBOOK_METADATA_MISMATCH")
+    if not isinstance(configured_owner, str) or not configured_owner.strip():
+        raise AlertRoutingError("OWNER_INVALID")
+    if not isinstance(configured_runbook, str) or not configured_runbook.startswith("https://"):
         raise AlertRoutingError("RUNBOOK_INVALID")
     return {
         "schema_version": "1.0.0",
@@ -140,9 +151,9 @@ def build_occurrence_alert(
         "environment": environment,
         "detected_at": detected_at,
         "deployment_identity_id": deployment_identity,
-        "owner": owner,
+        "owner": configured_owner,
         "notification_target_arn": target,
-        "runbook_uri": runbook_uri,
+        "runbook_uri": configured_runbook,
         "operator_safe_reason": _safe_reason(outbox.get("operator_safe_reason")),
     }
 

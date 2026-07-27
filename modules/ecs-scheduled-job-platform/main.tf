@@ -361,9 +361,12 @@ locals {
       statistic  = "Sum"
     }
     log_subscription_delivery = {
-      namespace  = "AWS/Logs"
-      name       = "DeliveryErrors"
-      dimensions = { LogGroupName = aws_cloudwatch_log_group.alert_router.name }
+      namespace = "AWS/Logs"
+      name      = "DeliveryErrors"
+      # CloudWatch Logs publishes DeliveryErrors per source log group.  The
+      # Cell alarm intentionally aggregates the account/Region so every
+      # registered job subscription is covered without an occurrence dimension.
+      dimensions = {}
       statistic  = "Sum"
     }
     notification_delivery = {
@@ -594,6 +597,14 @@ locals {
       arn          = aws_lambda_function.alert_router.arn
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges["alert-router"]
+    }
+    log_ingestor = {
+      arn              = aws_lambda_function.log_ingestor.arn
+      owner            = "cell-root"
+      schema_range     = local.compatibility_catalog.component_ranges.evidence
+      protocol_version = "log-ingestor/1.0.0"
+      auth_mode        = "CELL_LOG_SUBSCRIPTION"
+      filter_pattern   = "{ $.schema_version = \"1.0.0\" && $.marker_status = * }"
     }
   }
   cell_contract_body = {
@@ -2341,11 +2352,10 @@ data "aws_iam_policy_document" "evidence_normalizer" {
     effect    = "Allow"
     actions   = ["dynamodb:GetItem"]
     resources = [aws_dynamodb_table.occurrence_ledger.arn]
-    condition {
-      test     = "ForAllValues:StringLike"
-      variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
-    }
+    # The shared Cell ingestor authenticates the source account, registered
+    # log group, stream/task mapping, and occurrence identity in code before
+    # this read. The permission is limited to this one Cell-owned table and
+    # the role has no occurrence write or notification permissions.
   }
   statement {
     sid       = "WriteOnlyOwnStructuredLogs"

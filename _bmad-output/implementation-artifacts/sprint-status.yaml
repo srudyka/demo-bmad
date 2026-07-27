@@ -75,7 +75,7 @@ development_status:
   2-5a-cell-owned-conditional-config-publisher: done
   2-6-validate-and-acknowledge-job-configuration: done
   2-7-activate-the-non-production-schedule-safely: done
-  2-8-connect-completion-evidence-and-alert-metadata: backlog
+  2-8-connect-completion-evidence-and-alert-metadata: done
   2-9-expose-job-operations-and-optional-views: backlog
   2-10-perform-a-controlled-non-production-rerun: backlog
   epic-2-retrospective: optional

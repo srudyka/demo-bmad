@@ -78,3 +78,20 @@ def test_basic_example_is_synthetic_and_immutable() -> None:
     assert "@sha256:" in example
     assert ":latest" not in example
     assert ".tfvars" not in example
+
+
+def test_completion_evidence_is_cell_contract_bound_and_occurrence_aware() -> None:
+    completion = (MODULE / "completion.tf").read_text()
+    main = (MODULE / "main.tf").read_text()
+    platform = (ROOT / "modules" / "ecs-scheduled-job-platform" / "main.tf").read_text()
+
+    assert 'resource "aws_cloudwatch_log_subscription_filter" "completion"' in completion
+    assert "local.completion_filter_pattern" in completion
+    assert "source_account = var.account_id" in completion
+    assert "var.completion_policy.detection_mode == \"occurrence-aware\"" in completion
+    assert 'resource "aws_cloudwatch_log_metric_filter" "best_effort_success"' in completion
+    assert "dimensions = {}" in platform
+    assert "terraform_data.declaration_validation" in completion
+    assert "operational_metadata" in main
+    assert 'auth_mode        = "CELL_LOG_SUBSCRIPTION"' in platform
+    assert "log_ingestor" in platform

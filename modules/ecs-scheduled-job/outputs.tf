@@ -101,6 +101,18 @@ output "log_group" {
   }
 }
 
+output "completion_policy" {
+  description = "Bounded completion detection and operational routing policy for this job."
+  value = {
+    detection_mode            = var.completion_policy.detection_mode
+    escalation_classification = var.completion_policy.escalation_classification
+    alarms_enabled            = var.completion_policy.alarms_enabled
+    routing_enabled           = var.completion_policy.routing_enabled
+    coverage_label            = var.completion_policy.detection_mode == "best-effort" ? "REDUCED_NON_PRODUCTION" : "OCCURRENCE_AWARE"
+    success_metric_filter     = try(aws_cloudwatch_log_metric_filter.best_effort_success[0].name, null)
+  }
+}
+
 output "deployment_identity" {
   description = "Bounded, secret-free deployment identity for the task revision and later CONFIG publication."
   value = merge(local.deployment_identity, {

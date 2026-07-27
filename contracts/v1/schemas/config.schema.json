@@ -52,6 +52,33 @@
           ],
           "type": "object"
         },
+        "operational_metadata": {
+          "additionalProperties": false,
+          "properties": {
+            "owner": { "minLength": 1, "type": "string" },
+            "runbook_uri": { "pattern": "^https://.+$", "type": "string" },
+            "completion_deadline_seconds": { "minimum": 60, "maximum": 86400, "type": "integer" },
+            "log_retention_days": { "minimum": 1, "type": "integer" },
+            "detection_mode": { "enum": ["occurrence-aware", "best-effort"], "type": "string" },
+            "notification_target_arn": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn" },
+            "escalation_classification": { "enum": ["standard", "high", "critical"], "type": "string" },
+            "alarms_enabled": { "type": "boolean" },
+            "routing_enabled": { "type": "boolean" },
+            "coverage_label": { "enum": ["OCCURRENCE_AWARE", "REDUCED_NON_PRODUCTION"], "type": "string" }
+          },
+          "required": ["owner", "runbook_uri", "completion_deadline_seconds", "log_retention_days", "detection_mode", "notification_target_arn", "escalation_classification", "alarms_enabled", "routing_enabled", "coverage_label"],
+          "type": "object"
+        },
+        "completion": {
+          "additionalProperties": false,
+          "properties": {
+            "detection_mode": { "enum": ["occurrence-aware", "best-effort"], "type": "string" },
+            "filter_pattern": { "minLength": 1, "type": "string" },
+            "destination_arn": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn" }
+          },
+          "required": ["detection_mode", "filter_pattern", "destination_arn"],
+          "type": "object"
+        },
         "network": {
           "additionalProperties": false,
           "properties": {

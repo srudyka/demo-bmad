@@ -81,6 +81,7 @@ locals {
   }
   merged_tags                   = merge(var.tags, local.protected_tags)
   contract_integrations         = try(local.contract.integrations, {})
+  completion_filter_pattern     = "{ $.schema_version = \"1.0.0\" && $.marker_status = * }"
   network_catalog               = try(jsondecode(file("${path.module}/../../contracts/v1/catalogs/network.json")), null)
   network_catalog_valid         = try(local.network_catalog.schema_version == "1.0.0" && local.network_catalog.policy_version == "1.0.0" && local.network_catalog.unknown_policy_disposition == "BLOCK" && length(local.network_catalog.finding_severity) > 0 && local.network_catalog.exception_policy.owner != "" && contains(local.network_catalog.enforcement_stages, local.network_catalog.exception_policy.enforcement_stage), false)
   required_network_dependencies = toset(try(local.network_catalog.required_dependency_evidence, []))
@@ -139,6 +140,18 @@ locals {
       log_group_arn  = aws_cloudwatch_log_group.job.arn
       retention_days = local.effective_log_retention_days
     }
+    operational_metadata = {
+      owner                       = var.owner
+      runbook_uri                 = var.notification.runbook_uri
+      completion_deadline_seconds = var.runtime.max_runtime_seconds
+      log_retention_days          = local.effective_log_retention_days
+      detection_mode              = var.completion_policy.detection_mode
+      notification_target_arn     = var.notification.target_arn
+      escalation_classification   = var.completion_policy.escalation_classification
+      alarms_enabled              = var.completion_policy.alarms_enabled
+      routing_enabled             = var.completion_policy.routing_enabled
+      coverage_label              = var.completion_policy.detection_mode == "best-effort" ? "REDUCED_NON_PRODUCTION" : "OCCURRENCE_AWARE"
+    }
     network = {
       assign_public_ip   = "DISABLED"
       security_group_ids = sort(tolist(var.networking.security_group_mode == "create" ? toset([aws_security_group.job[0].id]) : var.networking.security_group_ids))
@@ -161,6 +174,11 @@ locals {
     policy_versions            = { cell_contract = local.contract.contract_version, network = var.networking.policy_version, module = var.module_version }
     secret_references          = local.config_secret_references
     task_definition_arn        = aws_ecs_task_definition.job.arn
+    completion = {
+      detection_mode  = var.completion_policy.detection_mode
+      filter_pattern  = local.completion_filter_pattern
+      destination_arn = try(local.contract_integrations.log_ingestor.arn, "")
+    }
   }
   config_json          = jsonencode(local.config_body)
   config_version       = lower(sha256(local.config_json))
@@ -261,7 +279,12 @@ resource "terraform_data" "declaration_validation" {
         try(local.contract_integrations.job_registrar.protocol_version, "") == "job-registrar/1.0.0" &&
         can(regex("^https://.+$", try(local.contract_integrations.job_registrar.endpoint_url, ""))) &&
         try(local.contract_integrations.namespace_registry.owner, "") == "cell-root" &&
-        try(local.contract_integrations.namespace_registry.arn, "") != ""
+        try(local.contract_integrations.namespace_registry.arn, "") != "" &&
+        try(local.contract_integrations.log_ingestor.owner, "") == "cell-root" &&
+        try(local.contract_integrations.log_ingestor.protocol_version, "") == "log-ingestor/1.0.0" &&
+        try(local.contract_integrations.log_ingestor.auth_mode, "") == "CELL_LOG_SUBSCRIPTION" &&
+        can(regex("^arn:${data.aws_partition.current.partition}:lambda:${var.region}:${var.account_id}:function:[A-Za-z0-9_-]+$", try(local.contract_integrations.log_ingestor.arn, ""))) &&
+        try(local.contract_integrations.log_ingestor.filter_pattern, "") == local.completion_filter_pattern
       )
       error_message = "CELL_CONTRACT_INVALID_OR_INCOMPATIBLE: discovered Cell Contract is not exact and compatible."
     }
@@ -458,6 +481,10 @@ resource "terraform_data" "declaration_validation" {
     precondition {
       condition     = var.runtime.max_runtime_seconds >= 60 && var.runtime.max_runtime_seconds <= 86400
       error_message = "JOB_RUNTIME_DEADLINE_INVALID: max_runtime_seconds must fit the CONFIG completion window bounds."
+    }
+    precondition {
+      condition     = var.completion_policy.detection_mode != "best-effort" || var.environment != "prod"
+      error_message = "COMPLETION_BEST_EFFORT_PRODUCTION_BLOCKED: best-effort completion is non-production-only."
     }
     precondition {
       condition     = contains(local.supported_time_zones, var.schedule_time_zone)

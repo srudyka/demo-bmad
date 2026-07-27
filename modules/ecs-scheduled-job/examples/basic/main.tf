@@ -50,7 +50,13 @@ module "job" {
     idempotency         = "idempotent"
   }
   overlap_policy = "reject"
-  secret_mode    = "ecs-agent"
+  completion_policy = {
+    detection_mode            = "occurrence-aware"
+    escalation_classification = "standard"
+    alarms_enabled            = true
+    routing_enabled           = true
+  }
+  secret_mode = "ecs-agent"
   networking = {
     vpc_id              = "vpc-0123456789abcdef0"
     subnet_ids          = ["subnet-0123456789abcdef0"]

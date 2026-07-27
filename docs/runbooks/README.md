@@ -119,8 +119,11 @@ registered cluster. The normalizer resolves the AWS task ARN through the
 occurrence task-ARN index; an absent mapping is retried as bounded orphan work.
 Do not use application assertions to identify a job or occurrence.
 
-Completion records arrive through the exact canary log-group subscription and
-retain AWS log-group/log-stream metadata. Malformed, secret-bearing, wrong-task,
+Completion records arrive through the exact Cell-contract subscription for the
+registered job log group and retain AWS log-group/log-stream metadata. The
+subscription is created only for occurrence-aware non-production jobs; a
+best-effort declaration is explicitly reduced coverage and never proves
+completion. Malformed, secret-bearing, wrong-task,
 or unsupported records are acknowledged only after a stable sanitized rejection
 path. A success requires authoritative `RUNNING`, one accepted success marker,
 and essential-container exit code zero. A stopped task or non-zero essential exit
@@ -131,6 +134,14 @@ mapping/subscription, then preserve encrypted queues, DLQs, task-index evidence,
 and logs for their retention window. Do not stop tasks, relaunch attempts, or
 delete orphan/conflict evidence as a rollback action. Local validation proves
 neither live AWS delivery timing nor IAM behavior.
+
+Investigate `DeliveryErrors` on the Cell log-ingestor log group together with
+the completion-source DLQ. Missing evidence leaves the occurrence eligible for
+`OVERDUE`; it must not be converted to success. Alerts use the job's bounded
+owner, HTTPS Runbook URI, deployment identity, failure plane, and occurrence
+metadata through the existing outbox and Alert Router. Disablement is
+non-production-only and must retain logs, deadline state, Cell-health alarms,
+and the alert-delivery path.
 
 ## Deadline Scanner Investigation
 

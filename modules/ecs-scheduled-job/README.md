@@ -146,6 +146,14 @@ schedule never targets ECS directly and remains disabled during phase one.
 
 The completion contract uses these secret-free shapes:
 
+Occurrence-aware completion is connected to the Cell Contract's registered
+log-ingestor destination by an exact CloudWatch Logs subscription. The module
+does not write occurrence state or publish notifications. `completion_policy`
+supports `occurrence-aware` and explicitly reduced non-production `best-effort`
+coverage; the latter is never authoritative completion. CONFIG exposes only
+bounded operational metadata (owner, Runbook, deadline, retention, detection
+mode, notification policy, and escalation class).
+
 ```json
 {"event":"start","job_id":"dev/sample/daily","occurrence_id":"occ-123","config_version":"cfg-7","attempt_no":1,"timestamp":"2026-07-24T12:00:00Z","status":"started"}
 ```

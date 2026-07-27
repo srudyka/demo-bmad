@@ -612,6 +612,30 @@ variable "notification" {
   }
 }
 
+variable "completion_policy" {
+  description = "Bounded non-production completion-evidence and alert policy for this job."
+  type = object({
+    detection_mode            = string
+    escalation_classification = string
+    alarms_enabled            = bool
+    routing_enabled           = bool
+  })
+  default = {
+    detection_mode            = "occurrence-aware"
+    escalation_classification = "standard"
+    alarms_enabled            = true
+    routing_enabled           = true
+  }
+  validation {
+    condition = (
+      contains(["occurrence-aware", "best-effort"], var.completion_policy.detection_mode) &&
+      contains(["standard", "high", "critical"], var.completion_policy.escalation_classification) &&
+      (var.completion_policy.detection_mode != "occurrence-aware" || (var.completion_policy.routing_enabled && var.completion_policy.alarms_enabled))
+    )
+    error_message = "completion_policy must use a supported non-production detection/classification and cannot silently disable routing for production."
+  }
+}
+
 variable "tags" {
   description = "Consumer tags merged with protected platform metadata."
   type        = map(string)

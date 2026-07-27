@@ -109,6 +109,15 @@ output "alert_router" {
   }
 }
 
+output "log_ingestor" {
+  description = "Cell-owned completion log-ingestor destination and exact subscription contract values."
+  value = {
+    function_arn     = aws_lambda_function.log_ingestor.arn
+    filter_pattern   = "{ $.schema_version = \"1.0.0\" && $.marker_status = * }"
+    protocol_version = "log-ingestor/1.0.0"
+  }
+}
+
 output "cell_health" {
   description = "Bounded Cell-health alarm identifiers and the processed-canary heartbeat metric."
   value = {
