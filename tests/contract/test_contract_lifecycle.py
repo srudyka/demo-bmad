@@ -39,6 +39,10 @@ def test_lifecycle_catalog_freezes_two_phase_enablement() -> None:
         "contract_version",
         "horizon_watermark",
     }
+    assert catalog["acknowledgement_integrity_bindings"] == [
+        "contract_checksum",
+        "validation_evidence",
+    ]
 
 
 def test_lifecycle_transition_and_stale_acknowledgement_fixtures() -> None:

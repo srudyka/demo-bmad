@@ -18,9 +18,11 @@ the narrow, platform-owned canary bootstrap prerequisites:
 - an encrypted notification ledger, occurrence outbox GSI, and Stream/EventBridge
   Alert Router for durable terminal-occurrence notifications.
 
-It deliberately does not create a general Registrar, ECS task definitions, job
-resource roles, or customer notification consumers. It does create bounded Cell
-health alarms and the platform-owned Alert Router path. The deadline
+It does not create a general Registrar API or arbitrary mutation path. It
+deliberately does not create ECS task definitions, job resource roles, or
+customer notification consumers. It deploys a read-only, fail-closed Registrar
+resolver that conditionally binds authoritative AWS identities into the
+namespace registry. It does create bounded Cell health alarms and the platform-owned Alert Router path. The deadline
 scanner is detection-only and never stops or relaunches ECS tasks. The Process Manager may assume only the explicitly registered canary
 launch role; the job-owned launch role retains `RunTask` and `PassRole` authority.
 
@@ -30,7 +32,8 @@ occurrence ledger. Rollback disables the relevant EventBridge or Lambda source
 mapping and preserves queues, DLQs, logs, and ledger evidence. It does not stop
 or relaunch tasks automatically.
 
-The module makes no runtime behavior claim for those deferred components.
+The module makes no runtime behavior claim for the deferred ECS and customer
+consumer components.
 
 ## Required Providers
 
@@ -228,7 +231,7 @@ stores these immutable item shapes:
   `owner_generation`, `transfer_state`, transfer approval evidence, and
   `tombstoned`.
 
-The Registrar is not part of this module. Its transaction must first make a
+The Registrar transaction must first make a
 `ConditionCheck` with this DynamoDB `ConditionExpression` against the namespace
 item:
 
@@ -387,3 +390,37 @@ DynamoDB PITR restores to a new table. A recovery runbook must validate the
 restored data and reapply tags, KMS configuration, PITR, deletion protection,
 and policies before a controlled Cell Contract cutover. Do not publish a
 contract that points consumers to an unvalidated restore.
+# CONFIG validator operations
+
+The Cell CONFIG validator is validation-only: the job schedule must remain
+`DISABLED`, and the validator must not emit expected occurrences or advance the
+materializer lifecycle. Investigate validator error/throttle alarms through the
+Cell runbook before retrying. Rollback restores the prior validator artifact,
+retains immutable `VALIDATED`/`REJECTED` records, and requires explicit
+revalidation; it never enables a rejected generation automatically.
+
+The validator's AWS `Describe*` calls require `Resource = "*"` because those
+APIs do not support resource-level IAM scoping. The platform Checkov exception
+for `CKV_AWS_356` is centralized in CI and applies only to this platform scan;
+the role remains limited to read-only describe actions plus exact Cell writes.
+
+## IAM residual-risk decision: dynamic authority resolution
+
+The Registrar and validation endpoint resolve the schedule, IAM roles, and
+task-definition revision from an authenticated, job-scoped registration at
+request time. AWS does not provide a resource-level condition for constraining
+`iam:GetRole`/`iam:ListRoleTags`, `scheduler:GetSchedule`, or
+`ecs:DescribeTaskDefinition` to the request's runtime values. Consequently,
+their execution roles retain read-only wildcard metadata access for those APIs.
+
+This is an accepted residual risk for the shared Cell runtime, with these
+controls: API Gateway uses private AWS-IAM authorization; the Registrar rejects
+cross-account, cross-Region, malformed, mismatched, tombstoned, and stale
+registrations; the validator performs the same authoritative identity checks;
+the roles have no mutation, `iam:PassRole`, secret-value, ledger-write, or
+schedule-enable permissions; and all registry writes are conditional and
+immutable. Negative policy tests continue to prohibit those mutation actions.
+
+If the platform moves to per-job execution roles or a dedicated resolver per
+job, replace the wildcard metadata statements with exact ARN resources and
+close this residual-risk decision before that change is marked complete.

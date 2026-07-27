@@ -22,6 +22,13 @@ class ConditionalReservationStore(Protocol):
 
     def put_if_absent(self, key: str, item: Mapping[str, object]) -> bool: ...
 
+    def bind_if_unbound(
+        self,
+        key: str,
+        owner_generation: int,
+        binding: Mapping[str, object],
+    ) -> bool: ...
+
 
 class DynamoReservationStore:
     """DynamoDB adapter using a conditional PutItem for the ownership claim."""
@@ -78,6 +85,40 @@ class DynamoReservationStore:
                 TableName=self.table_name,
                 Item={name: self._encode(value) for name, value in item.items()},
                 ConditionExpression="attribute_not_exists(pk)",
+            )
+        except self.client.exceptions.ConditionalCheckFailedException:
+            return False
+        return True
+
+    def bind_if_unbound(
+        self,
+        key: str,
+        owner_generation: int,
+        binding: Mapping[str, object],
+    ) -> bool:
+        names = tuple(binding)
+        expression_names = {f":{name}": self._encode(binding[name]) for name in names}
+        expression = "SET " + ", ".join(f"{name} = :{name}" for name in names)
+        condition = (
+            "owner_generation = :owner_generation AND lifecycle = :lifecycle "
+            "AND tombstoned = :tombstoned AND transfer_state = :transfer_state "
+            "AND attribute_not_exists(schedule_arn)"
+        )
+        expression_names.update(
+            {
+                ":owner_generation": {"N": str(owner_generation)},
+                ":lifecycle": {"S": "RESERVED"},
+                ":tombstoned": {"BOOL": False},
+                ":transfer_state": {"S": "quiescent"},
+            }
+        )
+        try:
+            self.client.update_item(
+                TableName=self.table_name,
+                Key={"pk": {"S": key}, "sk": {"S": "RESERVATION"}},
+                UpdateExpression=expression,
+                ConditionExpression=condition,
+                ExpressionAttributeValues=expression_names,
             )
         except self.client.exceptions.ConditionalCheckFailedException:
             return False
@@ -143,6 +184,100 @@ class Reservation:
         return item
 
 
+@dataclass(frozen=True)
+class DeploymentBinding:
+    """Authoritative AWS identities bound to one RESERVED job generation."""
+
+    job_id: str
+    account_id: str
+    region: str
+    owner: str
+    owner_generation: int
+    schedule_arn: str
+    schedule_group_arn: str
+    scheduler_delivery_role_arn: str
+    scheduler_delivery_role_id: str
+    launch_role_arn: str
+    launch_role_id: str
+    task_family: str
+    repository_id: str
+    terraform_root_id: str
+    task_definition_arn: str = ""
+
+    def validate(self) -> None:
+        if (
+            not re.fullmatch(
+                r"[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}/[a-z0-9][a-z0-9-]{0,62}",
+                self.job_id,
+            )
+            or not re.fullmatch(r"[0-9]{12}", self.account_id)
+            or not re.fullmatch(
+                r"[a-z]{2}(?:-gov|-iso|-isob|-iso-b)?-[a-z]+-[0-9]+", self.region
+            )
+            or not self.owner
+        ):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_INVALID")
+        if self.owner_generation < 1:
+            raise ReservationRejected("JOB_IDENTITY_BINDING_GENERATION")
+        fields = (
+            self.schedule_arn,
+            self.schedule_group_arn,
+            self.scheduler_delivery_role_arn,
+            self.scheduler_delivery_role_id,
+            self.launch_role_arn,
+            self.launch_role_id,
+            self.task_family,
+            self.repository_id,
+            self.terraform_root_id,
+        )
+        if any(not isinstance(value, str) or not value for value in fields):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_INVALID")
+        arn_pattern = (
+            rf"^arn:[a-z0-9-]+:scheduler:{re.escape(self.region)}:{self.account_id}:"
+        )
+        if not re.fullmatch(arn_pattern + r"schedule/.+", self.schedule_arn):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_SCHEDULE_ARN")
+        if not re.fullmatch(
+            arn_pattern + r"schedule-group/.+", self.schedule_group_arn
+        ):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_SCHEDULE_GROUP_ARN")
+        iam_pattern = rf"^arn:[a-z0-9-]+:iam::{self.account_id}:role/.+"
+        for role_arn in (self.scheduler_delivery_role_arn, self.launch_role_arn):
+            if not re.fullmatch(iam_pattern, role_arn):
+                raise ReservationRejected("JOB_IDENTITY_BINDING_ROLE_ARN")
+        if not re.fullmatch(r"^AROA[A-Z0-9]+$", self.scheduler_delivery_role_id):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_ROLE_ID")
+        if not re.fullmatch(r"^AROA[A-Z0-9]+$", self.launch_role_id):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_ROLE_ID")
+        if self.task_definition_arn and not re.fullmatch(
+            rf"^arn:[a-z0-9-]+:ecs:{re.escape(self.region)}:{self.account_id}:task-definition/.+:[0-9]+$",
+            self.task_definition_arn,
+        ):
+            raise ReservationRejected("JOB_IDENTITY_BINDING_TASK_ARN")
+
+    def as_item(self) -> dict[str, object]:
+        self.validate()
+        return {
+            "schedule_arn": self.schedule_arn,
+            "schedule_group_arn": self.schedule_group_arn,
+            "scheduler_delivery_role_arn": self.scheduler_delivery_role_arn,
+            "scheduler_delivery_role_id": self.scheduler_delivery_role_id,
+            "launch_role_arn": self.launch_role_arn,
+            "launch_role_id": self.launch_role_id,
+            "task_family": self.task_family,
+            "bound_repository_id": self.repository_id,
+            "bound_terraform_root_id": self.terraform_root_id,
+            "bound_account_id": self.account_id,
+            "bound_region": self.region,
+            "bound_owner": self.owner,
+            **(
+                {"task_definition_arn": self.task_definition_arn}
+                if self.task_definition_arn
+                else {}
+            ),
+        }
+
+
 def reserve(
     store: ConditionalReservationStore, reservation: Reservation
 ) -> Reservation:
@@ -174,3 +309,47 @@ def reserve(
     if concurrent is not None and dict(concurrent) == item:
         return reservation
     raise ReservationConflict("JOB_RESERVATION_CONFLICT")
+
+
+def bind_deployed_identities(
+    store: ConditionalReservationStore, binding: DeploymentBinding
+) -> Mapping[str, object]:
+    """Conditionally bind deployed identities without overwriting a generation."""
+
+    existing = store.get(f"JOB#{binding.job_id}")
+    if existing is None:
+        raise ReservationRejected("JOB_IDENTITY_BINDING_NOT_RESERVED")
+    expected = {
+        "job_id": binding.job_id,
+        "account_id": binding.account_id,
+        "region": binding.region,
+        "owner": binding.owner,
+        "owner_generation": binding.owner_generation,
+        "repository_id": binding.repository_id,
+        "terraform_root_id": binding.terraform_root_id,
+        "lifecycle": "RESERVED",
+        "tombstoned": False,
+        "transfer_state": "quiescent",
+    }
+    if any(existing.get(key) != value for key, value in expected.items()):
+        raise ReservationRejected("JOB_IDENTITY_BINDING_MISMATCH")
+    binding.validate()
+    values = binding.as_item()
+    bound_fields = tuple(values)
+    if any(field in existing for field in bound_fields):
+        if all(existing.get(field) == value for field, value in values.items()):
+            return existing
+        raise ReservationConflict("JOB_IDENTITY_BINDING_CONFLICT")
+    key = existing.get("pk")
+    if not isinstance(key, str):
+        raise ReservationRejected("JOB_IDENTITY_BINDING_INVALID")
+    if store.bind_if_unbound(key, binding.owner_generation, values):
+        updated = store.get(key)
+        if updated is not None:
+            return updated
+    concurrent = store.get(key)
+    if concurrent is not None and all(
+        concurrent.get(field) == value for field, value in values.items()
+    ):
+        return concurrent
+    raise ReservationConflict("JOB_IDENTITY_BINDING_CONFLICT")

@@ -304,7 +304,7 @@ def test_cell_security_scan_exceptions_are_narrow_and_documented() -> None:
     assert '"security:terraform:platform-cell"' in validation
     assert '"modules/ecs-scheduled-job-platform"' in validation
     assert (
-        '"--skip-check",\n            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV_AWS_301,CKV2_AWS_51,CKV2_AWS_62"'
+        '"--skip-check",\n            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV_AWS_301,CKV_AWS_356,CKV2_AWS_51,CKV2_AWS_62"'
         in validation
     )
     assert "checkov:skip=CKV_AWS_144" not in module_contents("main.tf")

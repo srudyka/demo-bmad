@@ -131,6 +131,7 @@ locals {
     cluster_arn               = var.ecs_cluster_arn
     completion_window_seconds = var.runtime.max_runtime_seconds
     contract_version          = local.contract.contract_version
+    contract_checksum         = local.contract.checksum
     deployment_identity_id    = sha256(local.deployment_identity_json)
     deployment_identity       = local.deployment_identity
     job_id                    = local.job_id
@@ -253,6 +254,12 @@ resource "terraform_data" "declaration_validation" {
         try(local.contract_integrations.config_publisher.protocol_version, "") == "config-publisher/1.0.0" &&
         try(local.contract_integrations.config_publisher.auth_mode, "") == "AWS_IAM_PRIVATE_API" &&
         can(regex("^https://.+$", try(local.contract_integrations.config_publisher.endpoint_url, ""))) &&
+        try(local.contract_integrations.config_validator.owner, "") == "cell-root" &&
+        try(local.contract_integrations.config_validator.protocol_version, "") == "config-validator/1.0.0" &&
+        can(regex("^https://.+$", try(local.contract_integrations.config_validator.endpoint_url, ""))) &&
+        try(local.contract_integrations.job_registrar.owner, "") == "cell-root" &&
+        try(local.contract_integrations.job_registrar.protocol_version, "") == "job-registrar/1.0.0" &&
+        can(regex("^https://.+$", try(local.contract_integrations.job_registrar.endpoint_url, ""))) &&
         try(local.contract_integrations.namespace_registry.owner, "") == "cell-root" &&
         try(local.contract_integrations.namespace_registry.arn, "") != ""
       )

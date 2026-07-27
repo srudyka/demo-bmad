@@ -19,6 +19,7 @@ module "platform" {
   ecs_cluster_arn                   = var.ecs_cluster_arn
   normalizer                        = var.normalizer
   materializer                      = var.materializer
+  registrar                         = var.registrar
   process_manager                   = var.process_manager
   log_ingestor                      = var.log_ingestor
   deadline_scanner                  = var.deadline_scanner

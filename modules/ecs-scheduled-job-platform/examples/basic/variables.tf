@@ -270,6 +270,24 @@ variable "materializer" {
   }
 }
 
+variable "registrar" {
+  description = "Example Registrar artifact and bounded identity-resolution controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+  default = {
+    artifact_path        = "artifacts/job-registrar.zip"
+    artifact_source_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    log_retention_days   = 365
+    reserved_concurrency = 2
+    timeout_seconds      = 30
+  }
+}
+
 variable "log_ingestor" {
   description = "Fictitious completion log-ingestor artifact and controls for local validation."
   type = object({

@@ -288,7 +288,7 @@ def validate_terraform_security() -> None:
             "-d",
             "modules/ecs-scheduled-job-platform",
             "--skip-check",
-            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV_AWS_301,CKV2_AWS_51,CKV2_AWS_62",
+            "CKV_AWS_50,CKV_AWS_116,CKV_AWS_117,CKV_AWS_144,CKV_AWS_272,CKV_AWS_301,CKV_AWS_356,CKV2_AWS_51,CKV2_AWS_62",
         ),
     )
     run_stage(

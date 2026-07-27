@@ -5,11 +5,19 @@ provider "cell" {
   publisher_role_arn = "arn:aws:iam::123456789012:role/platform-example-config-publisher"
 }
 
+provider "cell" {
+  alias              = "validator"
+  endpoint_url       = "https://example.execute-api.us-east-1.amazonaws.com/v1/validate"
+  region             = "us-east-1"
+  publisher_role_arn = "arn:aws:iam::123456789012:role/platform-example-config-validator"
+}
+
 module "job" {
   source = "../.."
 
   providers = {
     cell.publisher = cell.publisher
+    cell.validator = cell.validator
   }
 
   environment                   = "dev"
@@ -21,6 +29,7 @@ module "job" {
   apply_role_id                 = "sample-plan-role"
   account_id                    = "123456789012"
   config_publisher_role_arn     = "arn:aws:iam::123456789012:role/platform-example-config-publisher"
+  config_validator_role_arn     = "arn:aws:iam::123456789012:role/platform-example-config-validator"
   region                        = "us-east-1"
   ecs_cluster_arn               = "arn:aws:ecs:us-east-1:123456789012:cluster/example"
   permissions_boundary_arn      = "arn:aws:iam::123456789012:policy/platform-example-job-boundary"

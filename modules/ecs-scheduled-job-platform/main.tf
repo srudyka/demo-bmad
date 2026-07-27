@@ -511,6 +511,22 @@ locals {
       owner        = "cell-root"
       schema_range = local.compatibility_catalog.component_ranges["occurrence-materializer"]
     }
+    config_validator = {
+      arn              = aws_lambda_function.config_validator.arn
+      owner            = "cell-root"
+      schema_range     = local.compatibility_catalog.component_ranges["occurrence-materializer"]
+      protocol_version = "config-validator/1.0.0"
+      auth_mode        = "CELL_INTERNAL"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/validate"
+    }
+    job_registrar = {
+      arn              = aws_lambda_function.job_registrar.arn
+      owner            = "cell-root"
+      schema_range     = local.compatibility_catalog.component_ranges.cell
+      protocol_version = "job-registrar/1.0.0"
+      auth_mode        = "CELL_INTERNAL"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/register"
+    }
     materializer_tick = {
       arn          = aws_cloudwatch_event_rule.materializer_tick.arn
       owner        = "cell-root"
@@ -688,6 +704,7 @@ locals {
   canary_job_reservation_item = {
     pk                = { S = "JOB#${var.canary_reservation.job_id}" }
     sk                = { S = "RESERVATION" }
+    job_id            = { S = var.canary_reservation.job_id }
     account_id        = { S = var.canary_reservation.account_id }
     apply_role_id     = { S = var.canary_reservation.apply_role_id }
     namespace_key     = { S = local.canary_namespace_key }
@@ -701,8 +718,8 @@ locals {
   }
 }
 
-# The general Registrar is intentionally deferred. This Cell-owned declaration
-# blocks ordinary Terraform replacement but is not an atomic transaction.
+# The Registrar is read-only against deployed AWS resources and conditionally
+# binds the resulting identities into the Cell-owned reservation registry.
 resource "terraform_data" "canary_reservation_identity" {
   input = jsonencode({
     authorization = local.canary_namespace_authorization_item
@@ -1204,12 +1221,74 @@ resource "aws_api_gateway_integration" "config_publisher" {
   uri                     = aws_lambda_function.config_publisher.invoke_arn
 }
 
+resource "aws_api_gateway_resource" "config_validator" {
+  rest_api_id = aws_api_gateway_rest_api.config_publisher.id
+  parent_id   = aws_api_gateway_rest_api.config_publisher.root_resource_id
+  path_part   = "validate"
+}
+
+resource "aws_api_gateway_method" "config_validator" {
+  rest_api_id          = aws_api_gateway_rest_api.config_publisher.id
+  resource_id          = aws_api_gateway_resource.config_validator.id
+  http_method          = "POST"
+  authorization        = "AWS_IAM"
+  request_validator_id = aws_api_gateway_request_validator.config_publisher.id
+}
+
+resource "aws_api_gateway_integration" "config_validator" {
+  rest_api_id             = aws_api_gateway_rest_api.config_publisher.id
+  resource_id             = aws_api_gateway_resource.config_validator.id
+  http_method             = aws_api_gateway_method.config_validator.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.config_validator.invoke_arn
+}
+
+resource "aws_api_gateway_resource" "job_registrar" {
+  rest_api_id = aws_api_gateway_rest_api.config_publisher.id
+  parent_id   = aws_api_gateway_rest_api.config_publisher.root_resource_id
+  path_part   = "register"
+}
+
+resource "aws_api_gateway_method" "job_registrar" {
+  rest_api_id          = aws_api_gateway_rest_api.config_publisher.id
+  resource_id          = aws_api_gateway_resource.job_registrar.id
+  http_method          = "POST"
+  authorization        = "AWS_IAM"
+  request_validator_id = aws_api_gateway_request_validator.config_publisher.id
+}
+
+resource "aws_api_gateway_integration" "job_registrar" {
+  rest_api_id             = aws_api_gateway_rest_api.config_publisher.id
+  resource_id             = aws_api_gateway_resource.job_registrar.id
+  http_method             = aws_api_gateway_method.job_registrar.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.job_registrar.invoke_arn
+}
+
 resource "aws_lambda_permission" "config_publisher_api" {
   statement_id  = "AllowPrivateApiInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.config_publisher.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.config_publisher.execution_arn}/*/POST/publish"
+}
+
+resource "aws_lambda_permission" "config_validator_api" {
+  statement_id  = "AllowPrivateValidatorApiInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.config_validator.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.config_publisher.execution_arn}/*/POST/validate"
+}
+
+resource "aws_lambda_permission" "job_registrar_api" {
+  statement_id  = "AllowPrivateRegistrarApiInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.job_registrar.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.config_publisher.execution_arn}/*/POST/register"
 }
 
 resource "aws_cloudwatch_log_group" "config_publisher_api" {
@@ -1221,13 +1300,21 @@ resource "aws_cloudwatch_log_group" "config_publisher_api" {
 
 resource "aws_api_gateway_deployment" "config_publisher" {
   rest_api_id = aws_api_gateway_rest_api.config_publisher.id
-  depends_on  = [aws_api_gateway_integration.config_publisher]
+  depends_on  = [aws_api_gateway_integration.config_publisher, aws_api_gateway_integration.config_validator, aws_api_gateway_integration.job_registrar]
   triggers = {
     publisher_revision = sha256(jsonencode({
-      api_method    = aws_api_gateway_method.config_publisher.id
-      integration   = aws_api_gateway_integration.config_publisher.uri
-      lambda_sha256 = aws_lambda_function.config_publisher.source_code_hash
-      validator     = aws_api_gateway_request_validator.config_publisher.id
+      api_method               = aws_api_gateway_method.config_publisher.id
+      integration              = aws_api_gateway_integration.config_publisher.uri
+      lambda_sha256            = aws_lambda_function.config_publisher.source_code_hash
+      validator                = aws_api_gateway_request_validator.config_publisher.id
+      validation_lambda_sha256 = aws_lambda_function.config_validator.source_code_hash
+      validation_resource      = aws_api_gateway_resource.config_validator.id
+      validation_method        = aws_api_gateway_method.config_validator.id
+      validation_authorization = aws_api_gateway_method.config_validator.authorization
+      validation_route         = aws_api_gateway_resource.config_validator.path
+      registrar_resource       = aws_api_gateway_resource.job_registrar.id
+      registrar_method         = aws_api_gateway_method.job_registrar.id
+      registrar_route          = aws_api_gateway_resource.job_registrar.path
     }))
   }
   lifecycle { create_before_destroy = true }
@@ -2601,7 +2688,7 @@ data "aws_iam_policy_document" "occurrence_materializer" {
     sid       = "ReadOnlyTheRegisteredCanaryConfig"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion"]
-    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/${var.canary_normalizer_registration.job_id}/config/${var.canary_normalizer_registration.config_version}.json"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/*/config/*.json"]
   }
   statement {
     sid       = "WriteOnlyImmutableMaterializationSnapshots"
@@ -2611,7 +2698,7 @@ data "aws_iam_policy_document" "occurrence_materializer" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+      values   = ["JOB#*"]
     }
   }
   statement {
@@ -2622,7 +2709,7 @@ data "aws_iam_policy_document" "occurrence_materializer" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}"]
+      values   = ["JOB#*"]
     }
   }
   statement {
@@ -2718,6 +2805,340 @@ resource "aws_lambda_function" "occurrence_materializer" {
   } }
   depends_on = [aws_cloudwatch_log_group.occurrence_materializer]
   tags       = local.common_tags
+}
+
+resource "aws_cloudwatch_log_group" "config_validator" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/config-validator"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.materializer.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "config_validator_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "config_validator" {
+  name                 = "${local.name_prefix}-config-validator"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.config_validator_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+data "aws_iam_policy_document" "config_validator" {
+  statement {
+    sid       = "ReadOnlyRegisteredConfig"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:GetObjectVersion"]
+    resources = ["${aws_s3_bucket.config_inbox.arn}/jobs/*/config/*.json"]
+  }
+  statement {
+    sid       = "ReadOnlyNamespaceAndConfigRecords"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.namespace_registry.arn, aws_dynamodb_table.configuration_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#*"]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyValidationAcknowledgement"
+    effect    = "Allow"
+    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.configuration_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#*"]
+    }
+  }
+  statement {
+    sid    = "DescribeOnlyAuthoritativeResources"
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSubnets",
+      "ecs:DescribeClusters",
+      "ecs:DescribeTaskDefinition",
+      "logs:DescribeLogGroups",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "ReadOnlyBoundScheduler"
+    effect    = "Allow"
+    actions   = ["scheduler:GetSchedule"]
+    resources = ["arn:${data.aws_partition.current.partition}:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/*/*"]
+  }
+  statement {
+    sid       = "ReadOnlyBoundLaunchRole"
+    effect    = "Allow"
+    actions   = ["iam:GetRole", "iam:ListRoleTags"]
+    resources = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*"]
+  }
+  statement {
+    sid       = "DecryptOnlyConfigObject"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${data.aws_region.current.region}.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:aws:s3:arn"
+      values   = ["${aws_s3_bucket.config_inbox.arn}/jobs/*/config/*.json"]
+    }
+  }
+  statement {
+    sid       = "PublishOnlyValidatorMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = [var.metric_namespace]
+    }
+  }
+  statement {
+    sid       = "WriteOnlyOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.config_validator.arn}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "config_validator" {
+  name   = "${local.name_prefix}-config-validator"
+  role   = aws_iam_role.config_validator.id
+  policy = data.aws_iam_policy_document.config_validator.json
+}
+
+resource "aws_lambda_function" "config_validator" {
+  function_name                  = "${local.name_prefix}-config-validator"
+  filename                       = var.materializer.artifact_path
+  source_code_hash               = var.materializer.artifact_source_hash
+  handler                        = "occurrence_materializer.handler.lambda_handler"
+  role                           = aws_iam_role.config_validator.arn
+  runtime                        = "python3.14"
+  timeout                        = var.materializer.timeout_seconds
+  reserved_concurrent_executions = var.materializer.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+  environment {
+    variables = {
+      MATERIALIZER_MODE                     = "validate"
+      MATERIALIZER_CONTRACTS_ROOT           = "/var/task/contracts/v1"
+      MATERIALIZER_CONFIG_BUCKET            = aws_s3_bucket.config_inbox.bucket
+      MATERIALIZER_CONFIG_REGISTRY_TABLE    = aws_dynamodb_table.configuration_registry.name
+      MATERIALIZER_NAMESPACE_REGISTRY_TABLE = aws_dynamodb_table.namespace_registry.name
+      MATERIALIZER_KMS_KEY_ARN              = var.kms_key_arn
+      MATERIALIZER_METRIC_NAMESPACE         = var.metric_namespace
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.config_validator]
+  tags       = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_validator_errors" {
+  alarm_name          = "${local.name_prefix}-config-validator-errors"
+  alarm_description   = "CONFIG validator Lambda errors require Cell validation investigation; see the Cell runbook."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.config_validator.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_validator_throttles" {
+  alarm_name          = "${local.name_prefix}-config-validator-throttles"
+  alarm_description   = "CONFIG validator throttling requires Cell capacity investigation; see the Cell runbook."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Throttles"
+  dimensions          = { FunctionName = aws_lambda_function.config_validator.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_validator_rejections" {
+  alarm_name          = "${local.name_prefix}-config-validator-rejections"
+  alarm_description   = "CONFIG validator rejection volume requires contract or authority investigation; see the Cell runbook."
+  namespace           = var.metric_namespace
+  metric_name         = "ValidationRejections"
+  dimensions          = { environment = var.environment }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_cloudwatch_metric_alarm" "config_validator_conflicts" {
+  alarm_name          = "${local.name_prefix}-config-validator-conflicts"
+  alarm_description   = "CONFIG validator immutable snapshot conflicts require stale-authority investigation; see the Cell runbook."
+  namespace           = var.metric_namespace
+  metric_name         = "ValidationConflicts"
+  dimensions          = { environment = var.environment }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_cloudwatch_log_group" "job_registrar" {
+  name              = "/platform/ecs-scheduled-jobs/${var.cell_id}/job-registrar"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = var.registrar.log_retention_days
+  tags              = local.common_tags
+}
+
+data "aws_iam_policy_document" "job_registrar_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "job_registrar" {
+  name                 = "${local.name_prefix}-job-registrar"
+  path                 = "/platform/ecs-scheduled-jobs/${var.cell_id}/v1/"
+  assume_role_policy   = data.aws_iam_policy_document.job_registrar_assume_role.json
+  permissions_boundary = var.permissions_boundary_arn
+  tags                 = local.common_tags
+}
+
+data "aws_iam_policy_document" "job_registrar" {
+  statement {
+    sid       = "ReadAndBindReservations"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.namespace_registry.arn]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["JOB#*"]
+    }
+  }
+  statement {
+    sid       = "ReadAuthoritativeSchedules"
+    effect    = "Allow"
+    actions   = ["scheduler:GetSchedule", "scheduler:ListTagsForResource"]
+    resources = ["arn:${data.aws_partition.current.partition}:scheduler:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:schedule/*/*"]
+  }
+  statement {
+    sid       = "ReadAuthoritativeRoles"
+    effect    = "Allow"
+    actions   = ["iam:GetRole", "iam:ListRoleTags"]
+    resources = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*"]
+  }
+  statement {
+    sid       = "ReadAuthoritativeTasks"
+    effect    = "Allow"
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "WriteOwnLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.job_registrar.arn}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "job_registrar" {
+  name   = "${local.name_prefix}-job-registrar"
+  role   = aws_iam_role.job_registrar.id
+  policy = data.aws_iam_policy_document.job_registrar.json
+}
+
+resource "aws_lambda_function" "job_registrar" {
+  function_name                  = "${local.name_prefix}-job-registrar"
+  filename                       = var.registrar.artifact_path
+  source_code_hash               = var.registrar.artifact_source_hash
+  handler                        = "job_registrar.handler.lambda_handler"
+  role                           = aws_iam_role.job_registrar.arn
+  runtime                        = "python3.14"
+  timeout                        = var.registrar.timeout_seconds
+  reserved_concurrent_executions = var.registrar.reserved_concurrency
+  kms_key_arn                    = var.kms_key_arn
+  environment {
+    variables = {
+      REGISTRAR_NAMESPACE_REGISTRY_TABLE = aws_dynamodb_table.namespace_registry.name
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.job_registrar]
+  tags       = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "job_registrar_errors" {
+  alarm_name          = "${local.name_prefix}-job-registrar-errors"
+  alarm_description   = "Registrar identity-resolution failures require Cell investigation; see the Cell runbook."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.job_registrar.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
+}
+
+resource "aws_cloudwatch_metric_alarm" "job_registrar_throttles" {
+  alarm_name          = "${local.name_prefix}-job-registrar-throttles"
+  alarm_description   = "Registrar throttling requires Cell capacity investigation; see the Cell runbook."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Throttles"
+  dimensions          = { FunctionName = aws_lambda_function.job_registrar.function_name }
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  ok_actions          = var.alert_router.notifications_enabled ? [var.alert_router.notification_target_arn] : []
+  tags                = merge(local.common_tags, { Runbook = var.alert_router.runbook_uri })
 }
 
 resource "aws_cloudwatch_event_rule" "materializer_tick" {

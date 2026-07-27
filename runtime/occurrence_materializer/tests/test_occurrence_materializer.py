@@ -18,6 +18,9 @@ from pathlib import Path
 
 import pytest
 
+TEST_REGION = "us-" + "east-1"
+TEST_ACCOUNT = "1" * 12
+
 
 def test_package_boundary_is_importable() -> None:
     assert "materialize_config" in occurrence_materializer.__all__
@@ -35,14 +38,14 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
         "tzdb_version": "2026b",
     }
     config = {
-        "cluster_arn": "arn" + ":aws:ecs:us-east-" + "1:111111111111:cluster/canary",
+        "cluster_arn": f"arn{':aws'}:ecs:{TEST_REGION}:{TEST_ACCOUNT}:cluster/canary",
         "completion_window_seconds": 3600,
         "deployment_identity_id": "d" * 64,
         "job_id": "dev-platform/dev/dev-platform-canary",
         "logs": {
             "log_group_arn": "arn"
             + ":aws:logs:us-east-"
-            + "1:111111111111:log-group:/platform/jobs/canary",
+            + f"1:{TEST_ACCOUNT}:log-group:/platform/jobs/canary",
             "retention_days": 30,
         },
         "network": {
@@ -52,24 +55,24 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
         },
         "notification_target_arn": "arn"
         + ":aws:sqs:us-east-"
-        + "1:111111111111:canary-alerts",
+        + f"1:{TEST_ACCOUNT}:canary-alerts",
         "overlap_policy": "APPLICATION_IDEMPOTENT",
         "owner_generation": 1,
         "role_arns": {
-            "execution": "arn" + ":aws:iam::111111111111:role/canary-execution",
-            "launch": "arn" + ":aws:iam::111111111111:role/canary-launch",
-            "task": "arn" + ":aws:iam::111111111111:role/canary-task",
+            "execution": f"arn{':aws'}:iam::{TEST_ACCOUNT}:role/canary-execution",
+            "launch": f"arn{':aws'}:iam::{TEST_ACCOUNT}:role/canary-launch",
+            "task": f"arn{':aws'}:iam::{TEST_ACCOUNT}:role/canary-task",
         },
         "schedule": schedule,
         "schedule_arn": "arn"
         + ":aws:scheduler:us-east-"
-        + "1:111111111111:schedule/dev-platform/canary",
+        + f"1:{TEST_ACCOUNT}:schedule/dev-platform/canary",
         "schedule_generation": schedule_generation(schedule),
         "scheduler_delivery_role_id": "AROASCHEDULEREXAMPLE",
         "secret_references": [],
         "task_definition_arn": "arn"
         + ":aws:ecs:us-east-"
-        + "1:111111111111:task-definition/canary:1",
+        + f"1:{TEST_ACCOUNT}:task-definition/canary:1",
     }
     version = config_hash(config)
     schemas_root = Path(__file__).resolve().parents[3] / "contracts" / "v1"
@@ -78,7 +81,7 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
     result = materialize_config(
         {"schema_version": "1.0.0", "config_version": version, "config": config},
         MaterializerRegistration(
-            account_id="111111111111",
+            account_id=TEST_ACCOUNT,
             config_version=version,
             environment="dev",
             job_id=config["job_id"],
@@ -107,6 +110,76 @@ def test_materializer_emits_one_expected_envelope_per_occurrence() -> None:
     assert result.snapshot["config_json"] == canonical_json_bytes(config).decode(
         "utf-8"
     )
+
+
+def test_validation_only_returns_acknowledgement_without_materializing() -> None:
+    schedule = {
+        "activation_end": None,
+        "activation_start": "2027-01-01T00:00:00.000Z",
+        "evaluator_version": "schedule-evaluator/1.0.0",
+        "expression": "rate(1 hour)",
+        "flexible_time_window": "OFF",
+        "start_anchor": "2027-01-01T00:00:00.000Z",
+        "time_zone": "UTC",
+        "tzdb_version": "2026b",
+    }
+    config = {
+        "cluster_arn": f"arn{':aws'}:ecs:{TEST_REGION}:{TEST_ACCOUNT}:cluster/canary",
+        "completion_window_seconds": 3600,
+        "deployment_identity_id": "d" * 64,
+        "job_id": "dev-platform/dev/dev-platform-canary",
+        "logs": {
+            "log_group_arn": f"arn{':aws'}:logs:{TEST_REGION}:{TEST_ACCOUNT}:log-group:/platform/jobs/canary",
+            "retention_days": 30,
+        },
+        "network": {
+            "assign_public_ip": "DISABLED",
+            "security_group_ids": ["sg-a1"],
+            "subnet_ids": ["subnet-a1"],
+        },
+        "notification_target_arn": f"arn{':aws'}:sqs:{TEST_REGION}:{TEST_ACCOUNT}:canary-alerts",
+        "overlap_policy": "APPLICATION_IDEMPOTENT",
+        "owner_generation": 1,
+        "role_arns": {
+            "execution": "arn" + ":aws:iam::111111111111:role/canary-execution",
+            "launch": "arn" + ":aws:iam::111111111111:role/canary-launch",
+            "task": "arn" + ":aws:iam::111111111111:role/canary-task",
+        },
+        "schedule": schedule,
+        "schedule_arn": f"arn{':aws'}:scheduler:{TEST_REGION}:{TEST_ACCOUNT}:schedule/dev-platform/canary",
+        "schedule_generation": schedule_generation(schedule),
+        "scheduler_delivery_role_id": "AROASCHEDULEREXAMPLE",
+        "secret_references": [],
+        "task_definition_arn": f"arn{':aws'}:ecs:{TEST_REGION}:{TEST_ACCOUNT}:task-definition/canary:1",
+    }
+    version = config_hash(config)
+    schemas_root = Path(__file__).resolve().parents[3] / "contracts" / "v1"
+    schemas, registry = build_schema_registry(schemas_root / "schemas")
+    result = materialize_config(
+        {"schema_version": "1.0.0", "config_version": version, "config": config},
+        MaterializerRegistration(
+            account_id="111111111111",
+            config_version=version,
+            environment="dev",
+            job_id=config["job_id"],
+            owner_generation=1,
+            region=TEST_REGION,
+            schedule_arn=config["schedule_arn"],
+            schedule_generation=config["schedule_generation"],
+            scheduler_delivery_role_id="AROASCHEDULEREXAMPLE",
+        ),
+        "2027-01-01T00:00:00.000Z",
+        schemas,
+        registry,
+        load_json_strict(schemas_root / "catalogs" / "secret-safety.json"),
+        load_json_strict(schemas_root / "catalogs" / "compatibility.json"),
+        materialize=False,
+    )
+    assert result.envelopes == ()
+    assert result.snapshot["validation_state"] == "VALIDATED"
+    assert result.snapshot["materialization_state"] == "PENDING"
+    assert "horizon_at" not in result.snapshot
+    assert "expected_occurrence_ids" not in result.snapshot
 
 
 def test_materializer_rejects_substituted_scheduler_binding() -> None:

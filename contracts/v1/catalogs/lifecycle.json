@@ -9,6 +9,10 @@
     "contract_version",
     "horizon_watermark"
   ],
+  "acknowledgement_integrity_bindings": [
+    "contract_checksum",
+    "validation_evidence"
+  ],
   "retirement": {
     "artifact_classes": ["config", "task-definition", "schema", "runtime", "contract", "deployment"],
     "eligibility": ["inventory_complete", "no_active_reference", "no_unknown_reference", "horizon_expired", "not_current", "not_previous_supported_major"],

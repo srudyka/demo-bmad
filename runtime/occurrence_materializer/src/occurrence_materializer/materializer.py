@@ -40,6 +40,16 @@ class MaterializerRegistration:
     schedule_arn: str
     schedule_generation: str
     scheduler_delivery_role_id: str
+    schedule_group_arn: str = ""
+    scheduler_delivery_role_arn: str = ""
+    launch_role_arn: str = ""
+    launch_role_id: str = ""
+    task_family: str = ""
+    repository_id: str = ""
+    terraform_root_id: str = ""
+    owner: str = ""
+    contract_checksum: str = ""
+    task_definition_arn: str = ""
 
 
 @dataclass(frozen=True)
@@ -48,6 +58,24 @@ class MaterializationResult:
 
     envelopes: tuple[dict[str, object], ...]
     snapshot: dict[str, object]
+
+
+def _validation_evidence(
+    registration: MaterializerRegistration, contract_checksum: str
+) -> str:
+    evidence = {
+        "config_version": registration.config_version,
+        "contract_checksum": contract_checksum,
+        "job_id": registration.job_id,
+        "launch_role_id": registration.launch_role_id,
+        "owner_generation": registration.owner_generation,
+        "schedule_arn": registration.schedule_arn,
+        "schedule_generation": registration.schedule_generation,
+        "scheduler_delivery_role_id": registration.scheduler_delivery_role_id,
+        "task_definition_arn": registration.task_definition_arn,
+        "task_family": registration.task_family,
+    }
+    return sha256(canonical_json_bytes(evidence)).hexdigest()
 
 
 def _timestamp(value: datetime) -> str:
@@ -139,6 +167,28 @@ def _assert_config_bindings(
         != registration.scheduler_delivery_role_id
     ):
         raise MaterializationError("MATERIALIZER_CONFIG_SCHEDULER_ROLE_MISMATCH")
+    optional_bindings = (
+        (
+            "schedule_group_arn",
+            "schedule_group_arn",
+            "MATERIALIZER_CONFIG_SCHEDULE_GROUP_MISMATCH",
+        ),
+        (
+            "scheduler_delivery_role_arn",
+            "scheduler_delivery_role_arn",
+            "MATERIALIZER_CONFIG_SCHEDULER_ROLE_ARN_MISMATCH",
+        ),
+        (
+            "launch_role_arn",
+            "launch_role_arn",
+            "MATERIALIZER_CONFIG_LAUNCH_ROLE_MISMATCH",
+        ),
+        ("task_family", "task_family", "MATERIALIZER_CONFIG_TASK_FAMILY_MISMATCH"),
+    )
+    for config_key, registration_key, error_code in optional_bindings:
+        expected = getattr(registration, registration_key)
+        if expected and config.get(config_key) != expected:
+            raise MaterializationError(error_code)
 
 
 def materialize_config(
@@ -149,8 +199,10 @@ def materialize_config(
     schema_registry: Registry[Any],
     secret_policy: dict[str, object],
     compatibility_catalog: Mapping[str, object],
+    *,
+    materialize: bool = True,
 ) -> MaterializationResult:
-    """Validate immutable CONFIG and create the next 24-hour expected evidence set."""
+    """Validate CONFIG and optionally create the next expected evidence set."""
 
     config_schema_id = "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config"
     evidence_schema_id = (
@@ -184,6 +236,14 @@ def materialize_config(
             raise MaterializationError(f"MATERIALIZER_CONFIG_{field.upper()}_MISMATCH")
 
     _assert_config_bindings(config, registration)
+    contract_checksum = str(
+        config.get("contract_checksum", registration.contract_checksum)
+    )
+    if (
+        registration.contract_checksum
+        and contract_checksum != registration.contract_checksum
+    ):
+        raise MaterializationError("MATERIALIZER_CONTRACT_CHECKSUM_MISMATCH")
     schedule = config.get("schedule")
     if not isinstance(schedule, dict):
         raise MaterializationError("MATERIALIZER_SCHEDULE_INVALID")
@@ -193,6 +253,42 @@ def materialize_config(
         raise MaterializationError("MATERIALIZER_SCHEDULE_INVALID") from error
 
     start = _parse_timestamp(materialized_at)
+    if not materialize:
+        return MaterializationResult(
+            envelopes=(),
+            snapshot={
+                "pk": f"JOB#{registration.job_id}",
+                "sk": f"CONFIG#{registration.config_version}",
+                "record_type": "CONFIG_MATERIALIZATION",
+                "job_id": registration.job_id,
+                "config_version": registration.config_version,
+                "config_hash": registration.config_version,
+                "contract_version": str(config.get("contract_version", "")),
+                "contract_checksum": contract_checksum,
+                "config_json": canonical_json_bytes(config).decode("utf-8"),
+                "schedule_generation": registration.schedule_generation,
+                "schedule_arn": registration.schedule_arn,
+                "schedule_group_arn": registration.schedule_group_arn,
+                "scheduler_delivery_role_arn": registration.scheduler_delivery_role_arn,
+                "scheduler_delivery_role_id": registration.scheduler_delivery_role_id,
+                "launch_role_arn": registration.launch_role_arn,
+                "launch_role_id": registration.launch_role_id,
+                "task_family": registration.task_family,
+                "repository_id": registration.repository_id,
+                "terraform_root_id": registration.terraform_root_id,
+                "owner": registration.owner,
+                "owner_generation": str(registration.owner_generation),
+                "horizon_watermark": "PENDING",
+                "validation_evidence": _validation_evidence(
+                    registration, contract_checksum
+                ),
+                "validated_at": _timestamp(start),
+                "validation_state": "VALIDATED",
+                "materialization_state": "PENDING",
+                "conformance_result": "PASS",
+            },
+        )
+
     horizon = start + timedelta(hours=24)
     try:
         scheduled_times = tuple(
@@ -253,12 +349,16 @@ def materialize_config(
         "job_id": registration.job_id,
         "config_version": registration.config_version,
         "config_hash": registration.config_version,
+        "contract_version": str(config.get("contract_version", "")),
+        "contract_checksum": contract_checksum,
         "config_json": canonical_json_bytes(config).decode("utf-8"),
         "schedule_generation": registration.schedule_generation,
         "schedule_arn": registration.schedule_arn,
         "validated_at": _timestamp(start),
         "materialized_at": None,
         "horizon_at": watermark,
+        "horizon_watermark": watermark,
+        "validation_evidence": _validation_evidence(registration, contract_checksum),
         "validation_state": "VALIDATED",
         "materialization_state": "PENDING",
         "conformance_result": "PASS",

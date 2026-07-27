@@ -152,6 +152,30 @@ output "occurrence_materializer" {
   }
 }
 
+output "config_validator" {
+  description = "Cell-owned validation-only CONFIG acknowledgement function; it never emits expected occurrences or enables schedules."
+  value = {
+    function_arn = aws_lambda_function.config_validator.arn
+    role_arn     = aws_iam_role.config_validator.arn
+    log_group    = aws_cloudwatch_log_group.config_validator.name
+    protocol     = "config-validator/1.0.0"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/validate"
+    alarm_arns   = [aws_cloudwatch_metric_alarm.config_validator_errors.arn, aws_cloudwatch_metric_alarm.config_validator_throttles.arn, aws_cloudwatch_metric_alarm.config_validator_rejections.arn, aws_cloudwatch_metric_alarm.config_validator_conflicts.arn]
+  }
+}
+
+output "job_registrar" {
+  description = "Cell-owned Registrar Lambda that resolves authoritative AWS identities and conditionally binds reservations."
+  value = {
+    function_arn = aws_lambda_function.job_registrar.arn
+    role_arn     = aws_iam_role.job_registrar.arn
+    log_group    = aws_cloudwatch_log_group.job_registrar.name
+    protocol     = "job-registrar/1.0.0"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/register"
+    alarm_arns   = [aws_cloudwatch_metric_alarm.job_registrar_errors.arn, aws_cloudwatch_metric_alarm.job_registrar_throttles.arn]
+  }
+}
+
 output "canary_registration" {
   description = "Immutable platform-owned bootstrap canary reservation and its narrowly scoped CONFIG publisher role."
   value = {

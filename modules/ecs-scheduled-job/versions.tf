@@ -9,7 +9,7 @@ terraform {
     cell = {
       source                = "demo-bmad/cell"
       version               = "0.1.0"
-      configuration_aliases = [cell.publisher]
+      configuration_aliases = [cell.publisher, cell.validator]
     }
   }
 }

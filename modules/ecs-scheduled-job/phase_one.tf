@@ -132,3 +132,33 @@ resource "cell_config_publication" "config" {
   }
 
 }
+
+resource "cell_config_acknowledgement" "config" {
+  provider                    = cell.validator
+  account_id                  = var.account_id
+  environment                 = var.environment
+  job_id                      = local.job_id
+  config_version              = local.config_version
+  contract_endpoint_url       = local.contract_integrations.config_validator.endpoint_url
+  contract_version            = local.contract.contract_version
+  contract_checksum           = local.contract.checksum
+  ownership_generation        = try(var.registrar_receipt.owner_generation, 0)
+  schedule_generation         = local.schedule_generation
+  schedule_arn                = local.schedule_arn
+  schedule_group_arn          = local.contract_integrations.scheduler_schedule_group.arn
+  scheduler_delivery_role_arn = aws_iam_role.scheduler_delivery.arn
+  scheduler_delivery_role_id  = aws_iam_role.scheduler_delivery.unique_id
+  task_family                 = aws_ecs_task_definition.job.family
+  task_definition_arn         = aws_ecs_task_definition.job.arn
+  launch_role_arn             = aws_iam_role.launch.arn
+  launch_role_id              = aws_iam_role.launch.unique_id
+  publisher_role_arn          = var.config_validator_role_arn != "" ? var.config_validator_role_arn : var.config_publisher_role_arn
+  repository_id               = var.repository_id
+  terraform_root_id           = var.terraform_root_id
+
+  depends_on = [cell_config_publication.config]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}

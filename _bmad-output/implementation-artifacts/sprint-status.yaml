@@ -1,5 +1,5 @@
 # generated: 2026-07-14T17:04:01-0500
-# last_updated: 2026-07-22T00:00:00-0500
+# last_updated: 2026-07-27T00:00:00-0500
 # project: demo-bmad
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-last_updated: 2026-07-24T00:00:00-0500
+last_updated: 2026-07-27T00:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -73,7 +73,7 @@ development_status:
   2-4-provision-the-fargate-task-and-structured-logs: done
   2-5-publish-phase-one-job-resources-and-config: done
   2-5a-cell-owned-conditional-config-publisher: done
-  2-6-validate-and-acknowledge-job-configuration: backlog
+  2-6-validate-and-acknowledge-job-configuration: done
   2-7-activate-the-non-production-schedule-safely: backlog
   2-8-connect-completion-evidence-and-alert-metadata: backlog
   2-9-expose-job-operations-and-optional-views: backlog

@@ -79,6 +79,20 @@ variable "config_publisher_role_arn" {
   }
 }
 
+variable "config_validator_role_arn" {
+  description = "Cell-owned IAM role used by the acknowledgement validator provider boundary."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = var.config_validator_role_arn == "" || can(regex(
+      "^arn:[a-z0-9-]+:iam::[0-9]{12}:role/(?:[A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+      var.config_validator_role_arn,
+    ))
+    error_message = "config_validator_role_arn must be empty or an exact IAM role ARN."
+  }
+}
+
 variable "region" {
   description = "Target AWS Region that must match the discovered Cell Contract."
   type        = string

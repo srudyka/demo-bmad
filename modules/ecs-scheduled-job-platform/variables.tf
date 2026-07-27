@@ -350,6 +350,28 @@ variable "materializer" {
   }
 }
 
+variable "registrar" {
+  description = "Explicit trusted Registrar artifact and bounded AWS identity-resolution Lambda controls."
+  type = object({
+    artifact_path        = string
+    artifact_source_hash = string
+    log_retention_days   = number
+    reserved_concurrency = number
+    timeout_seconds      = number
+  })
+
+  validation {
+    condition = (
+      length(var.registrar.artifact_path) > 0 &&
+      can(regex("^[A-Za-z0-9+/]{43}=$", var.registrar.artifact_source_hash)) &&
+      var.registrar.timeout_seconds >= 1 && var.registrar.timeout_seconds <= 900 &&
+      var.registrar.reserved_concurrency >= 1 && var.registrar.reserved_concurrency <= 1000 &&
+      contains([365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.registrar.log_retention_days)
+    )
+    error_message = "registrar must use a published artifact and bounded Lambda controls."
+  }
+}
+
 variable "process_manager" {
   description = "Explicit trusted Process Manager artifact and bounded Lambda/event-source controls."
   type = object({
