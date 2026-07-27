@@ -153,6 +153,12 @@ def print_toolchain(roots: Sequence[Path]) -> None:
 
 def validate_terraform(roots: Sequence[Path]) -> None:
     base_environment = sanitized_environment()
+    lock_snapshots = {
+        REPOSITORY_ROOT / root / ".terraform.lock.hcl": (
+            REPOSITORY_ROOT / root / ".terraform.lock.hcl"
+        ).read_bytes()
+        for root in roots
+    }
     with tempfile.TemporaryDirectory(prefix="ecs-jobs-terraform-") as temporary:
         temporary_root = Path(temporary)
         plugin_cache = temporary_root / "plugin-cache"
@@ -183,6 +189,9 @@ def validate_terraform(roots: Sequence[Path]) -> None:
         cli_config = temporary_root / "terraform.tfrc"
         cli_config.write_text(
             "provider_installation {\n"
+            "  dev_overrides {\n"
+            f'    "demo-bmad/cell" = "{provider_binary.parent}"\n'
+            "  }\n"
             "  filesystem_mirror {\n"
             f'    path = "{provider_binary.parents[5]}"\n'
             "  }\n"
@@ -198,19 +207,22 @@ def validate_terraform(roots: Sequence[Path]) -> None:
                 "TF_CLI_CONFIG_FILE": str(cli_config),
             }
             label = f"terraform:{root}"
-            run_stage(
-                f"{label}:init",
-                (
-                    "terraform",
-                    "init",
-                    "-backend=false",
-                    "-input=false",
-                    "-lockfile=readonly",
-                    "-no-color",
-                ),
-                cwd=REPOSITORY_ROOT / root,
-                environment=environment,
-            )
+            try:
+                run_stage(
+                    f"{label}:init",
+                    (
+                        "terraform",
+                        "init",
+                        "-backend=false",
+                        "-input=false",
+                        "-no-color",
+                    ),
+                    cwd=REPOSITORY_ROOT / root,
+                    environment=environment,
+                )
+            finally:
+                lock_path = REPOSITORY_ROOT / root / ".terraform.lock.hcl"
+                lock_path.write_bytes(lock_snapshots[lock_path])
             # Reusable modules that declare provider configuration aliases are
             # validated through a real caller (the basic example below). A
             # standalone validate of such a child module has no provider

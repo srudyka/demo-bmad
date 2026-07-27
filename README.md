@@ -142,9 +142,11 @@ consumer root's lock.
 To qualify a provider update, run `terraform init -backend=false -upgrade`
 independently in both module directories and both `examples/basic/` directories.
 Review every lock diff, confirm all four roots resolve the same approved provider
-version, and retain checksums for both local macOS and Linux CI, then run
-`./scripts/validate.sh`. Normal validation uses
-`-lockfile=readonly` and fails rather than changing a lock.
+version, then run
+`./scripts/validate.sh`. Normal validation keeps registry providers locked; the
+in-repository Cell provider is built locally and supplied through a temporary
+Terraform development override, so its platform-specific build is not recorded
+in or checked against the committed lock files.
 
 ## Contribution Contract
 
