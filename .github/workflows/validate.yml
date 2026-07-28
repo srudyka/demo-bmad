@@ -5,6 +5,13 @@ on:
 
 permissions:
   contents: read
+  actions: none
+  checks: none
+  deployments: none
+  id-token: none
+  packages: none
+  pull-requests: none
+  security-events: none
 
 concurrency:
   group: validation-${{ github.event.pull_request.number }}
@@ -40,4 +47,5 @@ jobs:
         env:
           UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
           UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/venv
+          VALIDATION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: ./scripts/validate.sh

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "findings": {
+    "secret-exposure": {"environment": "all", "severity": "blocking"},
+    "invalid-terraform": {"environment": "all", "severity": "blocking"},
+    "formatting-failure": {"environment": "all", "severity": "blocking"},
+    "prohibited-artifact": {"environment": "all", "severity": "blocking"},
+    "missing-tags": {"environment": "non-production", "severity": "advisory", "enforce_after": "pilot-acceptance"},
+    "iam-wildcard": {"environment": "staging", "severity": "advisory", "enforce_after": "adoption-sprint-1"},
+    "iam-wildcard-production": {"environment": "production", "severity": "blocking"}
+  }
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import platform
 import re
 import subprocess
@@ -8,6 +9,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,203 @@ GENERATED_FILE = re.compile(
 
 class ValidationFailure(RuntimeError):
     """Raised when a named validation stage fails."""
+
+
+TARGET_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("terraform", (".tf", ".tf.json", ".terraform.lock.hcl")),
+    ("runtime", ("runtime/",)),
+    ("contracts", ("contracts/",)),
+    ("tests", ("tests/",)),
+    ("workflow-policy", (".github/", "scripts/check_repository.py")),
+    ("dependency", ("pyproject.toml", "uv.lock")),
+    ("documentation", ("docs/", "README.md", "_bmad-output/")),
+)
+ROLLOUT_CATALOG = REPOSITORY_ROOT / "scripts" / "validation-rollout.json"
+
+
+def classify_changed_paths(paths: Sequence[str]) -> dict[str, tuple[str, ...]]:
+    """Map changed repository paths to owned validation targets.
+
+    The mapping is deliberately conservative: shared manifests, lock files,
+    scripts, and unknown paths cause the full validation target set to run.
+    """
+    normalized = tuple(
+        sorted(
+            path.replace("\\", "/")[2:]
+            if path.replace("\\", "/").startswith("./")
+            else path.replace("\\", "/")
+            for path in paths
+        )
+    )
+    targets: set[str] = set()
+    unknown: list[str] = []
+    owners: dict[str, tuple[str, ...]] = {}
+    for path in normalized:
+        matched = False
+        for target, patterns in TARGET_RULES:
+            if any(
+                path == pattern
+                or path.startswith(pattern)
+                or (pattern.startswith(".") and path.endswith(pattern))
+                for pattern in patterns
+            ):
+                targets.add(target)
+                matched = True
+        if not matched:
+            unknown.append(path)
+        owners[path] = tuple(
+            sorted(
+                target
+                for target, patterns in TARGET_RULES
+                if any(
+                    path == pattern
+                    or path.startswith(pattern)
+                    or (pattern.startswith(".") and path.endswith(pattern))
+                    for pattern in patterns
+                )
+            )
+        )
+    if unknown:
+        targets.update(
+            {"terraform", "runtime", "contracts", "tests", "workflow-policy"}
+        )
+    return {
+        "targets": tuple(sorted(targets)),
+        "unknown": tuple(unknown),
+        "paths": normalized,
+        "owners": tuple(
+            f"{path}={','.join(owners[path]) or 'unknown'}" for path in normalized
+        ),
+    }
+
+
+def load_rollout_catalog() -> dict[str, object]:
+    try:
+        catalog = json.loads(ROLLOUT_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValidationFailure(
+            f"policy:rollout-catalog unreadable: {error}"
+        ) from error
+    if catalog.get("version") != "1.0.0" or not isinstance(
+        catalog.get("findings"), dict
+    ):
+        raise ValidationFailure("policy:rollout-catalog invalid version or findings")
+    for code, finding in catalog["findings"].items():
+        if not isinstance(finding, dict) or finding.get("severity") not in {
+            "blocking",
+            "advisory",
+        }:
+            raise ValidationFailure(f"policy:rollout-catalog invalid severity: {code}")
+        if (
+            finding.get("environment") == "production"
+            and finding.get("severity") != "blocking"
+        ):
+            raise ValidationFailure(
+                f"policy:rollout-catalog production finding is not blocking: {code}"
+            )
+    return cast(dict[str, object], catalog)
+
+
+def migration_check(changed_paths: Sequence[str], base: str | None) -> None:
+    terraform_changes = tuple(
+        path for path in changed_paths if path.endswith((".tf", ".tf.json"))
+    )
+    if not terraform_changes or not base:
+        return
+    diff = subprocess.run(
+        ("git", "diff", "--unified=0", f"{base}...HEAD", "--", *terraform_changes),
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    removed = set(
+        re.findall(r'^-\s*resource\s+"([^"]+)"\s+"([^"]+)"', diff, re.MULTILINE)
+    )
+    added = set(
+        re.findall(r'^\+\s*resource\s+"([^"]+)"\s+"([^"]+)"', diff, re.MULTILINE)
+    )
+    if removed and added and not re.search(r"\bmoved\s*\{", diff):
+        guidance = any(
+            Path(path).name.lower().startswith(("readme", "migration"))
+            for path in changed_paths
+        )
+        if not guidance:
+            pairs = ", ".join(
+                f"{kind}.{name}" for kind, name in sorted(removed | added)
+            )
+            raise ValidationFailure(
+                "terraform:migration: resource address churn requires a moved block or consumer migration guidance: "
+                + pairs
+            )
+
+
+def workflow_security_violations(contents: str) -> tuple[str, ...]:
+    checks = {
+        "privileged trigger": r"pull_request_target|workflow_run",
+        "write permission": r"(?im)(?:id-token|contents|pull-requests|actions):\s*write",
+        "secret or environment": r"(?im)secrets\.|^\s+environment:\s*",
+        "cache or artifact": r"upload-artifact|download-artifact|actions/cache",
+        "credential or environment dump": r"github\.token|printenv|env \|",
+        "plan or raw config": r"terraform plan|terraform show|raw_config|config_body",
+        "variable file": r"\.tfvars(?:\.json)?",
+    }
+    return tuple(
+        name for name, pattern in checks.items() if re.search(pattern, contents)
+    )
+
+
+def artifact_policy_check() -> None:
+    """Keep untrusted validation outputs free of trust-crossing artifacts."""
+    workflow_root = REPOSITORY_ROOT / ".github" / "workflows"
+    for workflow in workflow_root.glob("*.y*ml"):
+        contents = workflow.read_text(encoding="utf-8")
+        if workflow_security_violations(contents):
+            raise ValidationFailure(
+                f"policy:artifact-safety prohibited trust-crossing output in {workflow.relative_to(REPOSITORY_ROOT)}"
+            )
+        if re.search(r"(?m)^\s+environment:\s*", contents):
+            raise ValidationFailure(
+                f"policy:artifact-safety protected Environment in PR workflow {workflow.relative_to(REPOSITORY_ROOT)}"
+            )
+
+
+def changed_paths_from_git(base: str | None) -> tuple[str, ...]:
+    """Return changed paths for a PR base, or empty for full local validation."""
+    if not base:
+        return ()
+    try:
+        result = subprocess.run(
+            ("git", "diff", "--name-only", f"{base}...HEAD"),
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValidationFailure(
+            f"changed-target discovery failed for base {base!r}; reproduce with "
+            f"git diff --name-only {base}...HEAD"
+        ) from error
+    return tuple(line for line in result.stdout.splitlines() if line)
+
+
+def report_changed_targets(paths: Sequence[str]) -> None:
+    inventory = classify_changed_paths(paths)
+    if not inventory["paths"]:
+        print("Changed-target inventory: full repository validation", flush=True)
+        return
+    print("Changed-target inventory:", flush=True)
+    print("  paths: " + ", ".join(inventory["paths"]), flush=True)
+    print("  validation targets: " + ", ".join(inventory["targets"]), flush=True)
+    print("  owners: " + "; ".join(inventory["owners"]), flush=True)
+    if inventory["unknown"]:
+        print(
+            "  unknown paths: "
+            + ", ".join(inventory["unknown"])
+            + " (conservative full safety suite selected)",
+            flush=True,
+        )
 
 
 def sanitized_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -332,6 +531,11 @@ def main() -> int:
         ),
     )
     try:
+        changed_paths = changed_paths_from_git(os.environ.get("VALIDATION_BASE_SHA"))
+        report_changed_targets(changed_paths)
+        load_rollout_catalog()
+        migration_check(changed_paths, os.environ.get("VALIDATION_BASE_SHA"))
+        artifact_policy_check()
         roots = terraform_roots()
         print_toolchain(roots)
         for label, command in stages[:1]:

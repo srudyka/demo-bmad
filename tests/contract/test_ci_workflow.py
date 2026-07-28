@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+import json
 import unittest
 from pathlib import Path
+from scripts.validate import workflow_security_violations
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +27,16 @@ class ContinuousIntegrationContractTest(unittest.TestCase):
         contents = WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(contents, r"(?m)^on:\n  pull_request:\s*$")
         self.assertIn("permissions:\n  contents: read", contents)
+        for permission in (
+            "actions: none",
+            "checks: none",
+            "deployments: none",
+            "id-token: none",
+            "packages: none",
+            "pull-requests: none",
+            "security-events: none",
+        ):
+            self.assertIn(permission, contents)
         for prohibited in (
             "pull_request_target",
             "workflow_run",
@@ -72,6 +84,18 @@ class ContinuousIntegrationContractTest(unittest.TestCase):
         self.assertIn('terraform_version: "1.15.8"', contents)
         self.assertIn('python-version: "3.14.6"', contents)
         self.assertIn('version: "0.11.29"', contents)
+        self.assertIn("VALIDATION_BASE_SHA:", contents)
+
+    def test_untrusted_workflow_fixture_matrix_is_fail_closed(self) -> None:
+        fixture = REPOSITORY_ROOT / "tests/contract/fixtures/workflow-security.json"
+        cases = json.loads(fixture.read_text(encoding="utf-8"))
+        self.assertTrue(cases["baseline"]["passes_without_credentials"])
+        for case in cases["untrusted_cases"]:
+            with self.subTest(case=case["name"]):
+                workflow = case["workflow"]
+                self.assertTrue(workflow_security_violations(workflow))
+                self.assertFalse(case["privileged_execution"])
+                self.assertFalse(case["satisfies_required_status"])
 
 
 if __name__ == "__main__":

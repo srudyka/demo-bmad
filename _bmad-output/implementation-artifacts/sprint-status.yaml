@@ -1,5 +1,5 @@
 # generated: 2026-07-14T17:04:01-0500
-# last_updated: 2026-07-27T00:00:00-0500
+# last_updated: 2026-07-28T00:00:00-0500
 # project: demo-bmad
 # project_key: NOKEY
 # tracking_system: file-system
@@ -80,8 +80,8 @@ development_status:
   2-10-perform-a-controlled-non-production-rerun: done
   epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-expand-credential-free-pull-request-validation: backlog
+  epic-3: in-progress
+  3-1-expand-credential-free-pull-request-validation: review
   3-2-bind-trusted-deployment-targets-and-oidc-roles: backlog
   3-3-generate-a-trusted-and-reviewable-terraform-plan: backlog
   3-4-enforce-production-policies-and-govern-exceptions: backlog
