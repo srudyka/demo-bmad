@@ -4,6 +4,7 @@ import unittest
 
 from scripts.validate import (
     classify_changed_paths,
+    evaluate_workflow_security_case,
     load_rollout_catalog,
     migration_check,
 )
@@ -52,6 +53,15 @@ class ValidationTargetTest(unittest.TestCase):
         self.assertIn("runtime/example.py=runtime", inventory["owners"])
         self.assertIn("new.policy=unknown", inventory["owners"])
 
+    def test_changed_terraform_paths_report_concrete_roots(self) -> None:
+        inventory = classify_changed_paths(
+            ("modules/example/main.tf", "modules/example/examples/basic/main.tf")
+        )
+        self.assertEqual(
+            inventory["terraform_roots"],
+            ("modules/example", "modules/example/examples/basic"),
+        )
+
     def test_rollout_catalog_is_versioned_and_production_blocking(self) -> None:
         catalog = load_rollout_catalog()
         self.assertEqual(catalog["version"], "1.0.0")
@@ -59,6 +69,12 @@ class ValidationTargetTest(unittest.TestCase):
 
     def test_migration_check_accepts_explicit_ci_base_revision(self) -> None:
         migration_check(("README.md",), "base-sha")
+
+    def test_workflow_security_outcome_is_derived_from_scanner(self) -> None:
+        outcome = evaluate_workflow_security_case("permissions:\n  contents: write")
+        self.assertTrue(outcome["violations"])
+        self.assertFalse(outcome["privileged_execution"])
+        self.assertFalse(outcome["satisfies_required_status"])
 
 
 if __name__ == "__main__":

@@ -108,6 +108,15 @@ def classify_changed_paths(paths: Sequence[str]) -> dict[str, tuple[str, ...]]:
         "owners": tuple(
             f"{path}={','.join(owners[path]) or 'unknown'}" for path in normalized
         ),
+        "terraform_roots": tuple(
+            sorted(
+                {
+                    path.rsplit("/", 1)[0]
+                    for path in normalized
+                    if path.endswith((".tf", ".tf.json", ".terraform.lock.hcl"))
+                }
+            )
+        ),
     }
 
 
@@ -151,20 +160,30 @@ def migration_check(changed_paths: Sequence[str], base: str | None) -> None:
         capture_output=True,
         text=True,
     ).stdout
-    removed = set(
-        re.findall(r'^-\s*resource\s+"([^"]+)"\s+"([^"]+)"', diff, re.MULTILINE)
+    block_pattern = re.compile(
+        r'^[-+]\s*(resource|data|module|output|variable)\s+"([^"]+)"(?:\s+"([^"]+)")?',
+        re.MULTILINE,
     )
-    added = set(
-        re.findall(r'^\+\s*resource\s+"([^"]+)"\s+"([^"]+)"', diff, re.MULTILINE)
-    )
-    if removed and added and not re.search(r"\bmoved\s*\{", diff):
+    removed_addresses = {
+        (kind, name, label or "")
+        for sign, kind, name, label in block_pattern.findall(diff)
+        if sign == "-"
+    }
+    added_addresses = {
+        (kind, name, label or "")
+        for sign, kind, name, label in block_pattern.findall(diff)
+        if sign == "+"
+    }
+    if removed_addresses and added_addresses and not re.search(r"\bmoved\s*\{", diff):
         guidance = any(
-            Path(path).name.lower().startswith(("readme", "migration"))
+            "migration" in Path(path).name.lower()
+            or Path(path).parts[:1] == ("migrations",)
             for path in changed_paths
         )
         if not guidance:
             pairs = ", ".join(
-                f"{kind}.{name}" for kind, name in sorted(removed | added)
+                f"{kind}.{name}{('.' + label) if label else ''}"
+                for kind, name, label in sorted(removed_addresses | added_addresses)
             )
             raise ValidationFailure(
                 "terraform:migration: resource address churn requires a moved block or consumer migration guidance: "
@@ -187,10 +206,23 @@ def workflow_security_violations(contents: str) -> tuple[str, ...]:
     )
 
 
+def evaluate_workflow_security_case(contents: str) -> dict[str, object]:
+    """Derive trust outcomes from the same scanner used by repository policy."""
+    violations = workflow_security_violations(contents)
+    return {
+        "violations": violations,
+        "privileged_execution": not bool(violations),
+        "satisfies_required_status": not bool(violations),
+    }
+
+
 def artifact_policy_check() -> None:
     """Keep untrusted validation outputs free of trust-crossing artifacts."""
     workflow_root = REPOSITORY_ROOT / ".github" / "workflows"
-    for workflow in workflow_root.glob("*.y*ml"):
+    metadata_files = list(workflow_root.glob("*.y*ml")) + list(
+        (REPOSITORY_ROOT / ".github" / "actions").glob("**/action.y*ml")
+    )
+    for workflow in metadata_files:
         contents = workflow.read_text(encoding="utf-8")
         if workflow_security_violations(contents):
             raise ValidationFailure(
@@ -230,6 +262,11 @@ def report_changed_targets(paths: Sequence[str]) -> None:
     print("Changed-target inventory:", flush=True)
     print("  paths: " + ", ".join(inventory["paths"]), flush=True)
     print("  validation targets: " + ", ".join(inventory["targets"]), flush=True)
+    if inventory["terraform_roots"]:
+        print(
+            "  Terraform roots: " + ", ".join(inventory["terraform_roots"]),
+            flush=True,
+        )
     print("  owners: " + "; ".join(inventory["owners"]), flush=True)
     if inventory["unknown"]:
         print(

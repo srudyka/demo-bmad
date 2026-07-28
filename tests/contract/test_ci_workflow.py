@@ -4,7 +4,7 @@ import re
 import json
 import unittest
 from pathlib import Path
-from scripts.validate import workflow_security_violations
+from scripts.validate import evaluate_workflow_security_case
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -92,10 +92,10 @@ class ContinuousIntegrationContractTest(unittest.TestCase):
         self.assertTrue(cases["baseline"]["passes_without_credentials"])
         for case in cases["untrusted_cases"]:
             with self.subTest(case=case["name"]):
-                workflow = case["workflow"]
-                self.assertTrue(workflow_security_violations(workflow))
-                self.assertFalse(case["privileged_execution"])
-                self.assertFalse(case["satisfies_required_status"])
+                outcome = evaluate_workflow_security_case(case["workflow"])
+                self.assertTrue(outcome["violations"])
+                self.assertFalse(outcome["privileged_execution"])
+                self.assertFalse(outcome["satisfies_required_status"])
 
 
 if __name__ == "__main__":

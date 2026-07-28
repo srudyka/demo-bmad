@@ -2,13 +2,13 @@
 epic: 3
 story: 3.1
 title: Expand Credential-Free Pull Request Validation
-status: review
+status: done
 baseline_commit: 3b66eee4c8c47f89e6d66e9a51a4135316377466
 ---
 
 # Story 3.1: Expand Credential-Free Pull Request Validation
 
-Status: review
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created -->
 
@@ -170,3 +170,11 @@ Codex (GPT-5)
 - `docs/runbooks/pull-request-validation.md`
 - `scripts/validation-rollout.json`
 - `tests/contract/fixtures/workflow-security.json`
+
+### Review Findings
+
+- [ ] [Review][Patch] Changed-target inventory does not identify concrete affected Terraform roots or modules — AC 1/2 require every affected root, module, and module-local example to be identified with reproducible target commands, but `classify_changed_paths` emits only broad categories and the validator always runs the full root set without a per-root ownership map. [scripts/validate.py:46-111; scripts/validate.py:225-240]
+- [x] [Review][Patch] Changed-target inventory did not identify concrete affected Terraform roots or modules — fixed by reporting every changed Terraform root alongside the broad validation owners. [scripts/validate.py:104-119; scripts/validate.py:278-290]
+- [x] [Review][Patch] Migration validation missed module and non-resource address churn — fixed by analyzing resource, data, module, output, and variable block address changes and requiring explicit migration guidance or `moved` blocks. [scripts/validate.py:150-196]
+- [x] [Review][Patch] Workflow-security fixtures were declarative rather than executable — fixed by deriving privileged-execution and required-status outcomes from the shared scanner rather than trusting fixture booleans. [scripts/validate.py:215-223; tests/contract/test_ci_workflow.py:89-98]
+- [x] [Review][Patch] Artifact safety did not scan composite actions or reusable workflow trust crossings — fixed by applying the same artifact policy scanner to workflow files and composite action metadata. [scripts/validate.py:225-241]

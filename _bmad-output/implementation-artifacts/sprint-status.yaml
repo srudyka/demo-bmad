@@ -81,7 +81,7 @@ development_status:
   epic-2-retrospective: done
 
   epic-3: in-progress
-  3-1-expand-credential-free-pull-request-validation: review
+  3-1-expand-credential-free-pull-request-validation: done
   3-2-bind-trusted-deployment-targets-and-oidc-roles: done
   3-3-generate-a-trusted-and-reviewable-terraform-plan: backlog
   3-4-enforce-production-policies-and-govern-exceptions: backlog
