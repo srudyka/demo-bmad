@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-  last_updated: 2026-07-28T00:00:00-0500
+last_updated: 2026-07-28T00:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   1-15-garbage-collect-unreferenced-platform-versions: done
   epic-1-retrospective: done
 
-  epic-2: in-progress
+  epic-2: done
   2-1-declare-and-reserve-a-scheduled-job: done
   2-2-create-least-privilege-job-iam-roles: done
   2-3-enforce-private-task-networking: done
@@ -78,7 +78,7 @@ development_status:
   2-8-connect-completion-evidence-and-alert-metadata: done
   2-9-expose-job-operations-and-optional-views: done
   2-10-perform-a-controlled-non-production-rerun: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   epic-3: backlog
   3-1-expand-credential-free-pull-request-validation: backlog
@@ -121,4 +121,20 @@ action_items:
   - epic: 1
     action: "Add executable IAM-negative, retry, pagination, duplicate-request, and partial-failure fixtures starting with Story 2.1."
     owner: "Winston (Architect)"
+    status: open
+  - epic: 2
+    action: "Extend credential-free validation to identify and validate every affected Epic 3 target."
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 2
+    action: "Add executable negative fixtures for OIDC trust, target binding, exact-plan approval, and untrusted pull-request outputs."
+    owner: "Winston (Architect)"
+    status: open
+  - epic: 2
+    action: "Preserve acceptance, adversarial, edge-case, and full validation review evidence for every Epic 3 story."
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 2
+    action: "Track migration from deprecated Terraform AWS provider arguments to region and key_schema."
+    owner: "Paige (Technical Writer)"
     status: open
