@@ -21,6 +21,7 @@ from .domain import (
     prepare_deadline,
     prepare_expected,
     prepare_launch,
+    prepare_manual_rerun,
 )
 from .launch import LaunchUncertain, reconcile_task, run_task
 from .ledger import Ledger, plain_item
@@ -141,6 +142,40 @@ def lambda_handler(
                 if isinstance(config_result, Mapping)
                 else None
             )
+            manual_prepared: PreparedLaunch | None = None
+            if envelope.get("event_type") == "command.authorized.v1":
+                command_payload = envelope.get("payload")
+                command = (
+                    command_payload.get("command")
+                    if isinstance(command_payload, Mapping)
+                    else None
+                )
+                original_id = (
+                    command.get("replay_of_occurrence_id")
+                    if isinstance(command, Mapping)
+                    else None
+                )
+                original_item = (
+                    ledger.get(
+                        {
+                            "pk": f"JOB#{envelope.get('job_id', '')}",
+                            "sk": f"OCCURRENCE#{original_id}",
+                        }
+                    )
+                    if isinstance(original_id, str)
+                    else None
+                )
+                manual_prepared = prepare_manual_rerun(
+                    envelope,
+                    item if isinstance(item, Mapping) else None,
+                    original_item,
+                    processor_identity=identity,
+                    now=now,
+                    expected_owner_generation=int(
+                        _required("PROCESS_MANAGER_OWNER_GENERATION")
+                    ),
+                    expected_environment=_required("PROCESS_MANAGER_ENVIRONMENT"),
+                )
             prepared: PreparedAcceptance | None = (
                 prepare_expected(
                     envelope,
@@ -197,8 +232,21 @@ def lambda_handler(
                 and launch_prepared is None
                 and correlation_prepared is None
                 and deadline_prepared is None
+                and manual_prepared is None
             ):
                 raise ContractRejection("UNAUTHORIZED_PRODUCER")
+            if manual_prepared is not None:
+                if os.environ.get(
+                    "PROCESS_MANAGER_MANUAL_LAUNCH_ENABLED", "true"
+                ).lower() not in {"1", "true", "yes"}:
+                    raise ContractRejection("MANUAL_LAUNCH_DISABLED")
+                _process_manual_launch(
+                    manual_prepared,
+                    ledger,
+                    metrics,
+                    now,
+                )
+                continue
             if launch_prepared is not None:
                 _process_launch(
                     envelope,
@@ -360,7 +408,7 @@ def _process_correlation(
                 state = "STARTED"
             if state == "STARTED":
                 zero_exit = [item for item in essential if item.get("exit_code") == 0]
-                if zero_exit:
+                if zero_exit and len(zero_exit) == len(essential):
                     changes["exit_code"] = 0
             if (
                 state == "STARTED"
@@ -553,6 +601,57 @@ def _process_launch(
         attempt = plain_item(attempt_item)
     else:
         raise ContractRejection("LAUNCH_RESERVATION_INCONSISTENT")
+    _launch_attempt(attempt, ledger, metrics, now)
+
+
+def _process_manual_launch(
+    prepared: PreparedLaunch,
+    ledger: Ledger,
+    metrics: Any,
+    now: str,
+) -> None:
+    """Create or resume one synthetic attempt, then use the normal launch adapter."""
+
+    occurrence = prepared.occurrence
+    if not isinstance(occurrence, Mapping):
+        raise ContractRejection("MANUAL_OCCURRENCE_MISSING")
+    if occurrence.get("overlap_policy") in {
+        "APPLICATION_LOCKED",
+        "reject",
+        "lock",
+    } and ledger.active_occurrence_exists(
+        str(occurrence["job_id"]), str(occurrence["replay_of_occurrence_id"])
+    ):
+        raise ContractRejection("MANUAL_OVERLAP_PROHIBITED")
+    processed = ledger.get(
+        {"pk": prepared.processed_event["pk"], "sk": prepared.processed_event["sk"]}
+    )
+    attempt_item = ledger.get(prepared.attempt["keys"])
+    occurrence_item = ledger.get(occurrence["keys"])
+    if processed is None and attempt_item is None and occurrence_item is None:
+        ledger.reserve_manual_attempt(
+            occurrence, prepared.attempt, prepared.processed_event
+        )
+        attempt = prepared.attempt
+    elif (
+        processed is not None
+        and attempt_item is not None
+        and occurrence_item is not None
+    ):
+        if processed.get("event_digest") != {"S": prepared.envelope_digest}:
+            raise ContractRejection("PROCESSED_EVENT_CONFLICT")
+        attempt = plain_item(attempt_item)
+    else:
+        raise ContractRejection("MANUAL_RESERVATION_INCONSISTENT")
+    _launch_attempt(attempt, ledger, metrics, now)
+
+
+def _launch_attempt(
+    attempt: Mapping[str, Any],
+    ledger: Ledger,
+    metrics: Any,
+    now: str,
+) -> None:
     if attempt.get("task_arn") or attempt.get("launch_state") in {
         "FAILED",
         "AMBIGUOUS",
@@ -572,19 +671,15 @@ def _process_launch(
             ledger.mark_ambiguous(attempt, str(reconcile_error)[:64])
             return
         if task_arn is None:
-            if now < str(attempt["safe_retry_deadline"]):
-                raise RuntimeError("ECS_LAUNCH_RETRY_REQUIRED")
             ledger.mark_ambiguous(attempt, str(error)[:64])
             return
-    except Exception as error:  # noqa: BLE001 - API uncertainty requires reconciliation
+    except Exception:  # noqa: BLE001 - API uncertainty requires reconciliation
         try:
             task_arn = reconcile_task(ecs, attempt)
         except LaunchUncertain as reconcile_error:
             ledger.mark_ambiguous(attempt, str(reconcile_error)[:64])
             return
         if task_arn is None:
-            if now < str(attempt["safe_retry_deadline"]):
-                raise RuntimeError("ECS_LAUNCH_RETRY_REQUIRED") from error
             ledger.mark_ambiguous(attempt, "ECS_LAUNCH_OUTCOME_UNRESOLVED")
             return
     if task_arn is None:

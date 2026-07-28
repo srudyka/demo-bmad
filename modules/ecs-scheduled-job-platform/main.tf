@@ -1981,7 +1981,7 @@ data "aws_iam_policy_document" "process_manager" {
     condition {
       test     = "ForAllValues:StringLike"
       variable = "dynamodb:LeadingKeys"
-      values   = ["JOB#${var.canary_normalizer_registration.job_id}", "EVENT#occurrence-materializer", "EVENT#scheduler"]
+      values   = ["JOB#${var.canary_normalizer_registration.job_id}", "EVENT#occurrence-materializer", "EVENT#scheduler", "EVENT#command-handler"]
     }
   }
   statement {
@@ -2437,6 +2437,7 @@ resource "aws_lambda_function" "evidence_normalizer" {
         account_id          = data.aws_caller_identity.current.account_id
         cell_id             = var.cell_id
         environment         = var.environment
+        job_id              = var.canary_normalizer_registration.job_id
         region              = data.aws_region.current.region
         handler_role_id     = aws_iam_role.command_handler.unique_id
         source_queue_arn    = aws_sqs_queue.command_handler_queue.arn

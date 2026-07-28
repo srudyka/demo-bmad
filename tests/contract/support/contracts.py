@@ -344,6 +344,28 @@ def _validate_canonical_command(
                 "synthetic_occurrence_id must bind occurrence/manual/v1 bytes",
             )
         )
+    if command.get("command_type") == "RERUN":
+        if command.get("replay_of_occurrence_id") != command.get(
+            "original_occurrence_id"
+        ):
+            issues.append(
+                ContractIssue(
+                    "COMMAND_REPLAY_LINK_MISMATCH",
+                    f"{pointer}/replay_of_occurrence_id",
+                    "RERUN replay_of_occurrence_id must equal original_occurrence_id",
+                )
+            )
+        if (
+            not isinstance(command.get("schedule_generation"), str)
+            or SHA256_PATTERN.fullmatch(command["schedule_generation"]) is None
+        ):
+            issues.append(
+                ContractIssue(
+                    "COMMAND_SCHEDULE_GENERATION_INVALID",
+                    f"{pointer}/schedule_generation",
+                    "RERUN schedule_generation must be a SHA-256 value",
+                )
+            )
 
 
 def screen_secret_safety(value: Any, policy: dict[str, Any]) -> None:

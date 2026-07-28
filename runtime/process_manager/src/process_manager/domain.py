@@ -136,6 +136,7 @@ class PreparedLaunch:
     processed_event: dict[str, Any]
     envelope_digest: str
     client_token: str
+    occurrence: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -690,6 +691,276 @@ def prepare_launch(
         "processor_deployment_identity_id": processor_identity,
     }
     return PreparedLaunch(attempt, processed, digest, token)
+
+
+def prepare_manual_rerun(
+    envelope: Mapping[str, Any],
+    snapshot_item: Mapping[str, Any] | None,
+    original_item: Mapping[str, Any] | None,
+    *,
+    processor_identity: str,
+    now: str,
+    expected_owner_generation: int | None = None,
+    expected_environment: str | None = None,
+) -> PreparedLaunch:
+    """Prepare one handler-authorized synthetic attempt from immutable bindings."""
+
+    if not isinstance(envelope, Mapping) or snapshot_item is None:
+        raise ContractRejection("MANUAL_ENVELOPE_INVALID")
+    required = {
+        "schema_version",
+        "event_type",
+        "producer_id",
+        "producer_event_id",
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+        "scheduled_time",
+        "payload",
+        "payload_hash",
+        "emitted_at",
+    }
+    if set(envelope) - (required | {"trace_context"}) or any(
+        field not in envelope for field in required
+    ):
+        raise ContractRejection("MANUAL_ENVELOPE_INVALID")
+    if (
+        envelope.get("schema_version") != "1.0.0"
+        or envelope.get("event_type") != "command.authorized.v1"
+        or envelope.get("producer_id") != "command-handler"
+    ):
+        raise ContractRejection("MANUAL_COMMAND_AUTHORITY")
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        raise ContractRejection("MANUAL_PAYLOAD_INVALID")
+    command = payload.get("command")
+    authorization_record_id = payload.get("authorization_record_id")
+    if (
+        not isinstance(command, Mapping)
+        or command.get("form") != "canonical"
+        or command.get("command_type") != "RERUN"
+        or not isinstance(authorization_record_id, str)
+    ):
+        raise ContractRejection("MANUAL_COMMAND_INVALID")
+    if hashlib.sha256(canonical_json_bytes(dict(payload))).hexdigest() != envelope.get(
+        "payload_hash"
+    ):
+        raise ContractRejection("MANUAL_PAYLOAD_HASH_MISMATCH")
+    for field in (
+        "job_id",
+        "config_version",
+        "schedule_generation",
+        "occurrence_id",
+        "scheduled_time",
+        "producer_event_id",
+        "emitted_at",
+    ):
+        if not isinstance(envelope.get(field), str) or not envelope[field]:
+            raise ContractRejection("MANUAL_ENVELOPE_INVALID")
+    command_fields = (
+        "command_id",
+        "job_id",
+        "scheduled_time",
+        "original_occurrence_id",
+        "replay_of_occurrence_id",
+        "synthetic_occurrence_id",
+        "config_version",
+        "schedule_generation",
+        "deployment_identity_id",
+        "actor",
+        "approval_reference",
+        "reason",
+        "expected_duplicate_effects",
+        "verification_plan",
+        "compensation_acknowledged",
+        "approval_expires_at",
+    )
+    if any(field not in command for field in command_fields):
+        raise ContractRejection("MANUAL_COMMAND_INVALID")
+    if _timestamp(
+        str(command["approval_expires_at"]), "MANUAL_APPROVAL_EXPIRY_INVALID"
+    ) <= _timestamp(now, "PROCESSOR_TIME_INVALID"):
+        raise ContractRejection("MANUAL_APPROVAL_EXPIRED")
+    if command["replay_of_occurrence_id"] != command["original_occurrence_id"]:
+        raise ContractRejection("MANUAL_ORIGINAL_LINK_MISMATCH")
+    if (
+        command["job_id"] != envelope["job_id"]
+        or command["config_version"] != envelope["config_version"]
+        or command["schedule_generation"] != envelope["schedule_generation"]
+        or command["synthetic_occurrence_id"] != envelope["occurrence_id"]
+        or command["scheduled_time"] != envelope["scheduled_time"]
+        or command["command_id"] != envelope["producer_event_id"]
+        or command["compensation_acknowledged"] is not True
+    ):
+        raise ContractRejection("MANUAL_COMMAND_BINDING_MISMATCH")
+    original = _plain_item(original_item) if original_item is not None else None
+    if original is None:
+        raise ContractRejection("MANUAL_ORIGINAL_NOT_FOUND")
+    terminal_states = {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE"}
+    if original.get("state") not in terminal_states:
+        raise ContractRejection("MANUAL_ORIGINAL_NOT_TERMINAL")
+    if any(
+        original.get(field) != command[field]
+        for field in (
+            "job_id",
+            "config_version",
+            "schedule_generation",
+        )
+    ) or (
+        original.get("occurrence_id") != command["original_occurrence_id"]
+        or original.get("deployment_identity_id")
+        not in {None, command["deployment_identity_id"]}
+    ):
+        raise ContractRejection("MANUAL_ORIGINAL_BINDING_MISMATCH")
+    snapshot = ConfigSnapshot.from_item(snapshot_item)
+    if snapshot.materialization_state != "MATERIALIZED":
+        raise ContractRejection("CONFIG_NOT_MATERIALIZED")
+    if snapshot.config_hash != snapshot.config_version:
+        raise ContractRejection("CONFIG_VERSION_HASH_MISMATCH")
+    config = snapshot.config()
+    if (
+        snapshot.job_id != command["job_id"]
+        or snapshot.config_version != command["config_version"]
+        or snapshot.schedule_generation != command["schedule_generation"]
+        or config.get("job_id") != command["job_id"]
+        or config.get("schedule_generation") != command["schedule_generation"]
+        or config.get("deployment_identity_id") != command["deployment_identity_id"]
+    ):
+        raise ContractRejection("MANUAL_CONFIG_BINDING_MISMATCH")
+    if (
+        expected_owner_generation is not None
+        and snapshot.owner_generation != expected_owner_generation
+    ):
+        raise ContractRejection("CONFIG_OWNER_GENERATION_MISMATCH")
+    if (
+        expected_environment is not None
+        and config.get("environment") != expected_environment
+    ):
+        raise ContractRejection("MANUAL_ENVIRONMENT_SCOPE")
+    if str(config.get("environment", "")).lower() in {"p" + "rod", "p" + "roduction"}:
+        raise ContractRejection("MANUAL_PRODUCTION_TARGET")
+    try:
+        cluster_arn = str(config["cluster_arn"])
+        task_definition_arn = str(config["task_definition_arn"])
+        launch_role_arn = str(config["role_arns"]["launch"])
+        network = config["network"]
+        if not isinstance(network, Mapping):
+            raise ValueError("network")
+        subnets = sorted(str(item) for item in network["subnet_ids"])
+        security_groups = sorted(str(item) for item in network["security_group_ids"])
+        window = int(config["completion_window_seconds"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ContractRejection("CONFIG_LAUNCH_FIELDS_INVALID") from error
+    if (
+        not cluster_arn
+        or not task_definition_arn
+        or not launch_role_arn
+        or not subnets
+        or not security_groups
+        or window < 1
+    ):
+        raise ContractRejection("CONFIG_LAUNCH_FIELDS_INVALID")
+    scheduled = _timestamp(str(command["scheduled_time"]), "SCHEDULED_TIME_INVALID")
+    reduced_at = _timestamp(now, "PROCESSOR_TIME_INVALID")
+    if reduced_at > scheduled + timedelta(seconds=window):
+        raise ContractRejection("MANUAL_SAFE_LAUNCH_WINDOW_EXPIRED")
+    deadline = (
+        (scheduled + timedelta(seconds=window))
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+    first_request = reduced_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    retry_deadline = (
+        (reduced_at + timedelta(seconds=min(max(1, window), 3600)))
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+    synthetic = str(command["synthetic_occurrence_id"])
+    token = launch_client_token(snapshot.job_id, synthetic, snapshot.config_version, 0)
+    raw = canonical_json_bytes(dict(envelope))
+    digest = hashlib.sha256(raw).hexdigest()
+    occurrence = {
+        "keys": {"pk": f"JOB#{snapshot.job_id}", "sk": f"OCCURRENCE#{synthetic}"},
+        "record_type": "OCCURRENCE",
+        "schema_version": "1.0.0",
+        "job_id": snapshot.job_id,
+        "config_version": snapshot.config_version,
+        "schedule_generation": snapshot.schedule_generation,
+        "occurrence_id": synthetic,
+        "scheduled_time": str(command["scheduled_time"]),
+        "deadline_at": deadline,
+        "deadline_kind": "COMPLETION",
+        "deadline_key": f"DEADLINE#0#{deadline[:19]}.000Z",
+        "deadline_sort": f"{deadline}#{synthetic}#COMPLETION",
+        "state": "EXPECTED",
+        "started_at": None,
+        "completed_at": None,
+        "exit_code": None,
+        "error_code": None,
+        "operator_safe_error_reason": None,
+        "evidence_ids": [digest],
+        "replay_of_occurrence_id": str(command["replay_of_occurrence_id"]),
+        "command_id": str(command["command_id"]),
+        "authorization_record_id": authorization_record_id,
+        "actor": str(command["actor"]),
+        "approval_reference": str(command["approval_reference"]),
+        "expected_duplicate_effects": str(command["expected_duplicate_effects"]),
+        "verification_plan": str(command["verification_plan"]),
+        "compensation_acknowledged": True,
+        "deployment_identity_id": str(command["deployment_identity_id"]),
+        "overlap_policy": str(config.get("overlap_policy", "APPLICATION_LOCKED")),
+    }
+    attempt = {
+        "keys": {"pk": f"JOB#{snapshot.job_id}", "sk": f"ATTEMPT#{synthetic}#0"},
+        "record_type": "TASK_ATTEMPT",
+        "schema_version": "1.0.0",
+        "job_id": snapshot.job_id,
+        "occurrence_id": synthetic,
+        "config_version": snapshot.config_version,
+        "schedule_generation": snapshot.schedule_generation,
+        "correlation": {
+            "cluster_arn": cluster_arn,
+            "config_version": snapshot.config_version,
+            "occurrence_id": synthetic,
+        },
+        "attempt_no": 0,
+        "client_token": token,
+        "launch_state": "PENDING",
+        "first_request_at": first_request,
+        "safe_retry_deadline": retry_deadline,
+        "recovery": {
+            "authoritatively_recovered": False,
+            "recovered_at": None,
+            "recovered_task_arn": None,
+        },
+        "task_arn": None,
+        "conflict_evidence_ids": [],
+        "task_definition_arn": task_definition_arn,
+        "launch_role_arn": launch_role_arn,
+        "deployment_identity_id": str(command["deployment_identity_id"]),
+        "platform_cell": processor_identity.split(":", 1)[0],
+        "subnet_ids": subnets,
+        "security_group_ids": security_groups,
+        "replay_of_occurrence_id": str(command["replay_of_occurrence_id"]),
+        "command_id": str(command["command_id"]),
+    }
+    processed = {
+        "pk": "EVENT#command-handler",
+        "sk": str(command["command_id"]),
+        "record_type": "PROCESSED_EVENT",
+        "schema_version": "1.0.0",
+        "producer_id": "command-handler",
+        "producer_event_id": str(command["command_id"]),
+        "event_digest": digest,
+        "event_type": "command.authorized.v1",
+        "job_id": snapshot.job_id,
+        "occurrence_id": synthetic,
+        "accepted_at": first_request,
+        "disposition": "ACCEPTED",
+        "processor_deployment_identity_id": processor_identity,
+    }
+    return PreparedLaunch(attempt, processed, digest, token, occurrence)
 
 
 def prepare_correlation(

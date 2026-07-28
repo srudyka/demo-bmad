@@ -63,6 +63,9 @@ def _authenticated_caller(
         cell_id=value["cell_id"],
         account_id=value["account_id"],
         region=value["region"],
+        environment=value.get("environment")
+        if isinstance(value.get("environment"), str)
+        else None,
         break_glass=value.get("break_glass") is True,
     )
 
@@ -136,11 +139,14 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
                 cell_id=item["cell_id"]["S"],
                 account_id=item["account_id"]["S"],
                 region=item["region"]["S"],
+                schedule_generation=item["schedule_generation"]["S"],
             )
         except KeyError, TypeError:
             return None
 
-    def approve(reference: str, actor: str, session_id: str) -> bool:
+    def approve(
+        reference: str, actor: str, session_id: str, scope_digest: str = ""
+    ) -> bool | str:
         response = dynamodb.get_item(
             TableName=table,
             Key={"pk": {"S": f"APPROVAL#{reference}"}, "sk": {"S": "CURRENT"}},
@@ -150,12 +156,15 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         now_value = (
             item.get("expires_at", {}).get("S") if isinstance(item, Mapping) else None
         )
-        expires = (
-            datetime.fromisoformat(now_value.replace("Z", "+00:00"))
-            if isinstance(now_value, str)
-            else None
-        )
-        return (
+        try:
+            expires = (
+                datetime.fromisoformat(now_value.replace("Z", "+00:00"))
+                if isinstance(now_value, str)
+                else None
+            )
+        except TypeError, ValueError:
+            return False
+        valid = (
             isinstance(item, Mapping)
             and item.get("actor", {}).get("S") == actor
             and item.get("session_id", {}).get("S") == session_id
@@ -163,8 +172,17 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             and item.get("approver_actor", {}).get("S") != actor
             and item.get("cell_id", {}).get("S") == caller.cell_id
             and item.get("job_id", {}).get("S") == request.get("job_id")
+            and (
+                not scope_digest
+                or item.get("scope_digest", {}).get("S") == scope_digest
+            )
             and expires is not None
             and expires.astimezone(UTC) > now
+        )
+        return (
+            expires.astimezone(UTC).isoformat().replace("+00:00", "Z")
+            if valid and expires
+            else False
         )
 
     result = authorize_operator_request(
@@ -176,6 +194,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         expected_cell_id=expected_cell,
         expected_account_id=expected_account,
         expected_region=expected_region,
+        expected_environment=os.environ.get("COMMAND_ENVIRONMENT"),
     )
     if caller.break_glass:
         cloudwatch.put_metric_data(
@@ -195,6 +214,7 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         "command": {"S": json.dumps(result.command, separators=(",", ":"))},
         "audit": {"S": json.dumps(result.audit, separators=(",", ":"))},
         "status": {"S": "PENDING"},
+        "request_digest": {"S": hashlib.sha256(_canonical(request)).hexdigest()},
     }
     try:
         dynamodb.put_item(
@@ -214,6 +234,11 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
         if isinstance(existing, Mapping) and isinstance(
             existing.get("authorization_record_id"), Mapping
         ):
+            if (
+                existing.get("request_digest", {}).get("S")
+                != record["request_digest"]["S"]
+            ):
+                raise CommandRejected("COMMAND_IDEMPOTENCY_CONFLICT")
             return {
                 "command_id": json.loads(existing["command"]["S"])["command_id"],
                 "authorization_record_id": existing["authorization_record_id"]["S"],

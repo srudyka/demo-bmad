@@ -13,6 +13,9 @@
           "minLength": 1,
           "type": "string"
         },
+        "approval_expires_at": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
         "command_type": {
           "enum": ["RERUN", "REPLAY", "DISABLE", "RECOVER"],
           "type": "string"
@@ -43,6 +46,16 @@
           "maximum": 2592000,
           "minimum": 1,
           "type": "integer"
+        },
+        "expected_duplicate_effects": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "verification_plan": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
         },
         "scheduled_time": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
@@ -84,8 +97,14 @@
           "minLength": 1,
           "type": "string"
         },
+        "approval_expires_at": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
         "command_id": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
+        },
+        "replay_of_occurrence_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
         },
         "command_type": {
           "enum": [
@@ -135,6 +154,9 @@
         "scheduled_time": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
+        "schedule_generation": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
         "schema_version": {
           "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
           "type": "string"
@@ -143,6 +165,16 @@
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
         },
         "verification_reference": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "expected_duplicate_effects": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "verification_plan": {
+          "maxLength": 4096,
           "minLength": 1,
           "type": "string"
         }
@@ -167,6 +199,10 @@
         {
           "if": {"properties": {"command_type": {"const": "RECOVER"}}},
           "then": {"required": ["restore_point", "expected_rpo_seconds", "expected_rto_seconds"]}
+        },
+        {
+          "if": {"properties": {"command_type": {"const": "RERUN"}}},
+          "then": {"required": ["replay_of_occurrence_id", "schedule_generation", "expected_duplicate_effects", "verification_plan", "approval_expires_at"]}
         }
       ],
       "type": "object"

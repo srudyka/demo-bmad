@@ -92,6 +92,7 @@ class CommandRegistration:
     account_id: str
     cell_id: str
     environment: str
+    job_id: str
     region: str
     handler_role_id: str
     source_queue_arn: str
@@ -311,6 +312,13 @@ def normalize_command_record(
             raise NormalizationError("COMMAND_BODY_INVALID")
         if command.get("job_id") is None or command.get("scheduled_time") is None:
             raise NormalizationError("COMMAND_COORDINATES")
+        if command.get("command_type") == "RERUN":
+            if not isinstance(command.get("schedule_generation"), str):
+                raise NormalizationError("COMMAND_COORDINATES")
+            _assert_equal(
+                command, "schedule_generation", registration.schedule_generation
+            )
+        _assert_equal(command, "job_id", registration.job_id)
         envelope = {
             "schema_version": "1.0.0",
             "producer_id": "command-handler",
@@ -318,7 +326,9 @@ def normalize_command_record(
             "event_type": "command.authorized.v1",
             "job_id": command.get("job_id"),
             "config_version": command.get("config_version"),
-            "schedule_generation": registration.schedule_generation,
+            "schedule_generation": command.get(
+                "schedule_generation", registration.schedule_generation
+            ),
             "scheduled_time": command.get("scheduled_time"),
             "occurrence_id": command.get("synthetic_occurrence_id"),
             "emitted_at": datetime.now(UTC)
@@ -326,6 +336,9 @@ def normalize_command_record(
             .replace("+00:00", "Z"),
             "payload": body,
         }
+        envelope["payload_hash"] = sha256(
+            canonical_json_bytes(envelope["payload"])
+        ).hexdigest()
         schema_id = (
             "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
         )

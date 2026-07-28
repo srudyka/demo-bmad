@@ -23,13 +23,27 @@ def _request(**updates: object) -> dict[str, object]:
         "actor": "operator",
         "approval_reference": "CHANGE-1",
         "reason": "verified transient failure",
+        "expected_duplicate_effects": "may repeat one notification",
+        "verification_plan": "verify one success marker and zero essential exit",
+        "compensation_acknowledged": True,
     }
     value.update(updates)
     return value
 
 
 def _binding(job: str, time: str) -> OccurrenceBinding:
-    return OccurrenceBinding(job, time, "a" * 64, "b" * 64, "c" * 64)
+    return OccurrenceBinding(
+        job,
+        time,
+        "a" * 64,
+        "b" * 64,
+        "c" * 64,
+        True,
+        "cell-a",
+        "123456789012",
+        "us-test-1",
+        "d" * 64,
+    )
 
 
 def test_authorization_generates_bound_command_and_audit() -> None:
@@ -48,6 +62,10 @@ def test_authorization_generates_bound_command_and_audit() -> None:
         "fake/dev/job", "a" * 64, "b" * 64, "0190f2c9-6c00-7000-8000-000000000001"
     )
     assert result.audit["actor"] == "operator"
+    assert result.command["schedule_generation"] == "d" * 64
+    assert result.command["replay_of_occurrence_id"] == "a" * 64
+    assert result.command["expected_duplicate_effects"]
+    assert result.command["verification_plan"]
 
 
 @pytest.mark.parametrize("field", ["command_id", "original_occurrence_id", "evidence"])
@@ -67,6 +85,24 @@ def test_wrong_actor_and_invalid_approval_fail_closed() -> None:
         authorize_operator_request(
             _request(actor="other"),
             CallerContext("operator", "s", "cell", "123456789012", "r"),
+            lookup=_binding,
+            approve=lambda *_: True,
+        )
+
+
+def test_rerun_requires_bounded_duplicate_and_verification_plans() -> None:
+    caller = CallerContext("operator", "s", "cell-a", "123456789012", "us-test-1")
+    with pytest.raises(CommandRejected, match="COMMAND_REQUEST_FIELD"):
+        authorize_operator_request(
+            _request(expected_duplicate_effects=""),
+            caller,
+            lookup=_binding,
+            approve=lambda *_: True,
+        )
+    with pytest.raises(CommandRejected, match="COMMAND_REQUEST_FIELD"):
+        authorize_operator_request(
+            _request(verification_plan="x" * 4097),
+            caller,
             lookup=_binding,
             approve=lambda *_: True,
         )

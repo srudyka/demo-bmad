@@ -352,6 +352,14 @@ every module and example, Python tests, Checkov, and repository hygiene. The
 Cell Contract tests prove schema, checksum, SSM path, ownership-catalog shape,
 and the absence of premature runtime resources.
 
+Terraform currently emits non-failing deprecation warnings during this gate for
+the AWS provider's `data.aws_region.current.name` attribute and legacy
+DynamoDB `hash_key`/`range_key` arguments. They are retained for compatibility
+with the current module/provider surface and must be migrated to
+`data.aws_region.current.region` and `key_schema` in a separately reviewed
+Terraform-provider modernization change. Warnings must not be suppressed or
+treated as validation success for a production apply.
+
 ## Rollback And Recovery
 
 ### Conditional CONFIG publisher

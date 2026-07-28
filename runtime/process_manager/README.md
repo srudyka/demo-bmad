@@ -2,8 +2,17 @@
 
 The Process Manager is the Cell-owned writer for the occurrence ledger. It accepts
 authenticated `occurrence.expected.v1` and Scheduler `occurrence.launch.v1`
-evidence. Launch processing requires a `MATERIALIZED` CONFIG snapshot, reserves
+evidence plus handler-authorized `command.authorized.v1` non-production reruns.
+Launch processing requires a `MATERIALIZED` CONFIG snapshot, reserves
 attempt zero transactionally, and derives one deterministic ECS client token.
+
+For a manual rerun, the manager verifies the command, original terminal
+occurrence, exact CONFIG/schedule generation/Deployment Identity, owner
+generation, non-production scope, and compensation acknowledgement before the
+launch adapter runs. It creates one synthetic occurrence retaining the original
+link, command, actor, approval, verification plan, and identity. The original
+occurrence is never updated, and duplicate or uncertain delivery cannot create
+attempt one; unresolved launch uncertainty is recorded as `AMBIGUOUS`.
 
 Duplicate delivery is a no-op when the immutable event digest matches. A conflicting
 digest is rejected without overwriting the accepted fact. Deterministic contract

@@ -385,6 +385,7 @@
         "command": {
           "actor": "operator@example.invalid",
           "approval_reference": "approval-0001",
+          "approval_expires_at": "2026-07-29T00:00:00.000Z",
           "command_id": "01890f47-8f17-7abc-8def-0123456789ab",
           "command_type": "RERUN",
           "compensation_acknowledged": true,
@@ -393,8 +394,12 @@
           "form": "canonical",
           "job_id": "prod/reporting/daily-summary",
           "original_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "replay_of_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
           "reason": "Approved rerun",
+          "expected_duplicate_effects": "May repeat one non-production notification",
+          "verification_plan": "Verify one success marker and zero essential exit",
           "schema_version": "1.0.0",
+          "schedule_generation": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
           "synthetic_occurrence_id": "748ec79612ac270074263a46931e9e12afcbe9cff27e65b9c2d1433df384e155",
           "verification_reference": "verification-0001"
         }

@@ -25,6 +25,9 @@ def _request(**updates: object) -> dict[str, object]:
         "actor": "operator",
         "approval_reference": "CHANGE-1",
         "reason": "verified failure",
+        "expected_duplicate_effects": "may repeat one non-production notification",
+        "verification_plan": "verify one success marker and zero essential exit",
+        "compensation_acknowledged": True,
     }
     request.update(updates)
     return request
@@ -41,6 +44,7 @@ def _lookup(job_id: str, scheduled_time: str) -> OccurrenceBinding:
         "cell-a",
         "123456789012",
         "us-test-1",
+        "d" * 64,
     )
 
 
@@ -87,7 +91,7 @@ def test_compensation_is_required_for_sensitive_commands() -> None:
     caller = CallerContext("operator", "session", "cell-a", "123456789012", "us-test-1")
     with pytest.raises(CommandRejected, match="COMMAND_COMPENSATION_ACK"):
         authorize_operator_request(
-            _request(command_type="DISABLE"),
+            _request(command_type="DISABLE", compensation_acknowledged=False),
             caller,
             lookup=_lookup,
             approve=lambda *_: True,

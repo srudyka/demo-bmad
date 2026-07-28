@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-last_updated: 2026-07-27T00:00:00-0500
+  last_updated: 2026-07-28T00:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -77,7 +77,7 @@ development_status:
   2-7-activate-the-non-production-schedule-safely: done
   2-8-connect-completion-evidence-and-alert-metadata: done
   2-9-expose-job-operations-and-optional-views: done
-  2-10-perform-a-controlled-non-production-rerun: backlog
+  2-10-perform-a-controlled-non-production-rerun: review
   epic-2-retrospective: optional
 
   epic-3: backlog

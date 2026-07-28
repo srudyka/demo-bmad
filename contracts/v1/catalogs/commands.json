@@ -10,6 +10,10 @@
       "config_version",
       "deployment_identity_id",
       "verification_reference",
+      "expected_duplicate_effects",
+      "verification_plan",
+      "schedule_generation",
+      "replay_of_occurrence_id",
       "compensation_acknowledged"
     ],
     "recovery_bindings": [
@@ -37,6 +41,8 @@
       "config_version",
       "deployment_identity_id",
       "command_id",
+      "schedule_generation",
+      "replay_of_occurrence_id",
       "synthetic_occurrence_id"
     ]
   },

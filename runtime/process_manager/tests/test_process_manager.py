@@ -9,6 +9,7 @@ from process_manager import (
     reduce_deadline_state,
 )
 from process_manager import prepare_launch
+from process_manager import prepare_manual_rerun
 from process_manager.contracts import (
     canonical_json_bytes,
     deadline_event_id,
@@ -227,6 +228,88 @@ def test_launch_requires_materialized_config() -> None:
         assert error.code == "CONFIG_NOT_MATERIALIZED"
     else:
         raise AssertionError("pending config was accepted for launch")
+
+
+def test_manual_rerun_reuses_exact_config_and_links_original_occurrence() -> None:
+    import hashlib
+
+    command_id = "0190f2c9-6c00-7000-8000-000000000001"
+    original = occurrence_id(JOB, GENERATION, "29979360")
+    from command_handler import manual_occurrence_id
+
+    synthetic = manual_occurrence_id(JOB, original, CONFIG_VERSION, command_id)
+    config = launch_snapshot()
+    config_value = __import__("json").loads(str(config["config_json"]))
+    config_value["environment"] = "dev"
+    config_value["task_definition_revision"] = 7
+    config["config_json"] = canonical_json_bytes(config_value).decode()
+    config["config_version"] = hashlib.sha256(
+        str(config["config_json"]).encode()
+    ).hexdigest()
+    config["config_hash"] = config["config_version"]
+    command = {
+        "schema_version": "1.0.0",
+        "form": "canonical",
+        "command_id": command_id,
+        "command_type": "RERUN",
+        "job_id": JOB,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+        "original_occurrence_id": original,
+        "replay_of_occurrence_id": original,
+        "synthetic_occurrence_id": synthetic,
+        "config_version": config["config_version"],
+        "schedule_generation": GENERATION,
+        "deployment_identity_id": "c" * 64,
+        "actor": "operator",
+        "approval_reference": "CHANGE-1",
+        "reason": "verified transient failure",
+        "expected_duplicate_effects": "may repeat one notification",
+        "verification_plan": "verify one success marker and zero essential exit",
+        "verification_reference": "approval:CHANGE-1",
+        "approval_expires_at": "2027-01-01T01:00:00.000Z",
+        "compensation_acknowledged": True,
+    }
+    payload = {"command": command, "authorization_record_id": command_id}
+    envelope_value = {
+        "schema_version": "1.0.0",
+        "event_type": "command.authorized.v1",
+        "producer_id": "command-handler",
+        "producer_event_id": command_id,
+        "job_id": JOB,
+        "config_version": config["config_version"],
+        "schedule_generation": GENERATION,
+        "occurrence_id": synthetic,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+        "emitted_at": "2027-01-01T00:00:01.000Z",
+        "payload": payload,
+        "payload_hash": hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
+    }
+    original_item = {
+        "job_id": JOB,
+        "occurrence_id": original,
+        "config_version": config["config_version"],
+        "schedule_generation": GENERATION,
+        "state": "FAILED",
+        "task_arn": "arn" + ":aws:ecs:us-" + "east-1:111122223333:task/dev/original",
+        "deployment_identity_id": "c" * 64,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+    }
+    result = prepare_manual_rerun(
+        envelope_value,
+        config,
+        original_item,
+        processor_identity="cell-a:process-manager:v1",
+        now="2027-01-01T00:00:02.000Z",
+        expected_owner_generation=1,
+        expected_environment="dev",
+    )
+    assert result.attempt["occurrence_id"] == synthetic
+    assert result.attempt["client_token"]
+    assert result.attempt["replay_of_occurrence_id"] == original
+    assert result.attempt["command_id"] == command_id
+    assert result.attempt["attempt_no"] == 0
+    assert result.attempt["keys"]["sk"] == f"ATTEMPT#{synthetic}#0"
+    assert result.processed_event["producer_id"] == "command-handler"
 
 
 def test_deadline_evidence_is_validated_and_reduced_order_independently() -> None:

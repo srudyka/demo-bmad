@@ -116,6 +116,31 @@ class Ledger:
         item = result.get("Item")
         return item if isinstance(item, dict) else None
 
+    def active_occurrence_exists(self, job_id: str, exclude: str) -> bool:
+        query = getattr(self.client, "query", None)
+        if not callable(query):
+            return False
+        result = query(
+            TableName=self.table_name,
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={
+                ":pk": {"S": f"JOB#{job_id}"},
+                ":prefix": {"S": "OCCURRENCE#"},
+            },
+            ConsistentRead=True,
+        )
+        items = result.get("Items", []) if isinstance(result, Mapping) else []
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, Mapping):
+                continue
+            record = plain_item(item)
+            if record.get("occurrence_id") != exclude and record.get("state") in {
+                "EXPECTED",
+                "STARTED",
+            }:
+                return True
+        return False
+
     def accept(
         self, occurrence: Mapping[str, Any], processed: Mapping[str, Any]
     ) -> None:
@@ -208,6 +233,46 @@ class Ledger:
                             ":config_version": {"S": str(attempt["config_version"])},
                             ":generation": {"S": str(attempt["schedule_generation"])},
                         },
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": self.table_name,
+                        "Item": dynamodb_item(processed),
+                        "ConditionExpression": "attribute_not_exists(pk)",
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": self.table_name,
+                        "Item": dynamodb_item(attempt),
+                        "ConditionExpression": "attribute_not_exists(pk)",
+                    }
+                },
+            ]
+        )
+
+    def reserve_manual_attempt(
+        self,
+        occurrence: Mapping[str, Any],
+        attempt: Mapping[str, Any],
+        processed: Mapping[str, Any],
+    ) -> None:
+        """Atomically create one synthetic occurrence, event, and attempt."""
+
+        occurrence_keys = occurrence.get("keys")
+        attempt_keys = attempt.get("keys")
+        if not isinstance(occurrence_keys, Mapping) or not isinstance(
+            attempt_keys, Mapping
+        ):
+            raise ValueError("LEDGER_KEYS_INVALID")
+        self.client.transact_write_items(
+            TransactItems=[
+                {
+                    "Put": {
+                        "TableName": self.table_name,
+                        "Item": dynamodb_item(occurrence),
+                        "ConditionExpression": "attribute_not_exists(pk)",
                     }
                 },
                 {
