@@ -2,13 +2,13 @@
 epic: 3
 story: 3.3
 title: Generate a Trusted and Reviewable Terraform Plan
-status: review
+status: done
 baseline_commit: 5aecec7
 ---
 
 # Story 3.3: Generate a Trusted and Reviewable Terraform Plan
 
-Status: review
+Status: done
 
 ## Story
 
