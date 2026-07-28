@@ -1,0 +1,13 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-artifact-reference",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["uri", "sha256", "expires_at", "audience"],
+  "properties": {
+    "uri": {"pattern": "^github-actions://trusted-plan/.+", "type": "string"},
+    "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "expires_at": {"format": "date-time", "type": "string"},
+    "audience": {"const": "trusted-reviewer"}
+  }
+}

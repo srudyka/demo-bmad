@@ -29,9 +29,10 @@ def target() -> dict:
 def test_manifest_and_exact_oidc_binding() -> None:
     manifest = target()
     validate_target_manifest(manifest)
-    assert oidc_subject({**manifest, "workflow_ref": manifest["plan_workflow_ref"]}) == manifest[
-        "plan_oidc_subject"
-    ]
+    assert (
+        oidc_subject({**manifest, "workflow_ref": manifest["plan_workflow_ref"]})
+        == manifest["plan_oidc_subject"]
+    )
     validate_oidc_claims(
         {
             "aud": "sts.amazonaws.com",

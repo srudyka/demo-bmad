@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "07761756b998aab1014ceda853edebad7cbadc0475eb6261e25655b5b1aab674"},
+    {"path": "releases/1.0.0.json", "sha256": "d1a24a25bb63933af54ead1b8e243faab45e0ad86146b3ebcf91ac8125ef0f41"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
     {"path": "v1/catalogs/dashboard.json", "sha256": "8b49e90e7ee39c424c731ebf0632166fb183c94e6ab7cc12fea88850a9fdaf92"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
@@ -26,6 +26,7 @@
     {"path": "v1/catalogs/reducer.json", "sha256": "fbd7f35614ca1ff2ae3353130e4b1e59f2471ec57fd988b78eddb695acafa080"},
     {"path": "v1/catalogs/schedules.json", "sha256": "c78082d6bf36284d3728ae96bb434fed4d1b27a65dbee16ac075e1c5b7336c9a"},
     {"path": "v1/catalogs/secret-safety.json", "sha256": "cd8f6caf019dbf0574dcc101b7925e6b41fbd3467747d6b9d0ca57529996ecaf"},
+    {"path": "v1/catalogs/trusted-plan.json", "sha256": "f4c589ed991267ca78ddff86e44201a21459d1b6ee468211b435b1d7591ca2a2"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},
     {"path": "v1/fixtures/canonical-json/vectors.json", "sha256": "579a19b231afdce63744046a4e14772bbf8d2d6fbba3df08fe7100118718072c"},
     {"path": "v1/fixtures/compatibility/cases.json", "sha256": "a049e4945eb0cf4be165f33c56f4a128b31ff49231e06fc512ccf49a6a2818a1"},
@@ -61,6 +62,10 @@
     {"path": "v1/schemas/config.schema.json", "sha256": "cef6603a40d6a958d0b21a031b90e7db0a38f7e0517002dbfbb0b63a7870969e"},
     {"path": "v1/schemas/deployment-identity.schema.json", "sha256": "4d358866e372b456ef361ef82ab7614393f7c7d0314021f77c0162c94dabfbfb"},
     {"path": "v1/schemas/lifecycle-retirement.schema.json", "sha256": "e61e82b0a7c29f3aa89239a749482973872ccde15930f01faf05dda37fdd712c"},
+    {"path": "v1/schemas/trusted-plan.schema.json", "sha256": "c201b026e10c89e0002eff6a3079a60691e79336bfb7fbb70b5088683c333b6e"},
+    {"path": "v1/schemas/trusted-plan-request.schema.json", "sha256": "4ce51fb9fec50e358d4ebffccf80c4c88df2ef61da7cc6456a759b534ea5d95e"},
+    {"path": "v1/schemas/trusted-plan-summary.schema.json", "sha256": "8a90a5a2cb9f2db77b23392947330c3b168766ac8c5cae0daafe71e7ff1b70d4"},
+    {"path": "v1/schemas/trusted-plan-artifact-reference.schema.json", "sha256": "b7d002113793085082ae185dec9e248f6eff0ae3fce783ab421add7d56f3b10e"},
     {"path": "v1/schemas/evidence-envelope.schema.json", "sha256": "d2314390dbcd9bced1d845e2c669c61d18257a4762d6d3fb5e23494ce0f84d9e"},
     {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "5219263e97f3a0035dda67baa67c26e27812adac92d3a016c1952f4590d604d2"},
     {"path": "v1/schemas/payloads/command-authorized.schema.json", "sha256": "2c44f04410d67455e0708184a45d50329105e3dc73aecdfde8234b19c67f82ed"},
@@ -95,6 +100,7 @@
     "v1/catalogs/reducer.json",
     "v1/catalogs/schedules.json",
     "v1/catalogs/secret-safety.json"
+    ,"v1/catalogs/trusted-plan.json"
   ],
   "component_ranges": {
     "alert_router": ">=1.0.0,<2.0.0",
@@ -158,6 +164,10 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:processed-event",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:task-attempt-record",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:lifecycle-retirement"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:lifecycle-retirement",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-request",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-summary",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-artifact-reference"
   ]
 }

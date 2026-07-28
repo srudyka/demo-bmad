@@ -1,0 +1,26 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-request",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["source_commit", "repository_owner_id", "repository_id", "workflow_sha", "workflow_run_id", "manifest_sha256", "account_id", "region", "environment", "root", "state_key", "plan_role_arn", "role_session", "cell_contract_sha256", "policy_version", "provider_lock_sha256", "backend_lock_sha256"],
+  "properties": {
+    "source_commit": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+    "repository_owner_id": {"pattern": "^[0-9]+$", "type": "string"},
+    "repository_id": {"pattern": "^[0-9]+$", "type": "string"},
+    "workflow_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+    "workflow_run_id": {"pattern": "^[1-9][0-9]*$", "type": "string"},
+    "manifest_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "account_id": {"pattern": "^[0-9]{12}$", "type": "string"},
+    "region": {"pattern": "^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", "type": "string"},
+    "environment": {"minLength": 1, "type": "string"},
+    "root": {"minLength": 1, "type": "string"},
+    "state_key": {"minLength": 1, "type": "string"},
+    "plan_role_arn": {"pattern": "^arn:[a-z0-9-]+:iam::[0-9]{12}:role/.+$", "type": "string"},
+    "role_session": {"pattern": "^[A-Za-z0-9+=,.@_-]{2,64}$", "type": "string"},
+    "cell_contract_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "policy_version": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "provider_lock_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "backend_lock_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+  }
+}

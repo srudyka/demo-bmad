@@ -13,6 +13,8 @@
   "state_bucket": "platform-production-tfstate",
   "state_key": "production/us-east-1/envs/production/terraform.tfstate",
   "lock_key": "production/us-east-1/envs/production/terraform.tfstate.tflock",
+  "provider_lock_path": "envs/production/.terraform.lock.hcl",
+  "backend_lock_path": "envs/production/backend.tf",
   "cell_contract_path": "/platform/ecs-scheduled-jobs/production/us-east-1/contract",
   "cell_contract_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "policy_catalog": "contracts/v1/catalogs/iam.json",

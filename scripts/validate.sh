@@ -26,4 +26,4 @@ export PYTHONDONTWRITEBYTECODE=1
 
 uv lock --check
 uv sync --locked
-uv run --locked python scripts/validate.py
+uv run --locked python -m scripts.validate

@@ -47,3 +47,28 @@ manifest/trust first, then remove the old subject. Rollback restores the last
 reviewed identity; moving tags, wildcards, and destructive trust replacement are
 not rollback mechanisms. Protected production Environments require reviewers,
 self-review prevention, restricted refs, concurrency, and no administrator bypass.
+
+## Trusted Terraform plans
+
+The protected plan workflow must pin its reusable workflow and source commit, run
+target preflight and credential-free repository validation first, and only then
+run `terraform init -lockfile=readonly` and `terraform plan`. It must use the
+manifest's plan role and committed provider/backend lock checksums; consumer
+inputs cannot replace the root, state key, role, provider versions, or module
+sources. A saved binary plan is accompanied by a SHA-256 checksum and bounded
+metadata from `scripts/trusted_plan.py`.
+
+Review output is a sanitized summary of lifecycle counts, bounded resource
+addresses, categories, no-op status, and policy status. It must not contain plan
+JSON values, variable values, credentials, raw logs, or state. The plan artifact
+is retained only for the review window, addressed to the trusted reviewer, and
+is never copied into the repository, a shared cache, or an untrusted pull
+request artifact. A no-op plan still publishes metadata and policy/readiness
+evidence.
+
+If the source commit, workflow, target manifest, Cell checksum, lock checksum,
+policy catalog, or protected environment changes after planning, invalidate the
+plan and require a new preflight and plan. There is no plan-to-apply handoff:
+apply starts from a separately approved immutable commit and independently
+revalidates the target. Rollback disables plan/apply acceptance while retaining
+review metadata and audit records; it does not delete or mutate Terraform state.

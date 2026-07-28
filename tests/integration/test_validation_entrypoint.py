@@ -22,7 +22,7 @@ class ValidationEntrypointTest(unittest.TestCase):
         self.assertIn("AWS_EC2_METADATA_DISABLED=true", contents)
         self.assertIn("mktemp -d", contents)
         self.assertIn("uv lock --check", contents)
-        self.assertIn("uv run --locked python scripts/validate.py", contents)
+        self.assertIn("uv run --locked python -m scripts.validate", contents)
 
     def test_runner_strips_aws_credentials_from_subprocesses(self) -> None:
         from scripts.validate import sanitized_environment

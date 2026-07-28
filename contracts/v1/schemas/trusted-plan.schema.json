@@ -1,0 +1,33 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trusted Terraform Plan Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "repository_owner_id": {"type": "string", "pattern": "^[0-9]+$"},
+    "repository_id": {"type": "string", "pattern": "^[0-9]+$"},
+    "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "workflow_run_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "cell_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_version": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "provider_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "backend_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_role_arn": {"type": "string", "pattern": "^arn:[a-z0-9-]+:iam::[0-9]{12}:role/.+$"},
+    "role_session": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9+=,.@_-]+$"},
+    "environment": {"type": "string", "minLength": 1},
+    "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+    "region": {"type": "string", "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+$"},
+    "root": {"type": "string", "pattern": "^envs/[A-Za-z0-9_-]+$"},
+    "state_key": {"type": "string", "minLength": 1, "pattern": "^[^*]+$"},
+    "terraform_version": {"type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"}
+  },
+  "required": ["schema_version", "source_commit", "repository_owner_id", "repository_id", "workflow_sha", "workflow_run_id", "manifest_sha256", "cell_contract_sha256", "policy_version", "provider_lock_sha256", "backend_lock_sha256", "plan_sha256", "plan_role_arn", "role_session", "environment", "account_id", "region", "root", "state_key", "terraform_version", "started_at", "completed_at", "expires_at"]
+}

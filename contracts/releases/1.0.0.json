@@ -17,6 +17,7 @@
       "reducer",
       "schedules",
       "secret-safety"
+      ,"trusted-plan"
     ],
     "fixture_suites": [
       "canonical-json",
@@ -30,7 +31,7 @@
       "schedules",
       "schemas"
     ],
-    "schema_count": 19
+    "schema_count": 23
   },
   "classification": "initial",
   "manifest_surface": {
@@ -66,5 +67,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "94dd9c2385090eca1b088d84dd4284f5cacf41255f286adcb4421cd8d50a33d3"
+  "semantic_surface_sha256": "175e5dda9299b4f788e1b674145a503b1f70186546325d5147c93cdbf80d7a78"
 }

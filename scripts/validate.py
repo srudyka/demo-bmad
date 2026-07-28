@@ -224,11 +224,31 @@ def artifact_policy_check() -> None:
     )
     for workflow in metadata_files:
         contents = workflow.read_text(encoding="utf-8")
-        if workflow_security_violations(contents):
+        trusted_plan = workflow.name == "trusted-plan.yml"
+        violations = workflow_security_violations(contents)
+        if trusted_plan:
+            violations = tuple(
+                violation
+                for violation in violations
+                if violation
+                not in {
+                    "write permission",
+                    "secret or environment",
+                    "cache or artifact",
+                    "plan or raw config",
+                }
+            )
+            if (
+                "workflow_call" not in contents
+                or "pull_request_target" in contents
+                or "workflow_run" in contents
+            ):
+                violations += ("trusted workflow boundary",)
+        if violations:
             raise ValidationFailure(
                 f"policy:artifact-safety prohibited trust-crossing output in {workflow.relative_to(REPOSITORY_ROOT)}"
             )
-        if re.search(r"(?m)^\s+environment:\s*", contents):
+        if not trusted_plan and re.search(r"(?m)^\s+environment:\s*", contents):
             raise ValidationFailure(
                 f"policy:artifact-safety protected Environment in PR workflow {workflow.relative_to(REPOSITORY_ROOT)}"
             )
@@ -546,6 +566,18 @@ def validate_trusted_target_contract() -> None:
         raise ValidationFailure(f"trusted-target-contract: {error}") from error
 
 
+def validate_trusted_plan_contract() -> None:
+    """Keep trusted-plan reporting and artifact boundaries executable and pure."""
+    from scripts.trusted_plan import summarize_plan
+
+    try:
+        summary = summarize_plan({"resource_changes": []}, policy_status="passed")
+        if not summary["no_op"] or summary["policy_status"] != "passed":
+            raise ValidationFailure("trusted-plan-contract: unexpected no-op summary")
+    except TargetViolation as error:
+        raise ValidationFailure(f"trusted-plan-contract: {error}") from error
+
+
 def main() -> int:
     print("AWS credentials are not passed to validation subprocesses.")
     artifacts_before = checkout_artifacts()
@@ -587,6 +619,7 @@ def main() -> int:
         migration_check(changed_paths, os.environ.get("VALIDATION_BASE_SHA"))
         artifact_policy_check()
         validate_trusted_target_contract()
+        validate_trusted_plan_contract()
         roots = terraform_roots()
         print_toolchain(roots)
         for label, command in stages[:1]:

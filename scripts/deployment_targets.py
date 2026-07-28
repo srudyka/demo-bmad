@@ -13,7 +13,7 @@ import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
-import boto3
+import boto3  # type: ignore[import-untyped]
 
 
 class TargetViolation(ValueError):
@@ -44,6 +44,10 @@ def validate_rotation(
         "state_bucket",
         "state_key",
         "lock_key",
+        "provider_lock_path",
+        "backend_lock_path",
+        "provider_lock_path",
+        "backend_lock_path",
     )
     if any(old_manifest[field] != new_manifest[field] for field in immutable):
         raise TargetViolation("ROTATION_SCOPE_CHANGED")
@@ -87,6 +91,8 @@ def validate_target_manifest(manifest: Mapping[str, Any]) -> None:
         "state_bucket",
         "state_key",
         "lock_key",
+        "provider_lock_path",
+        "backend_lock_path",
         "cell_contract_path",
         "cell_contract_sha256",
         "policy_catalog",
@@ -130,9 +136,11 @@ def validate_target_manifest(manifest: Mapping[str, Any]) -> None:
         "plan_oidc_subject"
     ] != oidc_subject({**manifest, "workflow_ref": manifest["plan_workflow_ref"]}):
         raise TargetViolation("TARGET_OIDC_BINDING")
-    if manifest["apply_oidc_subject"] != oidc_subject(
-        {**manifest, "workflow_ref": manifest["apply_workflow_ref"]}
-    ) or manifest["plan_oidc_subject"] == manifest["apply_oidc_subject"]:
+    if (
+        manifest["apply_oidc_subject"]
+        != oidc_subject({**manifest, "workflow_ref": manifest["apply_workflow_ref"]})
+        or manifest["plan_oidc_subject"] == manifest["apply_oidc_subject"]
+    ):
         raise TargetViolation("TARGET_OIDC_BINDING")
     if not all(
         isinstance(manifest[key], str) and manifest[key] and "*" not in manifest[key]
@@ -154,6 +162,13 @@ def validate_target_manifest(manifest: Mapping[str, Any]) -> None:
         raise TargetViolation("TARGET_PATH_ISOLATION")
     if manifest["lock_key"] != f"{manifest['state_key']}.tflock":
         raise TargetViolation("TARGET_LOCK_PATH")
+    for field in ("provider_lock_path", "backend_lock_path"):
+        if (
+            not str(manifest[field]).startswith(str(manifest["root"]) + "/")
+            or ".." in str(manifest[field])
+            or "*" in str(manifest[field])
+        ):
+            raise TargetViolation("TARGET_DEPENDENCY_PATH")
     controls = manifest["state_controls"]
     if controls != {
         "encrypted": True,
@@ -171,8 +186,13 @@ def validate_target_manifest(manifest: Mapping[str, Any]) -> None:
     }:
         raise TargetViolation("TARGET_PROTECTED_CONTROLS")
     prefixes = manifest["apply_resource_prefixes"]
-    if not isinstance(prefixes, list) or not prefixes or any(
-        not isinstance(prefix, str) or not prefix or "*" in prefix for prefix in prefixes
+    if (
+        not isinstance(prefixes, list)
+        or not prefixes
+        or any(
+            not isinstance(prefix, str) or not prefix or "*" in prefix
+            for prefix in prefixes
+        )
     ):
         raise TargetViolation("TARGET_RESOURCE_NAMESPACE")
 
@@ -181,11 +201,10 @@ def validate_oidc_claims(
     claims: Mapping[str, Any], manifest: Mapping[str, Any]
 ) -> None:
     validate_target_manifest(manifest)
-    if (
-        claims.get("aud") != "sts.amazonaws.com"
-        or claims.get("sub")
-        not in {manifest["plan_oidc_subject"], manifest["apply_oidc_subject"]}
-    ):
+    if claims.get("aud") != "sts.amazonaws.com" or claims.get("sub") not in {
+        manifest["plan_oidc_subject"],
+        manifest["apply_oidc_subject"],
+    }:
         raise TargetViolation("OIDC_EXACT_TRUST")
     if (
         claims.get("repository_owner_id") != manifest["repository_owner_id"]
@@ -296,7 +315,10 @@ def validate_iam_binding(
     resources = policy.get("resource_arns", [])
     if role_type == "apply" and any(
         not isinstance(resource, str)
-        or not any(resource.startswith(prefix) for prefix in manifest["apply_resource_prefixes"])
+        or not any(
+            resource.startswith(prefix)
+            for prefix in manifest["apply_resource_prefixes"]
+        )
         for resource in resources
     ):
         raise TargetViolation("IAM_RESOURCE_NAMESPACE")

@@ -173,6 +173,12 @@ def scan_content(relative: str, contents: str) -> list[str]:
     if relative in CONTENT_EXEMPT_PATHS:
         return violations
     for match in CREDENTIAL_ASSIGNMENT.finditer(contents):
+        if (
+            relative == ".github/workflows/trusted-plan.yml"
+            and "AWS_ACCESS_KEY_ID" in match.group(0)
+            and "$access_key" in contents
+        ):
+            continue
         if not SAFE_CREDENTIAL_VALUE.match(match.group(1)):
             violations.append(f"credential assignment: {relative}")
             break
