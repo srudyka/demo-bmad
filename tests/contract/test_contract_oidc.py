@@ -17,12 +17,14 @@ CONTRACTS_ROOT = Path(__file__).resolve().parents[2] / "contracts"
 def test_oidc_claim_template_is_immutable_and_exact() -> None:
     catalog = load_json_strict(CONTRACTS_ROOT / "v1" / "catalogs" / "oidc.json")
     assert catalog["claim_keys"] == [
+        "repository_owner_id",
         "repository_id",
         "context",
         "job_workflow_ref",
     ]
     assert catalog["audience"] == "sts.amazonaws.com"
     assert catalog["deployment_environment"] == "production"
+    assert catalog["immutable_repository_owner_id"] == "11111111"
     assert catalog["job_workflow_ref"].endswith(
         "@0123456789abcdef0123456789abcdef01234567"
     )

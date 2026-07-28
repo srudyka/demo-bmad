@@ -1065,6 +1065,8 @@ def evaluate_oidc_case(case: dict[str, Any], catalog: dict[str, Any]) -> None:
         raise ContractViolation("OIDC_AUDIENCE")
     if case["sub"] != catalog["subject"]:
         raise ContractViolation("OIDC_SUBJECT")
+    if case.get("repository_owner_id") != catalog.get("immutable_repository_owner_id"):
+        raise ContractViolation("OIDC_SUBJECT")
 
 
 def evaluate_lifecycle_case(case: dict[str, Any], catalog: dict[str, Any]) -> None:

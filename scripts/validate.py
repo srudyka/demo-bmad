@@ -11,6 +11,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import cast
 
+from scripts.deployment_targets import TargetViolation, validate_target_manifest
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 AMBIENT_CONTROL_PREFIXES = (
@@ -496,6 +498,17 @@ def validate_terraform_security() -> None:
     )
 
 
+def validate_trusted_target_contract() -> None:
+    """Run target binding validation as a required repository gate."""
+    import json
+
+    path = REPOSITORY_ROOT / "tests" / "contract" / "fixtures" / "target-manifest.json"
+    try:
+        validate_target_manifest(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError, TargetViolation) as error:
+        raise ValidationFailure(f"trusted-target-contract: {error}") from error
+
+
 def main() -> int:
     print("AWS credentials are not passed to validation subprocesses.")
     artifacts_before = checkout_artifacts()
@@ -536,6 +549,7 @@ def main() -> int:
         load_rollout_catalog()
         migration_check(changed_paths, os.environ.get("VALIDATION_BASE_SHA"))
         artifact_policy_check()
+        validate_trusted_target_contract()
         roots = terraform_roots()
         print_toolchain(roots)
         for label, command in stages[:1]:
