@@ -271,6 +271,22 @@ class Ledger:
                 {
                     "Put": {
                         "TableName": self.table_name,
+                        "Item": dynamodb_item(
+                            {
+                                "keys": {
+                                    "pk": f"JOB#{occurrence['job_id']}",
+                                    "sk": f"MANUAL_LOCK#{occurrence['replay_of_occurrence_id']}",
+                                },
+                                "record_type": "MANUAL_RERUN_LOCK",
+                                "command_id": attempt["command_id"],
+                            }
+                        ),
+                        "ConditionExpression": "attribute_not_exists(pk)",
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": self.table_name,
                         "Item": dynamodb_item(occurrence),
                         "ConditionExpression": "attribute_not_exists(pk)",
                     }

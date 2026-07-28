@@ -121,6 +121,16 @@
         }
       ]
     },
+    "replay_of_occurrence_id": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"},
+    "command_id": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"},
+    "authorization_record_id": {"minLength": 1, "type": "string"},
+    "actor": {"minLength": 1, "type": "string"},
+    "approval_reference": {"minLength": 1, "type": "string"},
+    "expected_duplicate_effects": {"minLength": 1, "maxLength": 4096, "type": "string"},
+    "verification_plan": {"minLength": 1, "maxLength": 4096, "type": "string"},
+    "compensation_acknowledged": {"type": "boolean"},
+    "deployment_identity_id": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"},
+    "overlap_policy": {"minLength": 1, "type": "string"},
     "record_type": {
       "const": "OCCURRENCE"
     },

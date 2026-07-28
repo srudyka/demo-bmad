@@ -293,10 +293,7 @@ def authorize_operator_request(
     scope_digest = sha256(
         json.dumps(scope, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    try:
-        approved = approve(approval, caller.actor, caller.session_id, scope_digest)
-    except TypeError:
-        approved = approve(approval, caller.actor, caller.session_id)
+    approved = approve(approval, caller.actor, caller.session_id, scope_digest)
     approval_expires_at = approved if isinstance(approved, str) else None
     if not approved:
         raise CommandRejected("COMMAND_APPROVAL_INVALID")

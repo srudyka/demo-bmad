@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "6a963a59e0c050229fc2b6e7424e3750d9a923147e9084bc29500cb8704c87fc"},
+    {"path": "releases/1.0.0.json", "sha256": "4d240909f254fa57b9e6c39f2391f310ef4007392caf4787c923b95bb990be9b"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
     {"path": "v1/catalogs/dashboard.json", "sha256": "8b49e90e7ee39c424c731ebf0632166fb183c94e6ab7cc12fea88850a9fdaf92"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
@@ -62,7 +62,7 @@
     {"path": "v1/schemas/deployment-identity.schema.json", "sha256": "4d358866e372b456ef361ef82ab7614393f7c7d0314021f77c0162c94dabfbfb"},
     {"path": "v1/schemas/lifecycle-retirement.schema.json", "sha256": "e61e82b0a7c29f3aa89239a749482973872ccde15930f01faf05dda37fdd712c"},
     {"path": "v1/schemas/evidence-envelope.schema.json", "sha256": "d2314390dbcd9bced1d845e2c669c61d18257a4762d6d3fb5e23494ce0f84d9e"},
-    {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "8e557699c68d52e0f2f150ff77e132576f7ce824ea3fe6dcd170459327e160fb"},
+    {"path": "v1/schemas/occurrence-record.schema.json", "sha256": "5219263e97f3a0035dda67baa67c26e27812adac92d3a016c1952f4590d604d2"},
     {"path": "v1/schemas/payloads/command-authorized.schema.json", "sha256": "2c44f04410d67455e0708184a45d50329105e3dc73aecdfde8234b19c67f82ed"},
     {"path": "v1/schemas/payloads/completion-observed.schema.json", "sha256": "4c16610a6da68249d0e77b286d3fd8025c688e468627f1ea208d0f49d036fef5"},
     {"path": "v1/schemas/payloads/deadline-reached.schema.json", "sha256": "47b1a87e7768d49747f1320e55902bcfa7529ffe01a6341d52601843af5c7776"},
@@ -71,7 +71,7 @@
     {"path": "v1/schemas/payloads/task-launch-result.schema.json", "sha256": "8b8de03a0e68c4796ce8ce942076a4fc1c66118beb49d66dc32e0822d5c7624d"},
     {"path": "v1/schemas/payloads/task-state.schema.json", "sha256": "b2803b12899f62b22631d2ec8ee6111530be953c364fd57687456cb7a438e6e0"},
     {"path": "v1/schemas/processed-event.schema.json", "sha256": "5943cf3edd8d580df1ea4971dd886653d443c7d325da490f1c20c0c48d9bbddc"},
-    {"path": "v1/schemas/task-attempt-record.schema.json", "sha256": "30f5eea21b59d425820864022ae29f54f58502d4079de009343f8bdad727ee4d"}
+    {"path": "v1/schemas/task-attempt-record.schema.json", "sha256": "541408d16b1d93e8498d077c117dd22f65e204a575513bf6f39dabca961e2068"}
   ],
   "canonicalization": {
     "artifact_integrity": "sha256-raw-utf8-lf-final-newline",

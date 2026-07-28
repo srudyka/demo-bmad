@@ -4,7 +4,7 @@ baseline_commit: 319b1a20ab7156a585809ea05cdc9b7a155c0617
 
 # Story 2.10: Perform a Controlled Non-Production Rerun
 
-Status: review
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created -->
 
@@ -174,6 +174,10 @@ Recent commits completed Stories 2.6–2.9 in small, reviewable changes. Preserv
 ## Dev Agent Record
 
 ### Review Findings
+
+- [x] [Review][Patch] Overlap detection is not an atomic reservation [runtime/process_manager/src/process_manager/handler.py:622] — fixed with a transactional per-original rerun lock.
+- [x] [Review][Patch] Approval scope can be bypassed by the legacy callback fallback [runtime/command_handler/src/command_handler/domain.py:299] — fixed by requiring the scoped approval callback.
+- [x] [Review][Patch] Manual ledger metadata is absent from strict record schemas [runtime/process_manager/src/process_manager/domain.py:906] — fixed by adding the synthetic metadata fields to both strict ledger schemas and updating contract integrity metadata.
 
 - [ ] [Review][Patch] Process Manager IAM denies the manual ledger transaction [modules/ecs-scheduled-job-platform/main.tf:1976] — the manual path writes `EVENT#command-handler`, but the role's `dynamodb:LeadingKeys` allow-list excludes that key, so an authorized rerun cannot reserve its synthetic occurrence or launch.
 - [ ] [Review][Patch] Conflicting request-id reuse is accepted [runtime/command_handler/src/command_handler/handler.py:201] — the duplicate path returns the stored authorization without comparing request bytes or a scope digest, allowing a changed request to inherit the original command.

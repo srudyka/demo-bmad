@@ -70,6 +70,8 @@
       "minLength": 1,
       "type": "string"
     },
+    "replay_of_occurrence_id": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"},
+    "command_id": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"},
     "subnet_ids": {
       "items": {"type": "string", "pattern": "^subnet-[0-9a-f]+$"},
       "minItems": 1,

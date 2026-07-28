@@ -51,7 +51,7 @@ def test_authorization_generates_bound_command_and_audit() -> None:
         _request(),
         CallerContext("operator", "session-1", "cell-a", "123456789012", "us-test-1"),
         lookup=_binding,
-        approve=lambda ref, actor, session: (
+        approve=lambda ref, actor, session, scope: (
             (ref, actor, session) == ("CHANGE-1", "operator", "session-1")
         ),
         now=datetime(2026, 7, 15, 10, 1, tzinfo=UTC),
