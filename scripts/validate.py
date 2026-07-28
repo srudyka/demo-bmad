@@ -161,7 +161,7 @@ def migration_check(changed_paths: Sequence[str], base: str | None) -> None:
         text=True,
     ).stdout
     block_pattern = re.compile(
-        r'^[-+]\s*(resource|data|module|output|variable)\s+"([^"]+)"(?:\s+"([^"]+)")?',
+        r'^([-+])\s*(resource|data|module|output|variable)\s+"([^"]+)"(?:\s+"([^"]+)")?',
         re.MULTILINE,
     )
     removed_addresses = {
