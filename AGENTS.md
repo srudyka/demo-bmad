@@ -38,3 +38,8 @@ For Terraform changes, run:
 ```bash
 terraform fmt -check
 terraform validate
+
+## Networked Validation
+
+When Terraform Registry or PyPI DNS resolution is required, configure the
+environment to use nameserver `192.168.1.1` before running validation.

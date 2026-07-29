@@ -213,28 +213,57 @@ def scan_paths(root: Path, paths: tuple[Path, ...]) -> list[str]:
 def scan_baseline_diff(root: Path, baseline: str) -> list[str]:
     """Check changed-file hygiene that cannot be inferred from a snapshot alone."""
     try:
-        subprocess.run(("git", "cat-file", "-e", f"{baseline}^{{commit}}"), cwd=root, check=True, capture_output=True)
+        subprocess.run(
+            ("git", "cat-file", "-e", f"{baseline}^{{commit}}"),
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
         result = subprocess.run(
             ("git", "diff", "--name-only", baseline),
-            cwd=root, check=True, capture_output=True, text=True,
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return ["baseline diff unavailable"]
     violations: list[str] = []
     names = set(result.stdout.splitlines())
-    untracked = subprocess.run(("git", "ls-files", "--others", "--exclude-standard"), cwd=root, check=True, capture_output=True, text=True)
+    untracked = subprocess.run(
+        ("git", "ls-files", "--others", "--exclude-standard"),
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     names.update(untracked.stdout.splitlines())
     for name in sorted(names):
         if name.endswith(".terraform.lock.hcl"):
             violations.append(f"provider lock changed: {name}")
         if name.endswith((".tf", ".tf.json")):
-            content = (root / name).read_text(encoding="utf-8", errors="ignore") if (root / name).is_file() else ""
-            if re.search(r"(?:account_id|region|role_arn|state_bucket)\s*=\s*\"[^$][^\"]+\"", content):
+            content = (
+                (root / name).read_text(encoding="utf-8", errors="ignore")
+                if (root / name).is_file()
+                else ""
+            )
+            if re.search(
+                r"(?:account_id|region|role_arn|state_bucket)\s*=\s*\"[^$][^\"]+\"",
+                content,
+            ):
                 violations.append(f"hardcoded target: {name}")
-    diff = subprocess.run(("git", "diff", "--unified=0", baseline, "--", "*.tf", "*.tf.json"), cwd=root, check=True, capture_output=True, text=True)
+    diff = subprocess.run(
+        ("git", "diff", "--unified=0", baseline, "--", "*.tf", "*.tf.json"),
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     for line in diff.stdout.splitlines():
         if line.startswith(("+resource ", "-resource ")):
-            violations.append(f"Terraform resource address changed without migration: {line[1:].strip()}")
+            violations.append(
+                f"Terraform resource address changed without migration: {line[1:].strip()}"
+            )
     return violations
 
 

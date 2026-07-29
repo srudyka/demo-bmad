@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-bundle-manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "audience", "plan_sha256", "files"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "audience": {"const": "production-apply"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved.tfplan", "trusted-plan.json", "trusted-policy.json", "trusted-artifact-manifest.json", "approval.json", "readiness.json", "apply-authorization.json", "caller.json", "authority.json", "github-claims.json", "cell-contract.json", "lock.json"],
+      "properties": {
+        "approved.tfplan": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "trusted-plan.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "trusted-policy.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "trusted-artifact-manifest.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "approval.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "readiness.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "apply-authorization.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "caller.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authority.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "github-claims.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cell-contract.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "lock.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

@@ -84,3 +84,27 @@ Malformed plan changes, unknown catalog categories, empty production plans,
 unconditioned IAM delegation, wildcard IAM actions/resources, public IP
 assignment, mutable schedule state, and unregistered jobs fail closed before
 report publication. The policy artifact is retained with the bounded report.
+
+## Protected production apply
+
+The `production-approval-bundle.yml` workflow joins the fresh trusted plan with
+independently produced approval, readiness, caller, Cell, and lock evidence.
+It publishes a complete short-lived bundle only after exact checksums and
+production readiness provenance pass. Production apply consumes that bundle
+from the exact deployment commit. The
+apply workflow uses a separate protected Environment and apply role, binds the
+manifest, target, Cell Contract, lock files, policy result, readiness decision,
+approval record, artifact expiry, and binary plan checksum, and uses
+non-cancelling concurrency per account, Region, Environment, and root.
+
+The mutation step runs only `terraform apply -input=false` against the approved
+saved plan. It does not replan, refresh, accept variables or targets, or reuse a
+prior-run or pull-request artifact. Apply failure or runner loss is terminal;
+inspect state and locks, retain bounded failure evidence, and create a new fresh
+plan for recovery. Rollback disables launch first where applicable and follows
+the same policy, readiness, approval, target, and lock controls.
+
+Emergency access is not a recovery shortcut: issue a time-bound, independently
+approved emergency record, page the responsible responders immediately, retain
+the actor/target/incident evidence, and complete the post-incident review before
+closing the incident.

@@ -59,6 +59,13 @@ without receiving raw plan values.
 
 If validation policy causes an operational problem, restore the prior reviewed
 validator/workflow revision and preserve the existing validation evidence.
+
+Production approval is a separate protected workflow. Pull-request plans and
+prior-run plans are review artifacts only and cannot be promoted. The protected
+apply job checks out the exact deployment commit, verifies exact binary-plan and
+readiness/approval bindings, uses a separate apply role, and never retries a
+partial Terraform mutation automatically. Production activation remains blocked
+until the later readiness story supplies real production evidence.
 Rollback must not grant cloud credentials, bypass required checks, or delete
 failure artifacts needed for investigation.
 

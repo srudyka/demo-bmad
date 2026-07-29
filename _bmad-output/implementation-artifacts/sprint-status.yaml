@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-last_updated: 2026-07-28T00:00:00-0500
+last_updated: 2026-07-29T00:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -85,7 +85,7 @@ development_status:
   3-2-bind-trusted-deployment-targets-and-oidc-roles: done
   3-3-generate-a-trusted-and-reviewable-terraform-plan: done
   3-4-enforce-production-policies-and-govern-exceptions: done
-  3-5-approve-and-apply-the-exact-production-plan: backlog
+  3-5-approve-and-apply-the-exact-production-plan: done
   3-6-record-deployment-and-rollback-evidence: backlog
   3-7-publish-immutable-platform-releases: backlog
   3-8-migrate-compatible-platform-versions: backlog

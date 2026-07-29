@@ -17,6 +17,14 @@ from scripts.trusted_plan import (
     validate_plan_request,
 )
 from scripts.production_policy import evaluate_production_plan, validate_exception
+from scripts.production_apply import (
+    bounded_failure_evidence,
+    validate_apply_authorization,
+    validate_approval,
+    validate_readiness,
+    validate_emergency_access,
+)
+from scripts.production_bundle import FILES, assemble_bundle, verify_bundle_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -203,7 +211,24 @@ def clean_plan() -> dict:
         "resource_changes": [
             {
                 "address": "aws_cloudwatch_log_group.job",
-                "change": {"actions": ["create"], "after": {"retention_in_days": 30, "tags": {"Environment": "production", "Application": "demo", "Service": "job", "Owner": "platform", "ManagedBy": "Terraform"}, "logs": "enabled", "alarms": "alarm", "notifications": "sns", "acknowledgement": True, "cell_contract": "cell-contract-v1"}},
+                "change": {
+                    "actions": ["create"],
+                    "after": {
+                        "retention_in_days": 30,
+                        "tags": {
+                            "Environment": "production",
+                            "Application": "demo",
+                            "Service": "job",
+                            "Owner": "platform",
+                            "ManagedBy": "Terraform",
+                        },
+                        "logs": "enabled",
+                        "alarms": "alarm",
+                        "notifications": "sns",
+                        "acknowledgement": True,
+                        "cell_contract": "cell-contract-v1",
+                    },
+                },
             }
         ]
     }
@@ -302,7 +327,10 @@ def test_production_policy_fixture_matrix_is_enforced() -> None:
         )
         if case["expected"] == "blocking":
             assert decision["status"] == "failed"
-            assert any(case["finding"].lower() in item["policy_id"] for item in decision["findings"])
+            assert any(
+                case["finding"].lower() in item["policy_id"]
+                for item in decision["findings"]
+            )
         else:
             assert decision["status"] == "passed"
 
@@ -320,22 +348,322 @@ def test_malformed_policy_change_fails_closed() -> None:
 
 def test_exception_signature_is_verified_and_replay_is_rejected() -> None:
     decision = evaluate_production_plan(
-        {"resource_changes": [{"address": "aws_ecr_image.job", "change": {"actions": ["update"], "after": {"image": "repo:latest"}}}]},
-        target=production_target(), source_commit="a" * 40, plan_sha256="b" * 64,
+        {
+            "resource_changes": [
+                {
+                    "address": "aws_ecr_image.job",
+                    "change": {
+                        "actions": ["update"],
+                        "after": {"image": "repo:latest"},
+                    },
+                }
+            ]
+        },
+        target=production_target(),
+        source_commit="a" * 40,
+        plan_sha256="b" * 64,
         now="2026-07-29T12:00:00Z",
     )
     exception = {
-        "policy_id": "production-readiness", "policy_version": "1.0.0",
-        "address": "aws_ecr_image.job", "environment": "production",
-        "source_commit": "a" * 40, "plan_sha256": "b" * 64,
-        "owner": "owner", "justification": "bounded", "approver": "security",
-        "compensating_control": "control", "expires_at": "2026-07-30T12:00:00Z",
-        "review_at": "2026-07-29T13:00:00Z", "signature": "",
+        "policy_id": "production-readiness",
+        "policy_version": "1.0.0",
+        "address": "aws_ecr_image.job",
+        "environment": "production",
+        "source_commit": "a" * 40,
+        "plan_sha256": "b" * 64,
+        "owner": "owner",
+        "justification": "bounded",
+        "approver": "security",
+        "compensating_control": "control",
+        "expires_at": "2026-07-30T12:00:00Z",
+        "review_at": "2026-07-29T13:00:00Z",
+        "signature": "",
     }
     key = b"fixture-signing-key"
-    payload = json.dumps({k: exception[k] for k in sorted(exception) if k != "signature"}, sort_keys=True, separators=(",", ":")).encode()
-    exception["signature"] = "hmac-sha256:" + hmac.new(key, payload, hashlib.sha256).hexdigest()
+    payload = json.dumps(
+        {k: exception[k] for k in sorted(exception) if k != "signature"},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    exception["signature"] = (
+        "hmac-sha256:" + hmac.new(key, payload, hashlib.sha256).hexdigest()
+    )
     consumed: set[str] = set()
-    validate_exception(exception, decision, now="2026-07-29T12:00:00Z", consumed_exception_ids=consumed, signing_key=key)
+    validate_exception(
+        exception,
+        decision,
+        now="2026-07-29T12:00:00Z",
+        consumed_exception_ids=consumed,
+        signing_key=key,
+    )
     with pytest.raises(TargetViolation, match="POLICY_EXCEPTION_REUSE"):
-        validate_exception(exception, decision, now="2026-07-29T12:00:00Z", consumed_exception_ids=consumed, signing_key=key)
+        validate_exception(
+            exception,
+            decision,
+            now="2026-07-29T12:00:00Z",
+            consumed_exception_ids=consumed,
+            signing_key=key,
+        )
+
+
+def apply_expected() -> dict:
+    return {
+        "source_commit": "a" * 40,
+        "workflow_sha": "b" * 40,
+        "workflow_run_id": "123",
+        "manifest_sha256": "c" * 64,
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "environment": "production",
+        "root": "envs/prod",
+        "state_key": "production/us-east-1/envs/prod/state",
+        "cell_contract_sha256": "d" * 64,
+        "policy_version": "e" * 64,
+        "plan_sha256": "f" * 64,
+        "readiness_sha256": "1" * 64,
+        "phase": "phase-two",
+        "generation": "generation-1",
+        "target_manifest_sha256": "c" * 64,
+        "job_id": "demo-job",
+        "config_sha256": "2" * 64,
+        "schedule_generation": "generation-1",
+        "deployment_identity_sha256": "3" * 64,
+        "approval_id": "approval-1",
+        "apply_role_arn": "arn:aws:iam::123456789012:role/apply",
+        "lock_id": "lock-1",
+        "caller_role_id": "AROATEST",
+    }
+
+
+def readiness_fixture() -> dict:
+    e = apply_expected()
+    return {
+        "schema_version": "1.0.0",
+        "status": "passed",
+        "environment": "test",
+        "evidence_source": "disposable-fixture",
+        "source_commit": e["source_commit"],
+        "plan_sha256": e["plan_sha256"],
+        "target_manifest_sha256": e["target_manifest_sha256"],
+        "job_id": e["job_id"],
+        "config_sha256": e["config_sha256"],
+        "schedule_generation": e["schedule_generation"],
+        "deployment_identity_sha256": e["deployment_identity_sha256"],
+        "lifecycle_state": "MATERIALIZED",
+        "occurrence_tracking": True,
+        "evaluated_at": "2026-07-29T12:00:00Z",
+        "expires_at": "2026-07-29T13:00:00Z",
+        "evidence_sha256": "2ce49d07f9d55f7645862b233d0a5e5b8acce769f8539ceaa8778b9e734cbafb",
+    }
+
+
+def test_exact_readiness_and_approval_bindings_are_required() -> None:
+    expected = apply_expected()
+    readiness = readiness_fixture()
+    validate_readiness(
+        readiness,
+        {**expected, "environment": "test"},
+        now=datetime.fromisoformat("2026-07-29T12:30:00+00:00"),
+    )
+    approval = {
+        "schema_version": "1.0.0",
+        "approval_id": "approval-1",
+        "status": "approved",
+        **{
+            key: expected[key]
+            for key in (
+                "source_commit",
+                "workflow_sha",
+                "workflow_run_id",
+                "manifest_sha256",
+                "account_id",
+                "region",
+                "environment",
+                "root",
+                "state_key",
+                "cell_contract_sha256",
+                "policy_version",
+                "plan_sha256",
+                "readiness_sha256",
+                "phase",
+                "generation",
+            )
+        },
+        "author": "author-user",
+        "approvers": [
+            {
+                "role": "platform",
+                "actor": "platform-user",
+                "approved_at": "2026-07-29T12:01:00Z",
+            },
+            {
+                "role": "job-owner",
+                "actor": "owner-user",
+                "approved_at": "2026-07-29T12:02:00Z",
+            },
+        ],
+        "approved_at": "2026-07-29T12:02:00Z",
+        "expires_at": "2026-07-29T13:00:00Z",
+        "security_required": False,
+    }
+    validate_approval(
+        approval, expected, now=datetime.fromisoformat("2026-07-29T12:30:00+00:00")
+    )
+    bad = copy.deepcopy(approval)
+    bad["plan_sha256"] = "9" * 64
+    with pytest.raises(TargetViolation, match="APPROVAL_BINDING"):
+        validate_approval(bad, expected)
+
+
+def test_apply_authorization_binds_binary_plan_and_caller() -> None:
+    expected = apply_expected()
+    binary = b"approved-plan"
+    authorization = {
+        "schema_version": "1.0.0",
+        "status": "authorized",
+        "apply_role_arn": "arn:aws:iam::123456789012:role/apply",
+        "caller_account_id": "123456789012",
+        "caller_role_arn": "arn:aws:iam::123456789012:role/apply",
+        "caller_role_id": "AROATEST",
+        **{
+            key: expected[key]
+            for key in (
+                "source_commit",
+                "workflow_sha",
+                "workflow_run_id",
+                "manifest_sha256",
+                "state_key",
+                "readiness_sha256",
+                "approval_id",
+            )
+        },
+        "target_environment": "production",
+        "target_root": expected["root"],
+        "plan_sha256": hashlib.sha256(binary).hexdigest(),
+        "policy_status": "passed",
+        "artifact_audience": "trusted-reviewer",
+        "artifact_expires_at": "2026-07-29T13:00:00Z",
+        "lock_id": "lock-1",
+        "authorized_at": "2026-07-29T12:05:00Z",
+    }
+    authorization_expected = {
+        **expected,
+        "target_environment": "production",
+        "plan_sha256": hashlib.sha256(binary).hexdigest(),
+    }
+    validate_apply_authorization(
+        authorization,
+        authorization_expected,
+        binary_plan=binary,
+        now=datetime.fromisoformat("2026-07-29T12:30:00+00:00"),
+    )
+    with pytest.raises(TargetViolation, match="APPLY_PLAN_CHECKSUM"):
+        validate_apply_authorization(authorization, expected, binary_plan=b"changed")
+
+
+def test_failure_evidence_is_bounded_and_rejects_bad_plan_identity() -> None:
+    evidence = bounded_failure_evidence(
+        {
+            "schema_version": "1.0.0",
+            "status": "failed",
+            "run_id": "123",
+            "plan_sha256": "a" * 64,
+            "state_key": "state",
+            "lock_state": "inspect",
+            "error_code": "LOCK_CONFLICT",
+            "recovery_guidance": "fresh plan",
+            "recorded_at": "2026-07-29T12:00:00Z",
+        }
+    )
+    assert "error_output" not in evidence
+    with pytest.raises(TargetViolation, match="FAILURE_PLAN_BINDING"):
+        bounded_failure_evidence(
+            {
+                "schema_version": "1.0.0",
+                "status": "failed",
+                "run_id": "123",
+                "plan_sha256": "bad",
+                "state_key": "state",
+                "lock_state": "inspect",
+                "error_code": "LOCK_CONFLICT",
+                "recovery_guidance": "fresh plan",
+                "recorded_at": "2026-07-29T12:00:00Z",
+            }
+        )
+
+
+def test_emergency_access_requires_distinct_current_target_bound_approval() -> None:
+    emergency = {
+        "schema_version": "1.0.0",
+        "status": "approved",
+        "actor": "operator",
+        "approver": "security",
+        "target_manifest_sha256": "a" * 64,
+        "operation": "rollback",
+        "expires_at": "2026-07-29T13:00:00Z",
+        "alert_id": "alert-1",
+        "incident_id": "incident-1",
+        "review_due_at": "2026-07-29T14:00:00Z",
+    }
+    validate_emergency_access(
+        emergency,
+        "a" * 64,
+        now=datetime.fromisoformat("2026-07-29T12:00:00+00:00"),
+    )
+    bad = dict(emergency, approver="operator")
+    with pytest.raises(TargetViolation, match="EMERGENCY_SELF_APPROVAL"):
+        validate_emergency_access(bad, "a" * 64)
+
+
+def test_production_apply_workflow_requires_bundle_and_publishes_failure_evidence() -> (
+    None
+):
+    workflow = (
+        ROOT.parent / ".github" / "workflows" / "production-apply.yml"
+    ).read_text(encoding="utf-8")
+    assert "production-approved-bundle-${{ inputs.source_commit }}" in workflow
+    assert "bundle_run_id" in workflow
+    for filename in (
+        "approval.json",
+        "readiness.json",
+        "apply-authorization.json",
+        "caller.json",
+        "lock.json",
+    ):
+        assert filename in workflow
+    assert "actions/upload-artifact" in workflow
+    assert "TARGET_MANIFEST" in workflow
+    assert "get-caller-identity" in workflow
+
+
+def test_bundle_assembly_fails_closed_when_evidence_is_incomplete(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(TargetViolation, match="BUNDLE_MISSING"):
+        assemble_bundle(
+            tmp_path / "source",
+            tmp_path / "destination",
+            {"plan_sha256": "a" * 64},
+        )
+
+
+def test_bundle_manifest_detects_tampering(tmp_path: Path) -> None:
+    root = tmp_path / "bundle"
+    root.mkdir()
+    for name in FILES:
+        (root / name).write_bytes(name.encode())
+    manifest = {
+        "schema_version": "1.0.0",
+        "audience": "production-apply",
+        "plan_sha256": hashlib.sha256(
+            (root / "approved.tfplan").read_bytes()
+        ).hexdigest(),
+        "files": {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+            for name in FILES
+        },
+    }
+    verify_bundle_manifest(root, manifest)
+    (root / "approved.tfplan").write_bytes(b"tampered")
+    with pytest.raises(TargetViolation, match="BUNDLE_MANIFEST_DIGEST"):
+        verify_bundle_manifest(root, manifest)

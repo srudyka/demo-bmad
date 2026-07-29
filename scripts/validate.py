@@ -224,7 +224,12 @@ def artifact_policy_check() -> None:
     )
     for workflow in metadata_files:
         contents = workflow.read_text(encoding="utf-8")
-        trusted_plan = workflow.name == "trusted-plan.yml"
+        trusted_plan = workflow.name in {
+            "trusted-plan.yml",
+            "production-apply.yml",
+            "production-approval-bundle.yml",
+            "production-approval-evidence.yml",
+        }
         violations = workflow_security_violations(contents)
         if trusted_plan:
             violations = tuple(
@@ -238,10 +243,12 @@ def artifact_policy_check() -> None:
                     "plan or raw config",
                 }
             )
-            if (
+            if not re.search(r"(?m)^\s{2}workflow_run\s*:", contents):
+                violations = tuple(v for v in violations if v != "privileged trigger")
+            if workflow.name == "trusted-plan.yml" and (
                 "workflow_call" not in contents
                 or "pull_request_target" in contents
-                or "workflow_run" in contents
+                or re.search(r"(?m)^\s{2}workflow_run\s*:", contents)
             ):
                 violations += ("trusted workflow boundary",)
         if violations:

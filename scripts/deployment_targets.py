@@ -211,6 +211,20 @@ def validate_oidc_claims(
         or claims.get("repository_id") != manifest["repository_id"]
     ):
         raise TargetViolation("OIDC_REPOSITORY_ID")
+
+    matching_roles = [
+        role
+        for role in ("plan", "apply")
+        if claims.get("sub") == manifest[f"{role}_oidc_subject"]
+    ]
+    role_type = claims.get("role_type") or (
+        matching_roles[0] if len(matching_roles) == 1 else None
+    )
+    if (
+        role_type not in {"plan", "apply"}
+        or claims.get("sub") != manifest[f"{role_type}_oidc_subject"]
+    ):
+        raise TargetViolation("OIDC_ROLE_BINDING")
     if claims.get("event_name") == "pull_request" or claims.get("ref_type") in {
         "branch",
         "tag",

@@ -179,3 +179,19 @@ means publication outcome cannot be safely replayed.
 For a bad deployment, disable the Alert Router event source mapping and
 reconciliation rule, correct the artifact or configuration, then re-enable
 them. Do not delete the outbox or notification ledger during rollback.
+# Production apply
+
+Protected production apply uses a same-run immutable plan artifact, exact target
+manifest, approval/readiness validation, non-cancelling concurrency, and a
+separate apply role. On failure or runner loss, inspect state and locks, retain
+bounded evidence, and create a fresh plan; never retry the mutation.
+
+The approval-bundle workflow is the only handoff into apply. It must consume the
+trusted plan and independently approved evidence, then publish the complete
+bundle with a one-day retention window. Missing or fixture production readiness
+fails closed.
+
+Emergency access requires a separate approved emergency record with an exact
+manifest checksum, named actor and approver, short expiry, alert identifier,
+incident identifier, and post-incident review deadline. It cannot bypass target,
+secret-safety, privilege-escalation, or occurrence-tracking controls.

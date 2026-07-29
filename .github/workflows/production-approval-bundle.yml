@@ -1,0 +1,94 @@
+name: Produce protected production apply bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit: {required: true, type: string}
+      plan_run_id: {required: true, type: string}
+      evidence_run_id: {required: true, type: string}
+      expected_manifest: {required: true, type: string}
+      target_manifest: {required: true, type: string}
+      expected_plan_sha256: {required: true, type: string}
+      apply_workflow_sha: {required: true, type: string}
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-bundle-${{ inputs.expected_manifest }}-${{ inputs.source_commit }}-${{ github.workflow_sha }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && inputs.source_commit == github.sha
+    runs-on: ubuntu-24.04
+    environment: production-approval
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+      - name: Download exact trusted plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-apply-bundle-${{ inputs.source_commit }}
+          run-id: ${{ inputs.plan_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/trusted
+      - name: Download independently approved evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-approval-evidence-${{ inputs.source_commit }}
+          run-id: ${{ inputs.evidence_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/evidence
+      - name: Assemble exact apply bundle
+        env:
+          EXPECTED_MANIFEST: ${{ inputs.expected_manifest }}
+          EXPECTED_PLAN: ${{ inputs.expected_plan_sha256 }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          APPLY_WORKFLOW_SHA: ${{ inputs.apply_workflow_sha }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          p = Path(os.environ["RUNNER_TEMP"])
+          manifest_path = Path(os.environ["TARGET_MANIFEST"])
+          manifest_bytes = manifest_path.read_bytes()
+          if hashlib.sha256(manifest_bytes).hexdigest() != os.environ["EXPECTED_MANIFEST"]:
+              raise SystemExit("TARGET_MANIFEST_DIGEST")
+          manifest = json.loads(manifest_bytes)
+          from scripts.deployment_targets import validate_target_manifest
+          validate_target_manifest(manifest)
+          evidence = p / "evidence"
+          approval = json.loads((evidence / "approval.json").read_text())
+          readiness = json.loads((evidence / "readiness.json").read_text())
+          auth = json.loads((evidence / "apply-authorization.json").read_text())
+          trusted = json.loads((p / "trusted" / "trusted-artifact-manifest.json").read_text())
+          if trusted.get("source_commit") != os.environ["SOURCE_COMMIT"] or str(trusted.get("workflow_run_id")) != os.environ["PLAN_RUN_ID"]: raise SystemExit("TRUSTED_PLAN_RUN")
+          if trusted.get("target_manifest_path") != os.environ["TARGET_MANIFEST"] or trusted.get("target_manifest_sha256") != os.environ["EXPECTED_MANIFEST"]: raise SystemExit("TRUSTED_TARGET")
+          if trusted.get("plan_sha256") != os.environ["EXPECTED_PLAN"]: raise SystemExit("TRUSTED_PLAN")
+          pinned_apply_sha = manifest["apply_workflow_ref"].rsplit("@", 1)[-1]
+          if os.environ["APPLY_WORKFLOW_SHA"] != pinned_apply_sha: raise SystemExit("APPLY_WORKFLOW_SHA")
+          expected = {**manifest, "source_commit": os.environ["SOURCE_COMMIT"], "workflow_sha": os.environ["APPLY_WORKFLOW_SHA"], "workflow_run_id": os.environ["PLAN_RUN_ID"], "manifest_sha256": os.environ["EXPECTED_MANIFEST"], "target_manifest_sha256": os.environ["EXPECTED_MANIFEST"], "plan_sha256": os.environ["EXPECTED_PLAN"], "readiness_sha256": hashlib.sha256((evidence / "readiness.json").read_bytes()).hexdigest(), "approval_id": approval["approval_id"], "phase": approval["phase"], "generation": approval["generation"], "job_id": readiness["job_id"], "config_sha256": readiness["config_sha256"], "schedule_generation": readiness["schedule_generation"], "deployment_identity_sha256": readiness["deployment_identity_sha256"], "lock_id": auth["lock_id"], "caller_role_id": auth["caller_role_id"], "target_environment": manifest["environment"], "target_root": manifest["root"], "security_required": approval["security_required"]}
+          json.dump(expected, (p / "expected.json").open("w"), sort_keys=True)
+          PY
+          cp "$RUNNER_TEMP/trusted/trusted.tfplan" "$RUNNER_TEMP/evidence/approved.tfplan"
+          cp "$RUNNER_TEMP/trusted/trusted-plan.json" "$RUNNER_TEMP/evidence/trusted-plan.json"
+          cp "$RUNNER_TEMP/trusted/trusted-policy.json" "$RUNNER_TEMP/evidence/trusted-policy.json"
+          cp "$RUNNER_TEMP/trusted/trusted-artifact-manifest.json" "$RUNNER_TEMP/evidence/trusted-artifact-manifest.json"
+          python scripts/production_bundle.py --source "$RUNNER_TEMP/evidence" --destination "$RUNNER_TEMP/bundle" --expected "$RUNNER_TEMP/expected.json"
+      - name: Publish protected apply bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-approved-bundle-${{ inputs.source_commit }}
+          path: ${{ runner.temp }}/bundle
+          retention-days: 1
+          if-no-files-found: error

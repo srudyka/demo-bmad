@@ -23,7 +23,9 @@ NON_EXEMPTIBLE = {
     "MUTABLE_DEPLOYMENT_IDENTITY",
     "OCCURRENCE_TRACKING_MISSING",
 }
-CATALOG_PATH = Path(__file__).resolve().parents[1] / "contracts/v1/catalogs/production-policy.json"
+CATALOG_PATH = (
+    Path(__file__).resolve().parents[1] / "contracts/v1/catalogs/production-policy.json"
+)
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SIGNATURE = re.compile(r"^hmac-sha256:[0-9a-f]{64}$")
@@ -38,8 +40,14 @@ def load_policy_catalog() -> dict[str, Any]:
     if not isinstance(catalog, dict):
         raise TargetViolation("POLICY_CATALOG_SHAPE")
     try:
-        manifest = json.loads((CATALOG_PATH.parents[2] / "manifest.json").read_text(encoding="utf-8"))
-        expected = next(item["sha256"] for item in manifest["artifacts"] if item["path"] == "v1/catalogs/production-policy.json")
+        manifest = json.loads(
+            (CATALOG_PATH.parents[2] / "manifest.json").read_text(encoding="utf-8")
+        )
+        expected = next(
+            item["sha256"]
+            for item in manifest["artifacts"]
+            if item["path"] == "v1/catalogs/production-policy.json"
+        )
     except (OSError, KeyError, TypeError, StopIteration, json.JSONDecodeError) as error:
         raise TargetViolation("POLICY_CATALOG_MANIFEST") from error
     if hashlib.sha256(CATALOG_PATH.read_bytes()).hexdigest() != expected:
@@ -89,10 +97,10 @@ def _strings(value: Any) -> set[str]:
                 result.update(_strings(child))
         return result
     if isinstance(value, list):
-        result: set[str] = set()
+        list_result: set[str] = set()
         for child in value:
-            result.update(_strings(child))
-        return result
+            list_result.update(_strings(child))
+        return list_result
     return set()
 
 
@@ -139,7 +147,9 @@ def _contains_public_ip(value: Any) -> bool:
     return False
 
 
-def _control_findings(changes: list[Mapping[str, Any]], catalog: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _control_findings(
+    changes: list[Mapping[str, Any]], catalog: Mapping[str, Any]
+) -> list[dict[str, Any]]:
     """Require control evidence on the resource that owns each control."""
     controls = catalog["required_production_controls"]
     assert isinstance(controls, Mapping)
@@ -147,29 +157,55 @@ def _control_findings(changes: list[Mapping[str, Any]], catalog: Mapping[str, An
     for item in changes:
         address = str(item["address"])
         change = item.get("change", {})
-        after = change.get("after", {}) if isinstance(change, Mapping) else {}
-        if not isinstance(after, Mapping):
+        after_value = change.get("after", {}) if isinstance(change, Mapping) else {}
+        if not isinstance(after_value, Mapping):
             missing.append(f"{address}:after")
             continue
+        after: Mapping[str, Any] = after_value
         tags = after.get("tags", after.get("tags_all", {}))
-        if not isinstance(tags, Mapping) or any(not isinstance(tags.get(tag), str) or not tags.get(tag) for tag in controls["tags"]):
+        if not isinstance(tags, Mapping) or any(
+            not isinstance(tags.get(tag), str) or not tags.get(tag)
+            for tag in controls["tags"]
+        ):
             missing.append(f"{address}:tags")
-        if any(token in address.lower() for token in ("ecs", "task", "lambda", "service")):
-            if not any(key in after for key in ("log_configuration", "logs", "log_group", "logging")):
+        if any(
+            token in address.lower() for token in ("ecs", "task", "lambda", "service")
+        ):
+            if not any(
+                key in after
+                for key in ("log_configuration", "logs", "log_group", "logging")
+            ):
                 missing.append(f"{address}:logs")
-            if not any(key in after for key in ("retention", "retention_in_days", "log_retention_days")):
+            if not any(
+                key in after
+                for key in ("retention", "retention_in_days", "log_retention_days")
+            ):
                 missing.append(f"{address}:retention")
             if not any(key in after for key in ("alarm", "alarms", "alarm_arns")):
                 missing.append(f"{address}:alarms")
-            if not any(key in after for key in ("notifications", "notification", "sns", "topic")):
+            if not any(
+                key in after
+                for key in ("notifications", "notification", "sns", "topic")
+            ):
                 missing.append(f"{address}:notifications")
             if after.get("acknowledgement") is not True:
                 missing.append(f"{address}:acknowledgement")
-            if not any(key in after for key in ("cell_contract", "cell_contract_sha256")):
+            if not any(
+                key in after for key in ("cell_contract", "cell_contract_sha256")
+            ):
                 missing.append(f"{address}:cell_contract")
     if not missing:
         return []
-    return [_finding("MISSING_PRODUCTION_CONTROLS", "plan", "required production controls must have explicit evidence", "missing=" + ",".join(missing), "add resource-scoped tags, observability, lifecycle and Cell contract evidence", exemptible=False)]
+    return [
+        _finding(
+            "MISSING_PRODUCTION_CONTROLS",
+            "plan",
+            "required production controls must have explicit evidence",
+            "missing=" + ",".join(missing),
+            "add resource-scoped tags, observability, lifecycle and Cell contract evidence",
+            exemptible=False,
+        )
+    ]
 
 
 def _finding(
@@ -196,6 +232,7 @@ def _finding(
 
 def _walk(value: Any) -> list[tuple[str, Any]]:
     result: list[tuple[str, Any]] = []
+
     def visit(node: Any, path: str) -> None:
         result.append((path, node))
         if isinstance(node, Mapping):
@@ -204,6 +241,7 @@ def _walk(value: Any) -> list[tuple[str, Any]]:
         elif isinstance(node, list):
             for index, child in enumerate(node):
                 visit(child, f"{path}[{index}]")
+
     visit(value, "after")
     return result
 
@@ -219,7 +257,9 @@ def _changes(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         if not isinstance(item, Mapping) or not isinstance(item.get("address"), str):
             raise TargetViolation("POLICY_PLAN_CHANGE")
         change = item.get("change")
-        if not isinstance(change, Mapping) or not isinstance(change.get("actions"), list):
+        if not isinstance(change, Mapping) or not isinstance(
+            change.get("actions"), list
+        ):
             raise TargetViolation("POLICY_PLAN_CHANGE")
         actions = change["actions"]
         if not actions or any(not isinstance(action, str) for action in actions):
@@ -259,7 +299,13 @@ def classify_qualifying_changes(plan: Mapping[str, Any]) -> dict[str, Any]:
             category = "other"
         categories.add(category)
         policy = catalog["qualifying_change_policy"].get(category)
-        if not isinstance(policy, Mapping) or not isinstance(policy.get("scope"), str) or not policy.get("risk_threshold") or not isinstance(policy.get("reviewers"), list) or not policy["reviewers"]:
+        if (
+            not isinstance(policy, Mapping)
+            or not isinstance(policy.get("scope"), str)
+            or not policy.get("risk_threshold")
+            or not isinstance(policy.get("reviewers"), list)
+            or not policy["reviewers"]
+        ):
             raise TargetViolation("POLICY_CATALOG_CATEGORY")
         if not any(token in lower for token in str(policy["scope"]).split("|")):
             raise TargetViolation("POLICY_CATEGORY_SCOPE")
@@ -273,7 +319,15 @@ def classify_qualifying_changes(plan: Mapping[str, Any]) -> dict[str, Any]:
         "security_review_required": bool(
             categories & {"iam", "network", "launch", "supply-chain"}
         ),
-        "reviewers": sorted({reviewer for category in categories for reviewer in catalog["qualifying_change_policy"][category]["reviewers"]}),
+        "reviewers": sorted(
+            {
+                reviewer
+                for category in categories
+                for reviewer in catalog["qualifying_change_policy"][category][
+                    "reviewers"
+                ]
+            }
+        ),
     }
 
 
@@ -296,16 +350,28 @@ def evaluate_production_plan(
     _parse_utc(now, "POLICY_TIMESTAMP")
     findings: list[dict[str, Any]] = []
     for violation in hygiene_violations or []:
-        findings.append(_finding("SUPPLY_CHAIN_HYGIENE", "repository", "repository hygiene must pass", violation[:160], "remove the prohibited or mutable repository content", exemptible=False))
+        findings.append(
+            _finding(
+                "SUPPLY_CHAIN_HYGIENE",
+                "repository",
+                "repository hygiene must pass",
+                violation[:160],
+                "remove the prohibited or mutable repository content",
+                exemptible=False,
+            )
+        )
     changes = _changes(plan)
     if not changes:
-        findings.append(_finding(
-            "MISSING_PRODUCTION_CONTROLS", "plan",
-            "production plans must provide control evidence",
-            "empty-plan-no-control-evidence",
-            "provide logs, retention, alarms, notifications, ownership and lifecycle evidence",
-            exemptible=False,
-        ))
+        findings.append(
+            _finding(
+                "MISSING_PRODUCTION_CONTROLS",
+                "plan",
+                "production plans must provide control evidence",
+                "empty-plan-no-control-evidence",
+                "provide logs, retention, alarms, notifications, ownership and lifecycle evidence",
+                exemptible=False,
+            )
+        )
     else:
         findings.extend(_control_findings(changes, catalog))
     for item in changes:
@@ -315,27 +381,79 @@ def evaluate_production_plan(
             if isinstance(item.get("change"), Mapping)
             else {}
         )
-        after = change.get("after") if isinstance(change.get("after"), Mapping) else {}
+        after_value = change.get("after")
+        after: Mapping[str, Any] = (
+            cast(Mapping[str, Any], after_value)
+            if isinstance(after_value, Mapping)
+            else {}
+        )
         actions = change["actions"]
-        if any(action not in {"create", "update", "delete", "no-op"} for action in actions):
+        if any(
+            action not in {"create", "update", "delete", "no-op"} for action in actions
+        ):
             raise TargetViolation("POLICY_ACTION_UNKNOWN")
         lower = address.lower()
         if "iam" in lower or "role" in lower or "policy" in lower or "oidc" in lower:
             actions_found = _strings(after)
             resources_found = _strings(after)
-            if "*" in actions_found or "*" in resources_found or any("iam:" in value and value.endswith("*") for value in actions_found):
-                findings.append(_finding("IAM_WILDCARD", address, "IAM actions and resources must be least privilege", "wildcard-policy-document", "scope actions, resources and conditions", exemptible=False))
+            if (
+                "*" in actions_found
+                or "*" in resources_found
+                or any(
+                    "iam:" in value and value.endswith("*") for value in actions_found
+                )
+            ):
+                findings.append(
+                    _finding(
+                        "IAM_WILDCARD",
+                        address,
+                        "IAM actions and resources must be least privilege",
+                        "wildcard-policy-document",
+                        "scope actions, resources and conditions",
+                        exemptible=False,
+                    )
+                )
             statements = _policy_statements(after)
-            delegated = [statement for statement in statements if any("passrole" in action.lower() or "assumerole" in action.lower() for action in _strings(statement.get("Action", statement.get("actions", []))))]
-            if delegated and any(not isinstance(statement.get("Condition"), Mapping) for statement in delegated):
-                findings.append(_finding("IAM_UNCONDITIONED_DELEGATION", address, "delegation must be condition-bound", "unconditioned-delegation", "add exact PassedToService and resource conditions", exemptible=False))
+            delegated = [
+                statement
+                for statement in statements
+                if any(
+                    "passrole" in action.lower() or "assumerole" in action.lower()
+                    for action in _strings(
+                        statement.get("Action", statement.get("actions", []))
+                    )
+                )
+            ]
+            if delegated and any(
+                not isinstance(statement.get("Condition"), Mapping)
+                for statement in delegated
+            ):
+                findings.append(
+                    _finding(
+                        "IAM_UNCONDITIONED_DELEGATION",
+                        address,
+                        "delegation must be condition-bound",
+                        "unconditioned-delegation",
+                        "add exact PassedToService and resource conditions",
+                        exemptible=False,
+                    )
+                )
             if delegated and any(
                 set(statement.get("Condition", {}))
                 != {"iam:PassedToService", "aws:SourceAccount", "aws:SourceArn"}
                 for statement in delegated
                 if isinstance(statement.get("Condition"), Mapping)
             ):
-                findings.append(_finding("CONFUSED_DEPUTY_BINDING", address, "delegation must use exact source and service conditions", "missing-exact-confused-deputy-condition", "bind source account, source ARN and PassedToService exactly", exemptible=False))
+                findings.append(
+                    _finding(
+                        "CONFUSED_DEPUTY_BINDING",
+                        address,
+                        "delegation must use exact source and service conditions",
+                        "missing-exact-confused-deputy-condition",
+                        "bind source account, source ARN and PassedToService exactly",
+                        exemptible=False,
+                    )
+                )
         if any(
             token in lower for token in ("apply", "passrole", "assume_role", "admin")
         ):
@@ -373,7 +491,11 @@ def evaluate_production_plan(
                     exemptible=False,
                 )
             )
-        if ("public" in lower and "ip" in lower) or after.get("assign_public_ip") is True or _contains_public_ip(after):
+        if (
+            ("public" in lower and "ip" in lower)
+            or after.get("assign_public_ip") is True
+            or _contains_public_ip(after)
+        ):
             findings.append(
                 _finding(
                     "PUBLIC_NETWORK",
@@ -400,7 +522,10 @@ def evaluate_production_plan(
             )
         image_values = _image_values(after)
         if ("ecr" in lower or "image" in lower or "task_definition" in lower) and any(
-            ":" in value and "@sha256:" not in value and not re.search(r":v?\d+\.\d+\.\d+(?:[-+][\w.-]+)?$", value) and not re.search(r":[0-9a-f]{40}$", value)
+            ":" in value
+            and "@sha256:" not in value
+            and not re.search(r":v?\d+\.\d+\.\d+(?:[-+][\w.-]+)?$", value)
+            and not re.search(r":[0-9a-f]{40}$", value)
             for value in image_values
         ):
             findings.append(
@@ -424,19 +549,82 @@ def evaluate_production_plan(
                     exemptible=False,
                 )
             )
-        if any(token in lower for token in ("scheduler", "schedule", "task_definition")):
-            required_launch = ("role_id", "generation", "registered_job", "expectation_horizon", "acknowledgement", "overlap_policy", "occurrence_tracking")
+        if any(
+            token in lower for token in ("scheduler", "schedule", "task_definition")
+        ):
+            required_launch = (
+                "role_id",
+                "generation",
+                "registered_job",
+                "expectation_horizon",
+                "acknowledgement",
+                "overlap_policy",
+                "occurrence_tracking",
+            )
             missing_launch = [field for field in required_launch if field not in after]
             if missing_launch:
-                findings.append(_finding("SCHEDULE_GOVERNANCE", address, "launch evidence must bind lifecycle, role, generation and occurrence controls", "missing=" + ",".join(missing_launch), "provide exact registered launch evidence", exemptible=False))
-        if any(key in after for key in ("lifecycle_state", "generation", "config_mutable", "registered_job")):
+                findings.append(
+                    _finding(
+                        "SCHEDULE_GOVERNANCE",
+                        address,
+                        "launch evidence must bind lifecycle, role, generation and occurrence controls",
+                        "missing=" + ",".join(missing_launch),
+                        "provide exact registered launch evidence",
+                        exemptible=False,
+                    )
+                )
+        if any(
+            key in after
+            for key in (
+                "lifecycle_state",
+                "generation",
+                "config_mutable",
+                "registered_job",
+            )
+        ):
             lifecycle = after.get("lifecycle_state")
-            if lifecycle is not None and lifecycle not in {"RESERVED", "PUBLISHED", "VALIDATED", "MATERIALIZED", "ENABLED"}:
-                findings.append(_finding("SCHEDULE_LIFECYCLE", address, "launch lifecycle must use the approved sequence", "unknown-lifecycle-state", "use RESERVED to ENABLED handshake", exemptible=False))
-            if after.get("config_mutable") is True or after.get("registered_job") is False:
-                findings.append(_finding("SCHEDULE_GOVERNANCE", address, "scheduled jobs require immutable registered configuration", "mutable-or-unregistered-job", "bind immutable CONFIG and registered job identity", exemptible=False))
+            if lifecycle is not None and lifecycle not in {
+                "RESERVED",
+                "PUBLISHED",
+                "VALIDATED",
+                "MATERIALIZED",
+                "ENABLED",
+            }:
+                findings.append(
+                    _finding(
+                        "SCHEDULE_LIFECYCLE",
+                        address,
+                        "launch lifecycle must use the approved sequence",
+                        "unknown-lifecycle-state",
+                        "use RESERVED to ENABLED handshake",
+                        exemptible=False,
+                    )
+                )
+            if (
+                after.get("config_mutable") is True
+                or after.get("registered_job") is False
+            ):
+                findings.append(
+                    _finding(
+                        "SCHEDULE_GOVERNANCE",
+                        address,
+                        "scheduled jobs require immutable registered configuration",
+                        "mutable-or-unregistered-job",
+                        "bind immutable CONFIG and registered job identity",
+                        exemptible=False,
+                    )
+                )
             if after.get("occurrence_tracking") is not True:
-                findings.append(_finding("OCCURRENCE_TRACKING_MISSING", address, "scheduled jobs require occurrence-aware tracking", "occurrence-aware-tracking-missing", "enable occurrence-aware expectation and completion tracking", exemptible=False))
+                findings.append(
+                    _finding(
+                        "OCCURRENCE_TRACKING_MISSING",
+                        address,
+                        "scheduled jobs require occurrence-aware tracking",
+                        "occurrence-aware-tracking-missing",
+                        "enable occurrence-aware expectation and completion tracking",
+                        exemptible=False,
+                    )
+                )
         if "null_resource" in lower or "provisioner" in lower:
             findings.append(
                 _finding(
@@ -470,11 +658,14 @@ def evaluate_production_plan(
 
 
 def validate_exception(
-    exception: Mapping[str, Any], decision: Mapping[str, Any], *, now: str,
+    exception: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    *,
+    now: str,
     consumed_exception_ids: set[str] | None = None,
     signing_key: bytes | None = None,
 ) -> None:
-    catalog = load_policy_catalog()
+    load_policy_catalog()
     required = {
         "policy_id",
         "policy_version",
@@ -506,17 +697,22 @@ def validate_exception(
     if exception["approver"] == exception["owner"]:
         raise TargetViolation("POLICY_EXCEPTION_APPROVAL")
     matching = [
-        item for item in decision.get("findings", [])
+        item
+        for item in decision.get("findings", [])
         if isinstance(item, Mapping) and item.get("address") == exception["address"]
     ]
     if any(item.get("exemptible") is False for item in matching):
         raise TargetViolation("POLICY_EXCEPTION_NON_EXEMPTIBLE")
     if len(matching) != 1 or matching[0].get("exemptible") is not True:
         raise TargetViolation("POLICY_EXCEPTION_FINDING")
-    signing_key_bytes = signing_key or os.environ.get("TRUSTED_EXCEPTION_SIGNING_KEY", "").encode()
+    signing_key_bytes = (
+        signing_key or os.environ.get("TRUSTED_EXCEPTION_SIGNING_KEY", "").encode()
+    )
     if not signing_key_bytes:
         raise TargetViolation("POLICY_EXCEPTION_SIGNING_KEY")
-    unsigned = {field: exception[field] for field in sorted(exception) if field != "signature"}
+    unsigned = {
+        field: exception[field] for field in sorted(exception) if field != "signature"
+    }
     payload = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
     expected = hmac.new(signing_key_bytes, payload, hashlib.sha256).hexdigest()
     if not SIGNATURE.fullmatch(exception["signature"]):
@@ -547,7 +743,10 @@ def consume_exception_once(exception_id: str, ledger: Path) -> None:
 
 
 def apply_exceptions(
-    decision: Mapping[str, Any], exceptions: list[Mapping[str, Any]], *, now: str,
+    decision: Mapping[str, Any],
+    exceptions: list[Mapping[str, Any]],
+    *,
+    now: str,
     ledger: Path | None = None,
 ) -> dict[str, Any]:
     """Validate exact exceptions and remove only their matching findings."""
@@ -555,24 +754,34 @@ def apply_exceptions(
     waived: list[dict[str, str]] = []
     consumed: set[str] = set()
     for exception in exceptions:
-        validate_exception(exception, decision, now=now, consumed_exception_ids=consumed)
-        unsigned = {field: exception[field] for field in sorted(exception) if field != "signature"}
-        exception_id = hashlib.sha256(json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        validate_exception(
+            exception, decision, now=now, consumed_exception_ids=consumed
+        )
+        unsigned = {
+            field: exception[field]
+            for field in sorted(exception)
+            if field != "signature"
+        }
+        exception_id = hashlib.sha256(
+            json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
         if ledger is not None:
             consume_exception_once(exception_id, ledger)
         address = str(exception["address"])
         findings = [item for item in findings if item.get("address") != address]
-        waived.append({
-            "exception_id": exception_id,
-            "address": address,
-            "policy_id": str(exception["policy_id"]),
-            "owner": exception["owner"],
-            "approver": exception["approver"],
-            "justification": exception["justification"][:240],
-            "compensating_control": exception["compensating_control"][:240],
-            "expires_at": exception["expires_at"],
-            "review_at": exception["review_at"],
-        })
+        waived.append(
+            {
+                "exception_id": exception_id,
+                "address": address,
+                "policy_id": str(exception["policy_id"]),
+                "owner": exception["owner"],
+                "approver": exception["approver"],
+                "justification": exception["justification"][:240],
+                "compensating_control": exception["compensating_control"][:240],
+                "expires_at": exception["expires_at"],
+                "review_at": exception["review_at"],
+            }
+        )
     result = dict(decision)
     result["findings"] = findings[:200]
     result["status"] = "passed" if not findings else "failed"

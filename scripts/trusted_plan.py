@@ -254,7 +254,9 @@ def validate_plan_policy(plan: Mapping[str, Any]) -> None:
             raise TargetViolation("PLAN_POLICY_AUTHORITY")
 
 
-def verify_plan_json_matches_binary(plan_path: Path, plan_json: Mapping[str, Any]) -> None:
+def verify_plan_json_matches_binary(
+    plan_path: Path, plan_json: Mapping[str, Any]
+) -> None:
     """Re-render the binary so a substituted sanitized JSON cannot authorize it."""
     try:
         rendered = subprocess.run(
@@ -266,7 +268,9 @@ def verify_plan_json_matches_binary(plan_path: Path, plan_json: Mapping[str, Any
         actual = json.loads(rendered.stdout)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
         raise TargetViolation("PLAN_JSON_BINARY_RENDER") from error
-    expected_bytes = json.dumps(plan_json, sort_keys=True, separators=(",", ":")).encode()
+    expected_bytes = json.dumps(
+        plan_json, sort_keys=True, separators=(",", ":")
+    ).encode()
     actual_bytes = json.dumps(actual, sort_keys=True, separators=(",", ":")).encode()
     if expected_bytes != actual_bytes:
         raise TargetViolation("PLAN_JSON_BINARY_MISMATCH")
@@ -475,18 +479,30 @@ def _cli() -> int:
                 hygiene_violations=scan_paths(
                     Path(__file__).resolve().parents[1],
                     repository_files(Path(__file__).resolve().parents[1]),
-                ) + (scan_baseline_diff(Path(__file__).resolve().parents[1], os.environ["BASELINE_COMMIT"]) if os.environ.get("BASELINE_COMMIT") else []),
+                )
+                + (
+                    scan_baseline_diff(
+                        Path(__file__).resolve().parents[1],
+                        os.environ["BASELINE_COMMIT"],
+                    )
+                    if os.environ.get("BASELINE_COMMIT")
+                    else []
+                ),
             )
             if args.exceptions:
                 exceptions_path = Path(args.exceptions)
                 exceptions = json.loads(exceptions_path.read_text(encoding="utf-8"))
-                if not isinstance(exceptions, list) or any(not isinstance(item, Mapping) for item in exceptions):
+                if not isinstance(exceptions, list) or any(
+                    not isinstance(item, Mapping) for item in exceptions
+                ):
                     raise TargetViolation("POLICY_EXCEPTION_SHAPE")
                 decision = apply_exceptions(
                     decision,
                     exceptions,
                     now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    ledger=Path(os.environ["EXCEPTION_LEDGER_PATH"]) if os.environ.get("EXCEPTION_LEDGER_PATH") else None,
+                    ledger=Path(os.environ["EXCEPTION_LEDGER_PATH"])
+                    if os.environ.get("EXCEPTION_LEDGER_PATH")
+                    else None,
                 )
             encoded = json.dumps(decision, sort_keys=True, separators=(",", ":"))
             if args.output:
@@ -517,7 +533,9 @@ def _cli() -> int:
             if not isinstance(plan_json, Mapping):
                 raise TargetViolation("PLAN_JSON_SHAPE")
             verify_plan_json_matches_binary(plan, plan_json)
-            if not isinstance(policy.get("findings"), list) or not isinstance(policy.get("classification"), Mapping):
+            if not isinstance(policy.get("findings"), list) or not isinstance(
+                policy.get("classification"), Mapping
+            ):
                 raise TargetViolation("PLAN_POLICY_SHAPE")
             summary = (
                 summarize_plan(
@@ -590,7 +608,16 @@ def _cli() -> int:
                     "findings": [
                         {
                             key: item.get(key)
-                            for key in ("policy_id", "policy_version", "address", "requirement", "evidence", "severity", "remediation", "exemptible")
+                            for key in (
+                                "policy_id",
+                                "policy_version",
+                                "address",
+                                "requirement",
+                                "evidence",
+                                "severity",
+                                "remediation",
+                                "exemptible",
+                            )
                         }
                         for item in policy.get("findings", [])[:200]
                         if isinstance(item, Mapping)

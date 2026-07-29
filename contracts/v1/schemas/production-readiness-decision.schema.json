@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-readiness-decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "environment", "evidence_source", "source_commit", "plan_sha256", "target_manifest_sha256", "job_id", "config_sha256", "schedule_generation", "deployment_identity_sha256", "lifecycle_state", "occurrence_tracking", "evaluated_at", "expires_at", "evidence_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"const": "passed"},
+    "environment": {"type": "string"},
+    "evidence_source": {"type": "string", "enum": ["epic4", "disposable-fixture"]},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "job_id": {"type": "string", "minLength": 1},
+    "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schedule_generation": {"type": "string", "minLength": 1},
+    "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lifecycle_state": {"const": "MATERIALIZED"},
+    "occurrence_tracking": {"const": true},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

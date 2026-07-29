@@ -13,6 +13,9 @@ inputs before side effects. Remote schema retrieval is prohibited.
 - `v1/catalogs/` owns authority, lifecycle, metrics, alarms, limits, and keys.
 - `v1/catalogs/production-policy.json` owns the versioned production policy,
   qualifying-change categories, severity posture, and exception fields.
+- `v1/schemas/production-approval.schema.json` and
+  `v1/schemas/production-readiness-decision.schema.json` bind protected apply
+  approvals and exact-generation readiness to the deployment plan.
 - `v1/fixtures/` contains language-neutral positive and negative vectors.
 - `releases/` records immutable release snapshots.
 - `migrations/` contains the actionable note for each release.

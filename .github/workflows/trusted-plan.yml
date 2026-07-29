@@ -73,7 +73,7 @@ concurrency:
 
 jobs:
   plan:
-    if: github.event_name != 'pull_request' && github.ref == github.event.repository.default_branch
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && inputs.source_commit == github.sha
     runs-on: ubuntu-24.04
     environment: production-plan
     timeout-minutes: 30
@@ -199,10 +199,15 @@ jobs:
           policy_sha256="$(sha256sum "$RUNNER_TEMP/trusted-policy.json" | cut -d' ' -f1)"
           report_sha256="$(sha256sum "$RUNNER_TEMP/trusted-report.json" | cut -d' ' -f1)"
           python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$plan_sha256" "$policy_sha256" "$report_sha256" <<'PY'
-          import json, sys
+          import hashlib, json, os, sys
           from pathlib import Path
+          manifest_path = Path(os.environ["TARGET_MANIFEST"])
           Path(sys.argv[1]).write_text(json.dumps({
               "audience": "trusted-reviewer",
+              "source_commit": os.environ["SOURCE_COMMIT"],
+              "workflow_run_id": os.environ["WORKFLOW_RUN_ID"],
+              "target_manifest_path": str(manifest_path),
+              "target_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
               "plan_sha256": sys.argv[2],
               "policy_sha256": sys.argv[3],
               "report_sha256": sys.argv[4],
@@ -213,9 +218,10 @@ jobs:
       - name: Publish restricted plan artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: trusted-plan-${{ inputs.source_commit }}
+          name: production-apply-bundle-${{ inputs.source_commit }}
           path: |
             ${{ runner.temp }}/trusted.tfplan
+            ${{ runner.temp }}/trusted-plan.json
             ${{ runner.temp }}/trusted-policy.json
             ${{ runner.temp }}/trusted-report.json
             ${{ runner.temp }}/trusted-artifact-manifest.json
