@@ -69,5 +69,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "ab41e166c02aa4a2ff49f8c5610376f42c78780fd2eb4091e675a38d188a2835"
+  "semantic_surface_sha256": "00b718dc8ef7cb632fe421a726064ca92a8ff4b9c9c0bcaf3762114a4c50232c"
 }

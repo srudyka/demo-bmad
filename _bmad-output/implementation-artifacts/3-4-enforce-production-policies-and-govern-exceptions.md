@@ -2,13 +2,13 @@
 epic: 3
 story: 3.4
 title: Enforce Production Policies and Govern Exceptions
-status: review
+status: done
 baseline_commit: 448bee1
 ---
 
 # Story 3.4: Enforce Production Policies and Govern Exceptions
 
-Status: review
+Status: done
 
 ## Story
 
@@ -96,6 +96,26 @@ This story governs policy decisions and exceptions. It does not apply Terraform,
 ## Previous Story Intelligence
 
 Story 3.3 established trusted-plan metadata, sanitized summaries, checksums, artifact controls, and immutable target/lock bindings. Extend those helpers rather than adding a second plan parser or checksum format. CI history showed that Git-shaped diff parsers need executable added/removed-block tests, and shallow history must not prevent exact base comparison. All policy and exception decisions must bind authenticated repository IDs, source commit, workflow SHA/run, manifest, target, policy bundle, and plan checksum.
+
+### Review Findings
+
+- [x] [Review][Patch] Production controls use serialized-text heuristics instead of resource-specific attributable validation [scripts/production_policy.py:121-138].
+- [x] [Review][Patch] IAM evaluation omits effective permissions, trust, boundaries, drift, cross-account, OIDC, CI, and runtime-write checks [scripts/production_policy.py:282-315].
+- [x] [Review][Patch] Confused-deputy validation accepts any single condition instead of exact source, principal, service, queue, schedule, task, cluster, and ownership bindings [scripts/production_policy.py:287-292].
+- [x] [Review][Patch] Schedule governance does not validate lifecycle transitions, stale identities, horizons, acknowledgements, overlap, phase mutation, or occurrence tracking [scripts/production_policy.py:369-390].
+- [x] [Review][Patch] Qualifying-change catalog scopes, thresholds, reviewer requirements, and owner are not enforced by classification [scripts/production_policy.py:193-235].
+- [x] [Review][Patch] Non-production adoption timeline is declared but non-production evaluation is rejected and all findings are hard-coded blocking [scripts/production_policy.py:146-158,249-250].
+- [x] [Review][Patch] Supply-chain scanning lacks comprehensive undocumented-address, generated-output, secret, mutable-reference, and required-file coverage [scripts/check_repository.py:168-230].
+- [x] [Review][Patch] Exceptions omit exact account, region, root, target identity, catalog owner, and authorized owner binding [scripts/production_policy.py:423-455; contracts/v1/schemas/production-exception.schema.json:5-8].
+- [x] [Review][Patch] Retained evidence omits actors and approval records [scripts/production_policy.py:403-420,497-517].
+- [x] [Review][Patch] Production-policy fixtures lack deterministic coverage and architecture/NFR/AWS-standard mappings [contracts/v1/fixtures/production-policy/cases.json:3-7; contracts/v1/catalogs/production-policy.json:18-22].
+- [x] [Review][Patch] Image validation rejects immutable release tags permitted by the AWS Terraform standard [scripts/production_policy.py:355-367].
+- [x] [Review][Patch] Baseline hygiene comparison is unavailable in the shallow checkout and hard-coded to Story 3.4 [`.github/workflows/trusted-plan.yml:77-80,166`; `scripts/check_repository.py:213-229`].
+- [x] [Review][Patch] Exception signing is not configured and single-use state is runner-local [`.github/workflows/trusted-plan.yml:161-170`; `scripts/production_policy.py:466-494`].
+- [x] [Review][Patch] Report generation trusts a mutable policy file without binding its complete decision or digest [`scripts/trusted_plan.py:502-513`].
+- [x] [Review][Patch] Non-exemptible deployment-identity and occurrence-tracking findings are declared but never emitted [`scripts/production_policy.py:19-25,238-420`].
+- [x] [Review][Patch] Runtime exception validation bypasses the checked-in schema and accepts nonconforming signature formats [`scripts/trusted_plan.py:480-489`; `scripts/production_policy.py:443-474`; `contracts/v1/schemas/production-exception.schema.json:5-8`].
+- [x] [Review][Patch] Workflow exception-file interpolation allows shell metacharacters to enter the policy command [` .github/workflows/trusted-plan.yml:168-170`].
 
 ## Dev Agent Record
 

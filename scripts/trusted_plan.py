@@ -513,6 +513,12 @@ def _cli() -> int:
                 raise TargetViolation("PLAN_POLICY_BINDING")
             if not args.plan_json:
                 raise TargetViolation("PLAN_JSON_REQUIRED")
+            plan_json = json.loads(Path(args.plan_json).read_text(encoding="utf-8"))
+            if not isinstance(plan_json, Mapping):
+                raise TargetViolation("PLAN_JSON_SHAPE")
+            verify_plan_json_matches_binary(plan, plan_json)
+            if not isinstance(policy.get("findings"), list) or not isinstance(policy.get("classification"), Mapping):
+                raise TargetViolation("PLAN_POLICY_SHAPE")
             summary = (
                 summarize_plan(
                     json.loads(Path(args.plan_json).read_text(encoding="utf-8"))

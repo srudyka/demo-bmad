@@ -45,12 +45,17 @@ on:
       backend_lock_sha256:
         required: true
         type: string
+      baseline_commit:
+        required: true
+        type: string
       exceptions_file:
         required: false
         default: ""
         type: string
     secrets:
       AWS_ROLE_SESSION_NAME:
+        required: true
+      TRUSTED_EXCEPTION_SIGNING_KEY:
         required: true
 
 permissions:
@@ -77,7 +82,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.source_commit }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
@@ -163,10 +168,17 @@ jobs:
           SOURCE_COMMIT: ${{ inputs.source_commit }}
           TARGET_MANIFEST: ${{ inputs.target_manifest }}
           EXCEPTION_LEDGER_PATH: ${{ runner.temp }}/exception-ledger
-          BASELINE_COMMIT: 448bee1
+          BASELINE_COMMIT: ${{ inputs.baseline_commit }}
+          EXCEPTIONS_FILE: ${{ inputs.exceptions_file }}
+          TRUSTED_EXCEPTION_SIGNING_KEY: ${{ secrets.TRUSTED_EXCEPTION_SIGNING_KEY }}
         run: |
           exception_args=()
-          if [ -n "${{ inputs.exceptions_file }}" ]; then exception_args+=(--exceptions "${{ inputs.exceptions_file }}"); fi
+          if [ -n "$EXCEPTIONS_FILE" ]; then
+            case "$EXCEPTIONS_FILE" in
+              *[!A-Za-z0-9_./-]*) echo "invalid exceptions_file" >&2; exit 1 ;;
+            esac
+            exception_args+=(--exceptions "$EXCEPTIONS_FILE")
+          fi
           python scripts/trusted_plan.py policy --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --output "$RUNNER_TEMP/trusted-policy.json" "${exception_args[@]}"
 
       - name: Publish bounded review metadata
