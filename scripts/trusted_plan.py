@@ -17,6 +17,8 @@ from scripts.deployment_targets import (
     preflight_target,
     validate_iam_binding,
 )
+from scripts.production_policy import apply_exceptions, evaluate_production_plan
+from scripts.check_repository import repository_files, scan_baseline_diff, scan_paths
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
@@ -252,6 +254,24 @@ def validate_plan_policy(plan: Mapping[str, Any]) -> None:
             raise TargetViolation("PLAN_POLICY_AUTHORITY")
 
 
+def verify_plan_json_matches_binary(plan_path: Path, plan_json: Mapping[str, Any]) -> None:
+    """Re-render the binary so a substituted sanitized JSON cannot authorize it."""
+    try:
+        rendered = subprocess.run(
+            ("terraform", "show", "-json", str(plan_path)),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        actual = json.loads(rendered.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise TargetViolation("PLAN_JSON_BINARY_RENDER") from error
+    expected_bytes = json.dumps(plan_json, sort_keys=True, separators=(",", ":")).encode()
+    actual_bytes = json.dumps(actual, sort_keys=True, separators=(",", ":")).encode()
+    if expected_bytes != actual_bytes:
+        raise TargetViolation("PLAN_JSON_BINARY_MISMATCH")
+
+
 def build_metadata(
     request: Mapping[str, Any],
     *,
@@ -357,9 +377,13 @@ def _cli() -> int:
     report = sub.add_parser("report")
     report.add_argument("--plan", required=True)
     report.add_argument("--plan-json")
+    report.add_argument("--policy", required=True)
     report.add_argument("--output")
     policy = sub.add_parser("policy")
+    policy.add_argument("--plan", required=True)
     policy.add_argument("--plan-json", required=True)
+    policy.add_argument("--output")
+    policy.add_argument("--exceptions")
     args = parser.parse_args()
     try:
         if args.command == "preflight":
@@ -429,13 +453,66 @@ def _cli() -> int:
                 raise TargetViolation("PLAN_AWS_ACCOUNT")
             print("TRUSTED_PLAN_PREFLIGHT_OK")
         elif args.command == "policy":
+            plan_path = Path(args.plan)
+            if not plan_path.is_file():
+                raise TargetViolation("PLAN_BINARY_MISSING")
             plan_json = json.loads(Path(args.plan_json).read_text(encoding="utf-8"))
-            validate_plan_policy(plan_json)
+            if not isinstance(plan_json, Mapping):
+                raise TargetViolation("PLAN_JSON_SHAPE")
+            verify_plan_json_matches_binary(plan_path, plan_json)
+            manifest_path = Path(
+                _required(os.environ.get("TARGET_MANIFEST"), "manifest")
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            decision = evaluate_production_plan(
+                plan_json,
+                target=manifest,
+                source_commit=_required(
+                    os.environ.get("SOURCE_COMMIT"), "source_commit"
+                ),
+                plan_sha256=hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+                now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                hygiene_violations=scan_paths(
+                    Path(__file__).resolve().parents[1],
+                    repository_files(Path(__file__).resolve().parents[1]),
+                ) + (scan_baseline_diff(Path(__file__).resolve().parents[1], os.environ["BASELINE_COMMIT"]) if os.environ.get("BASELINE_COMMIT") else []),
+            )
+            if args.exceptions:
+                exceptions_path = Path(args.exceptions)
+                exceptions = json.loads(exceptions_path.read_text(encoding="utf-8"))
+                if not isinstance(exceptions, list) or any(not isinstance(item, Mapping) for item in exceptions):
+                    raise TargetViolation("POLICY_EXCEPTION_SHAPE")
+                decision = apply_exceptions(
+                    decision,
+                    exceptions,
+                    now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    ledger=Path(os.environ["EXCEPTION_LEDGER_PATH"]) if os.environ.get("EXCEPTION_LEDGER_PATH") else None,
+                )
+            encoded = json.dumps(decision, sort_keys=True, separators=(",", ":"))
+            if args.output:
+                Path(args.output).write_text(encoded + "\n", encoding="utf-8")
+            if decision["status"] != "passed":
+                print(f"TRUSTED_PLAN_POLICY_FAILED:{encoded}")
+                return 1
             print("TRUSTED_PLAN_POLICY_OK")
         else:
             plan = Path(args.plan)
             if not plan.is_file():
                 raise TargetViolation("PLAN_BINARY_MISSING")
+            policy = json.loads(Path(args.policy).read_text(encoding="utf-8"))
+            if policy.get("status") != "passed":
+                raise TargetViolation("PLAN_POLICY_FAILED")
+            binary_sha256 = hashlib.sha256(plan.read_bytes()).hexdigest()
+            if (
+                policy.get("policy_id") != "production-readiness"
+                or policy.get("policy_version") != "1.0.0"
+                or policy.get("plan_sha256") != binary_sha256
+                or policy.get("source_commit") != os.environ.get("SOURCE_COMMIT")
+                or policy.get("environment") != "production"
+            ):
+                raise TargetViolation("PLAN_POLICY_BINDING")
+            if not args.plan_json:
+                raise TargetViolation("PLAN_JSON_REQUIRED")
             summary = (
                 summarize_plan(
                     json.loads(Path(args.plan_json).read_text(encoding="utf-8"))
@@ -493,6 +570,26 @@ def _cli() -> int:
             report_data = {
                 "metadata": metadata,
                 "summary": summary,
+                "policy": {
+                    "policy_id": policy.get("policy_id"),
+                    "policy_version": policy.get("policy_version"),
+                    "status": policy.get("status"),
+                    "finding_count": len(policy.get("findings", [])),
+                    "security_review_required": policy.get("classification", {}).get(
+                        "security_review_required"
+                    ),
+                    "plan_sha256": policy.get("plan_sha256"),
+                    "catalog_version": policy.get("catalog_version"),
+                    "evaluated_at": policy.get("evaluated_at"),
+                    "findings": [
+                        {
+                            key: item.get(key)
+                            for key in ("policy_id", "policy_version", "address", "requirement", "evidence", "severity", "remediation", "exemptible")
+                        }
+                        for item in policy.get("findings", [])[:200]
+                        if isinstance(item, Mapping)
+                    ],
+                },
             }
             encoded = json.dumps(report_data, sort_keys=True, separators=(",", ":"))
             if args.output:

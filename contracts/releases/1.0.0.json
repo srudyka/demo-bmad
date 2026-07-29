@@ -17,7 +17,8 @@
       "reducer",
       "schedules",
       "secret-safety"
-      ,"trusted-plan"
+      ,"trusted-plan",
+      "production-policy"
     ],
     "fixture_suites": [
       "canonical-json",
@@ -29,9 +30,10 @@
       "queue-lambda",
       "reducer",
       "schedules",
-      "schemas"
+      "schemas",
+      "production-policy"
     ],
-    "schema_count": 23
+    "schema_count": 27
   },
   "classification": "initial",
   "manifest_surface": {
@@ -67,5 +69,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "175e5dda9299b4f788e1b674145a503b1f70186546325d5147c93cdbf80d7a78"
+  "semantic_surface_sha256": "ab41e166c02aa4a2ff49f8c5610376f42c78780fd2eb4091e675a38d188a2835"
 }

@@ -41,6 +41,22 @@ weakening provider, lock, or Terraform validation.
 
 ## Rollback and staged policy
 
+Trusted plans run the versioned `production-readiness` policy before any bounded
+report or artifact is published. Findings contain only stable addresses, policy
+codes, bounded evidence references, severity, and remediation; raw plan values,
+credentials, and secrets are never retained. Production findings block from the
+first release. An exception must bind one policy/resource, environment, source
+revision, plan checksum, owner, independent approver, compensating control,
+review date, signature, and expiry. Wildcards, reuse, stale bindings, and
+non-exemptible controls are rejected. To roll back a policy release, disable
+trusted-plan publication and restore the last reviewed policy bundle while
+preserving the decision and approval evidence.
+
+The retained report includes the policy/catalog versions, binary plan checksum,
+evaluation timestamp, and bounded findings. The separate policy artifact is
+published alongside the report so reviewers can inspect remediation evidence
+without receiving raw plan values.
+
 If validation policy causes an operational problem, restore the prior reviewed
 validator/workflow revision and preserve the existing validation evidence.
 Rollback must not grant cloud credentials, bypass required checks, or delete

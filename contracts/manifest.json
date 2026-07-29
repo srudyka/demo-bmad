@@ -7,9 +7,9 @@
     "v1/schemas"
   ],
   "artifacts": [
-    {"path": "README.md", "sha256": "7bcab4b0267cd8f18f2e13a3d550e15d9e3dff35c5d1037174891ffb0296eeb4"},
+    {"path": "README.md", "sha256": "09719ac08c639651fca0b3078edc47b19bd12ec140bc52204810db2c63ab76e6"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "d1a24a25bb63933af54ead1b8e243faab45e0ad86146b3ebcf91ac8125ef0f41"},
+    {"path": "releases/1.0.0.json", "sha256": "02665a0ba3dfa697cac6d7b85e2065aacc4341e3e41508525ecce301542a9464"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
     {"path": "v1/catalogs/dashboard.json", "sha256": "8b49e90e7ee39c424c731ebf0632166fb183c94e6ab7cc12fea88850a9fdaf92"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
@@ -27,6 +27,10 @@
     {"path": "v1/catalogs/schedules.json", "sha256": "c78082d6bf36284d3728ae96bb434fed4d1b27a65dbee16ac075e1c5b7336c9a"},
     {"path": "v1/catalogs/secret-safety.json", "sha256": "cd8f6caf019dbf0574dcc101b7925e6b41fbd3467747d6b9d0ca57529996ecaf"},
     {"path": "v1/catalogs/trusted-plan.json", "sha256": "f4c589ed991267ca78ddff86e44201a21459d1b6ee468211b435b1d7591ca2a2"},
+    {"path": "v1/catalogs/production-policy.json", "sha256": "aa3a1c05caeb54026c3e55524fec7edb74c00bf27c03ce5ad00e8375f9371491"},
+    {"path": "v1/fixtures/production-policy/cases.json", "sha256": "f3935f11deacd4d96700297236c063116c0f69331d70bd5cd77960d1efb3b5e4"},
+    {"path": "v1/schemas/production-policy.schema.json", "sha256": "13eff3a5c85a0da04e7f99563772f35b35b683acd5ab39f7c970ad6c168bd48d"},
+    {"path": "v1/schemas/production-exception.schema.json", "sha256": "1d25681b3cf1a6a8a3058577388231e4438efd1056488994effffe1cb377b607"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},
     {"path": "v1/fixtures/canonical-json/vectors.json", "sha256": "579a19b231afdce63744046a4e14772bbf8d2d6fbba3df08fe7100118718072c"},
     {"path": "v1/fixtures/compatibility/cases.json", "sha256": "a049e4945eb0cf4be165f33c56f4a128b31ff49231e06fc512ccf49a6a2818a1"},
@@ -101,6 +105,7 @@
     "v1/catalogs/schedules.json",
     "v1/catalogs/secret-safety.json"
     ,"v1/catalogs/trusted-plan.json"
+    ,"v1/catalogs/production-policy.json"
   ],
   "component_ranges": {
     "alert_router": ">=1.0.0,<2.0.0",
@@ -135,7 +140,8 @@
     "v1/fixtures/queue-lambda",
     "v1/fixtures/reducer",
     "v1/fixtures/schedules",
-    "v1/fixtures/schemas"
+    "v1/fixtures/schemas",
+    "v1/fixtures/production-policy"
   ],
   "initial_release": true,
   "minimum_support_horizon_days": 14,
@@ -168,6 +174,8 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-request",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-summary",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-artifact-reference"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-artifact-reference",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-policy",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-exception"
   ]
 }

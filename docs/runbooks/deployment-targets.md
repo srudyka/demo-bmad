@@ -72,3 +72,15 @@ plan and require a new preflight and plan. There is no plan-to-apply handoff:
 apply starts from a separately approved immutable commit and independently
 revalidates the target. Rollback disables plan/apply acceptance while retaining
 review metadata and audit records; it does not delete or mutate Terraform state.
+
+The `production-readiness` policy runs before report publication. Production
+findings are blocking from the first release and contain only bounded codes,
+stable addresses, evidence references, severity, and remediation. Exceptions
+are single-resource, single-plan records bound to the policy version, target,
+source revision, checksum, independent approver, compensating control, review
+date, signature, and expiry. Wildcards, reuse, stale bindings, and
+non-exemptible findings are rejected.
+Malformed plan changes, unknown catalog categories, empty production plans,
+unconditioned IAM delegation, wildcard IAM actions/resources, public IP
+assignment, mutable schedule state, and unregistered jobs fail closed before
+report publication. The policy artifact is retained with the bounded report.

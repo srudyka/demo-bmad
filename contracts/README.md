@@ -11,6 +11,8 @@ inputs before side effects. Remote schema retrieval is prohibited.
   roots, and exact raw-byte checksums.
 - `v1/schemas/` contains Draft 2020-12 boundary and payload schemas.
 - `v1/catalogs/` owns authority, lifecycle, metrics, alarms, limits, and keys.
+- `v1/catalogs/production-policy.json` owns the versioned production policy,
+  qualifying-change categories, severity posture, and exception fields.
 - `v1/fixtures/` contains language-neutral positive and negative vectors.
 - `releases/` records immutable release snapshots.
 - `migrations/` contains the actionable note for each release.

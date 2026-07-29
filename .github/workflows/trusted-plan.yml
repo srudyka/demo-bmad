@@ -45,6 +45,10 @@ on:
       backend_lock_sha256:
         required: true
         type: string
+      exceptions_file:
+        required: false
+        default: ""
+        type: string
     secrets:
       AWS_ROLE_SESSION_NAME:
         required: true
@@ -155,7 +159,15 @@ jobs:
         run: terraform -chdir="${{ inputs.target_root }}" show -json "$RUNNER_TEMP/trusted.tfplan" > "$RUNNER_TEMP/trusted-plan.json"
 
       - name: Evaluate plan policy and readiness
-        run: python scripts/trusted_plan.py policy --plan-json "$RUNNER_TEMP/trusted-plan.json"
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          EXCEPTION_LEDGER_PATH: ${{ runner.temp }}/exception-ledger
+          BASELINE_COMMIT: 448bee1
+        run: |
+          exception_args=()
+          if [ -n "${{ inputs.exceptions_file }}" ]; then exception_args+=(--exceptions "${{ inputs.exceptions_file }}"); fi
+          python scripts/trusted_plan.py policy --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --output "$RUNNER_TEMP/trusted-policy.json" "${exception_args[@]}"
 
       - name: Publish bounded review metadata
         env:
@@ -170,16 +182,18 @@ jobs:
           AWS_ROLE_SESSION_NAME: ${{ secrets.AWS_ROLE_SESSION_NAME }}
           PLAN_STARTED_AT: ${{ steps.plan.outputs.started_at }}
         run: |
-          python scripts/trusted_plan.py report --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --output "$RUNNER_TEMP/trusted-report.json"
+          python scripts/trusted_plan.py report --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --policy "$RUNNER_TEMP/trusted-policy.json" --output "$RUNNER_TEMP/trusted-report.json"
           plan_sha256="$(sha256sum "$RUNNER_TEMP/trusted.tfplan" | cut -d' ' -f1)"
+          policy_sha256="$(sha256sum "$RUNNER_TEMP/trusted-policy.json" | cut -d' ' -f1)"
           report_sha256="$(sha256sum "$RUNNER_TEMP/trusted-report.json" | cut -d' ' -f1)"
-          python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$plan_sha256" "$report_sha256" <<'PY'
+          python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$plan_sha256" "$policy_sha256" "$report_sha256" <<'PY'
           import json, sys
           from pathlib import Path
           Path(sys.argv[1]).write_text(json.dumps({
               "audience": "trusted-reviewer",
               "plan_sha256": sys.argv[2],
-              "report_sha256": sys.argv[3],
+              "policy_sha256": sys.argv[3],
+              "report_sha256": sys.argv[4],
               "retention_seconds": 86400,
           }, sort_keys=True) + "\n", encoding="utf-8")
           PY
@@ -190,6 +204,7 @@ jobs:
           name: trusted-plan-${{ inputs.source_commit }}
           path: |
             ${{ runner.temp }}/trusted.tfplan
+            ${{ runner.temp }}/trusted-policy.json
             ${{ runner.temp }}/trusted-report.json
             ${{ runner.temp }}/trusted-artifact-manifest.json
           retention-days: 1

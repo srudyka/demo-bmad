@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import hmac
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from scripts.trusted_plan import (
     validate_artifact_reference,
     validate_plan_request,
 )
+from scripts.production_policy import evaluate_production_plan, validate_exception
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -185,3 +187,155 @@ def test_artifact_reference_requires_trusted_audience_and_expiry() -> None:
                 "audience": "pull-request",
             }
         )
+
+
+def production_target() -> dict:
+    return {
+        "environment": "production",
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "root": "modules/example",
+    }
+
+
+def clean_plan() -> dict:
+    return {
+        "resource_changes": [
+            {
+                "address": "aws_cloudwatch_log_group.job",
+                "change": {"actions": ["create"], "after": {"retention_in_days": 30, "tags": {"Environment": "production", "Application": "demo", "Service": "job", "Owner": "platform", "ManagedBy": "Terraform"}, "logs": "enabled", "alarms": "alarm", "notifications": "sns", "acknowledgement": True, "cell_contract": "cell-contract-v1"}},
+            }
+        ]
+    }
+
+
+def test_production_policy_is_bounded_and_classifies_security_review() -> None:
+    decision = evaluate_production_plan(
+        clean_plan(),
+        target=production_target(),
+        source_commit="a" * 40,
+        plan_sha256="b" * 64,
+        now="2026-07-29T12:00:00Z",
+    )
+    assert decision["status"] == "passed"
+    assert decision["classification"]["security_review_required"] is False
+    assert "retention" not in json.dumps(decision)
+
+
+@pytest.mark.parametrize(
+    ("address", "after", "code"),
+    [
+        ("aws_security_group.job", {"egress": "0.0.0.0/0"}, "UNSAFE_EGRESS"),
+        ("aws_iam_role.admin", {}, "PRIVILEGE_ESCALATION"),
+        ("aws_ecr_image.job", {"image": "repo:latest"}, "MUTABLE_IMAGE"),
+        (
+            "aws_secretsmanager_secret_version.job",
+            {"password": "hidden"},
+            "PLAINTEXT_SECRET",
+        ),
+    ],
+)
+def test_production_policy_blocks_sensitive_changes(
+    address: str, after: dict, code: str
+) -> None:
+    decision = evaluate_production_plan(
+        {
+            "resource_changes": [
+                {"address": address, "change": {"actions": ["update"], "after": after}}
+            ]
+        },
+        target=production_target(),
+        source_commit="a" * 40,
+        plan_sha256="b" * 64,
+        now="2026-07-29T12:00:00Z",
+    )
+    assert decision["status"] == "failed"
+    assert any(code.lower() in item["policy_id"] for item in decision["findings"])
+    assert "hidden" not in json.dumps(decision)
+
+
+def test_exception_requires_exact_binding_and_cannot_waive_non_exemptible() -> None:
+    decision = evaluate_production_plan(
+        {
+            "resource_changes": [
+                {
+                    "address": "aws_iam_role.admin",
+                    "change": {"actions": ["update"], "after": {}},
+                }
+            ]
+        },
+        target=production_target(),
+        source_commit="a" * 40,
+        plan_sha256="b" * 64,
+        now="2026-07-29T12:00:00Z",
+    )
+    exception = {
+        "policy_id": "production-readiness",
+        "policy_version": "1.0.0",
+        "address": "aws_iam_role.admin",
+        "environment": "production",
+        "source_commit": "a" * 40,
+        "plan_sha256": "b" * 64,
+        "owner": "owner",
+        "justification": "bounded",
+        "approver": "security",
+        "compensating_control": "control",
+        "expires_at": "2026-07-30T12:00:00Z",
+        "review_at": "2026-07-30T11:00:00Z",
+        "signature": "signed:example",
+    }
+    with pytest.raises(TargetViolation, match="POLICY_EXCEPTION_NON_EXEMPTIBLE"):
+        validate_exception(exception, decision, now="2026-07-29T12:00:00Z")
+
+
+def test_production_policy_fixture_matrix_is_enforced() -> None:
+    cases = json.loads(
+        (ROOT.parent / "contracts/v1/fixtures/production-policy/cases.json").read_text()
+    )["cases"]
+    for case in cases:
+        decision = evaluate_production_plan(
+            case["plan"],
+            target=production_target(),
+            source_commit="a" * 40,
+            plan_sha256="b" * 64,
+            now="2026-07-29T12:00:00Z",
+        )
+        if case["expected"] == "blocking":
+            assert decision["status"] == "failed"
+            assert any(case["finding"].lower() in item["policy_id"] for item in decision["findings"])
+        else:
+            assert decision["status"] == "passed"
+
+
+def test_malformed_policy_change_fails_closed() -> None:
+    with pytest.raises(TargetViolation, match="POLICY_PLAN_CHANGE"):
+        evaluate_production_plan(
+            {"resource_changes": [{"address": "aws_iam_policy.job", "change": {}}]},
+            target=production_target(),
+            source_commit="a" * 40,
+            plan_sha256="b" * 64,
+            now="2026-07-29T12:00:00Z",
+        )
+
+
+def test_exception_signature_is_verified_and_replay_is_rejected() -> None:
+    decision = evaluate_production_plan(
+        {"resource_changes": [{"address": "aws_ecr_image.job", "change": {"actions": ["update"], "after": {"image": "repo:latest"}}}]},
+        target=production_target(), source_commit="a" * 40, plan_sha256="b" * 64,
+        now="2026-07-29T12:00:00Z",
+    )
+    exception = {
+        "policy_id": "production-readiness", "policy_version": "1.0.0",
+        "address": "aws_ecr_image.job", "environment": "production",
+        "source_commit": "a" * 40, "plan_sha256": "b" * 64,
+        "owner": "owner", "justification": "bounded", "approver": "security",
+        "compensating_control": "control", "expires_at": "2026-07-30T12:00:00Z",
+        "review_at": "2026-07-29T13:00:00Z", "signature": "",
+    }
+    key = b"fixture-signing-key"
+    payload = json.dumps({k: exception[k] for k in sorted(exception) if k != "signature"}, sort_keys=True, separators=(",", ":")).encode()
+    exception["signature"] = "hmac-sha256:" + hmac.new(key, payload, hashlib.sha256).hexdigest()
+    consumed: set[str] = set()
+    validate_exception(exception, decision, now="2026-07-29T12:00:00Z", consumed_exception_ids=consumed, signing_key=key)
+    with pytest.raises(TargetViolation, match="POLICY_EXCEPTION_REUSE"):
+        validate_exception(exception, decision, now="2026-07-29T12:00:00Z", consumed_exception_ids=consumed, signing_key=key)

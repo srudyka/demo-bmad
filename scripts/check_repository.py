@@ -210,6 +210,26 @@ def scan_paths(root: Path, paths: tuple[Path, ...]) -> list[str]:
     return violations
 
 
+def scan_baseline_diff(root: Path, baseline: str) -> list[str]:
+    """Check changed-file hygiene that cannot be inferred from a snapshot alone."""
+    try:
+        result = subprocess.run(
+            ("git", "diff", "--name-only", f"{baseline}...HEAD"),
+            cwd=root, check=True, capture_output=True, text=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ["baseline diff unavailable"]
+    violations: list[str] = []
+    for name in result.stdout.splitlines():
+        if name.endswith(".terraform.lock.hcl"):
+            violations.append(f"provider lock changed: {name}")
+        if name.endswith((".tf", ".tf.json")):
+            content = (root / name).read_text(encoding="utf-8", errors="ignore") if (root / name).is_file() else ""
+            if re.search(r"(?:account_id|region|role_arn|state_bucket)\s*=\s*\"[^$][^\"]+\"", content):
+                violations.append(f"hardcoded target: {name}")
+    return violations
+
+
 def main() -> int:
     violations = scan_paths(REPOSITORY_ROOT, repository_files(REPOSITORY_ROOT))
     if violations:
