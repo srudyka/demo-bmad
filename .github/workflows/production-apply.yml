@@ -169,6 +169,30 @@ jobs:
           test "$(sha256sum "$RUNNER_TEMP/approved.tfplan" | cut -d' ' -f1)" = "$PLAN_SHA256"
           terraform -chdir="$TARGET_ROOT" init -lockfile=readonly
           terraform -chdir="$TARGET_ROOT" apply -input=false "$RUNNER_TEMP/approved.tfplan"
+      - name: Collect post-apply identity and verification evidence
+        if: ${{ always() }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+        run: |
+          if terraform -chdir="$TARGET_ROOT" show -json > "$RUNNER_TEMP/post-apply-state.json"; then
+            python - "$RUNNER_TEMP" "$TARGET_MANIFEST" <<'PY'
+            import json, sys
+            from pathlib import Path
+            from scripts.apply_evidence import build_verification, collect_resource_identities
+            root = Path(sys.argv[1])
+            manifest = json.loads(Path(sys.argv[2]).read_text())
+            state = json.loads((root / "post-apply-state.json").read_text())
+            identities = collect_resource_identities(state)
+            (root / "resource-identities.json").write_text(json.dumps(identities, sort_keys=True) + "\n")
+            verification = build_verification(manifest=manifest, state=state, resource_identities=identities)
+            (root / "verification.json").write_text(json.dumps(verification, sort_keys=True) + "\n")
+            PY
+          else
+            printf '{}\n' > "$RUNNER_TEMP/resource-identities.json"
+            printf '%s\n' '{"status":"blocked","launch_enabled":false,"missing":["post_apply_state"],"decision":"blocked"}' > "$RUNNER_TEMP/verification.json"
+          fi
       - name: Finalize deployment evidence
         if: ${{ always() }}
         env:

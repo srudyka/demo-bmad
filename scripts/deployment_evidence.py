@@ -661,6 +661,37 @@ def plan_recovery_execution(
     )
 
 
+def validate_recovery_execution(
+    recovery: Mapping[str, Any],
+    execution: Mapping[str, Any],
+) -> None:
+    """Gate recovery mutation on durable evidence for every pre-apply step."""
+    validate_recovery_plan(recovery)
+    required = {
+        "launch_disabled",
+        "generation_retired",
+        "evidence_reconciled",
+        "fresh_plan_sha256",
+        "normal_controls_approved",
+    }
+    if set(execution) != required or any(
+        execution.get(key) in (None, "") for key in required
+    ):
+        raise TargetViolation("RECOVERY_EXECUTION_SHAPE")
+    if any(
+        execution[key] is not True
+        for key in (
+            "launch_disabled",
+            "generation_retired",
+            "evidence_reconciled",
+            "normal_controls_approved",
+        )
+    ):
+        raise TargetViolation("RECOVERY_EXECUTION_ORDER")
+    if not _hash(execution["fresh_plan_sha256"]):
+        raise TargetViolation("RECOVERY_FRESH_PLAN")
+
+
 def validate_verification(
     observed: Mapping[str, Any],
     *,

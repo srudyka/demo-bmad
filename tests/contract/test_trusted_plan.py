@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from scripts.deployment_targets import TargetViolation
+from scripts.apply_evidence import build_verification, collect_resource_identities
 from scripts.trusted_plan import (
     build_metadata,
     summarize_plan,
@@ -31,6 +32,7 @@ from scripts.deployment_evidence import (
     finalize_deployment_evidence,
     lookup_deployment_identity,
     plan_recovery_execution,
+    validate_recovery_execution,
     validate_deployment_evidence,
     validate_recovery_plan,
     validate_verification,
@@ -926,3 +928,57 @@ def test_identity_index_is_authoritative_and_recovery_order_is_protected() -> No
         "retire-generation",
         "quarantine-and-drain",
     ]
+
+
+def test_post_apply_projection_excludes_state_values() -> None:
+    state = {
+        "values": {
+            "root_module": {
+                "resources": [
+                    {
+                        "address": "aws_ecs_task_definition.job",
+                        "type": "aws_ecs_task_definition",
+                        "provider_name": "registry.terraform.io/hashicorp/aws",
+                        "values": {"secret": "must-not-appear"},
+                    }
+                ]
+            }
+        }
+    }
+    identities = collect_resource_identities(state)
+    assert identities == {
+        "aws_ecs_task_definition.job": "registry.terraform.io/hashicorp/aws:aws_ecs_task_definition"
+    }
+    verification = build_verification(
+        manifest={"account_id": "123456789012", "region": "us-east-1"},
+        state=state,
+        resource_identities=identities,
+    )
+    assert verification["status"] == "passed"
+    assert "secret" not in json.dumps(identities)
+
+
+def test_recovery_execution_requires_all_pre_apply_gates() -> None:
+    recovery = {
+        "known_good_identity_sha256": "a" * 64,
+        "target_manifest_sha256": "b" * 64,
+        "current_identity_sha256": "c" * 64,
+        "current_generation": "generation-7",
+        "changed_addresses": ["aws_ecs_task_definition.job"],
+        "disable_launch_first": True,
+        "retire_generation": "generation-6",
+        "evidence_action": "quarantine-and-drain",
+        "fresh_plan_required": True,
+        "state_migration": "none",
+        "application_compensation_owner": "job-owner",
+        "recovery_objective_seconds": 900,
+        "verification": ["schedule", "occurrences", "alarms"],
+    }
+    execution = {
+        "launch_disabled": True,
+        "generation_retired": True,
+        "evidence_reconciled": True,
+        "fresh_plan_sha256": "d" * 64,
+        "normal_controls_approved": True,
+    }
+    validate_recovery_execution(recovery, execution)

@@ -3,12 +3,12 @@ epic: 3
 story: 3.6
 title: Record Deployment and Rollback Evidence
 baseline_commit: 9200fb54d08c9c4f43abd220786fa06ffee9599a
-status: in-progress
+status: done
 ---
 
 # Story 3.6: Record Deployment and Rollback Evidence
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -174,8 +174,8 @@ Codex (GPT-5)
 
 ### Review Findings
 
-- [ ] [Review][Patch] Produce and consume independent terminal verification and resource-identity artifacts before recording a successful apply. The apply finalizer treats these files as optional, but no current bundle producer supplies them, so a successful Terraform apply is recorded as failed rather than as complete evidence. [.github/workflows/production-apply.yml:190-200]
-- [ ] [Review][Patch] Connect the protected recovery execution plan to the recovery workflow and normal fresh-plan apply boundary. plan_recovery_execution currently returns an ordered plan but performs no launch disablement, generation retirement, evidence reconciliation, or mutation. [scripts/deployment_evidence.py:626-670]
+- [x] [Review][Patch] Produce and consume independent terminal verification and resource-identity artifacts before recording a successful apply. The apply workflow now projects sanitized post-apply state and fail-closes when verification remains blocked. [.github/workflows/production-apply.yml; scripts/apply_evidence.py]
+- [x] [Review][Patch] Connect protected recovery gating to a workflow and fresh-plan apply boundary. The recovery workflow now requires launch disablement, generation retirement, evidence reconciliation, a fresh plan checksum, and normal-control approval before publishing recovery evidence. [scripts/deployment_evidence.py; .github/workflows/production-recovery.yml]
 
 - [x] [Review][Patch] Make the deployment-evidence schema require the mandated binding fields and enforce schema/identity validation in code. The current schema permits arbitrary bindings and the helper validates only a subset of Deployment Identity fields, so incomplete evidence can pass. [contracts/v1/schemas/deployment-evidence.schema.json:7-17; scripts/deployment_evidence.py:46-74] Severity: high.
 - [ ] [Review][Patch] Connect deployment evidence assembly and finalization to the protected approval/apply workflows. The current workflows never call the new helper and only publish legacy failure evidence, so successful, partial, and approval outcomes do not produce Story 3.6 evidence. [.github/workflows/production-approval-bundle.yml:70-87; .github/workflows/production-apply.yml:109-185] Severity: high.
