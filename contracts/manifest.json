@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "868dd00caee83dfdbc7f6f09830eaac836e94e9dd77cf71f4ebf3000e81f81af"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "3e66dd9d4856193d4f898f2bb29b6ab588b10ce7fb8479492d28ac6982c0d67a"},
+    {"path": "releases/1.0.0.json", "sha256": "823fdce47cee7eb0d2a7ba043b5a3f9d138367e9aaabe710099928d17737b849"},
     {"path": "releases/1.0.0-notes.md", "sha256": "9219cc041fe44139df23d83762cfbd144934c06e6e54196618688737023c71e7"},
     {"path": "releases/affected-releases.json", "sha256": "7fb23e4b131a335f41761aeaf187bd2f1b2f785314180b5d88408f64fd7edf6d"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
@@ -30,6 +30,7 @@
     {"path": "v1/catalogs/secret-safety.json", "sha256": "cd8f6caf019dbf0574dcc101b7925e6b41fbd3467747d6b9d0ca57529996ecaf"},
     {"path": "v1/catalogs/trusted-plan.json", "sha256": "f4c589ed991267ca78ddff86e44201a21459d1b6ee468211b435b1d7591ca2a2"},
     {"path": "v1/catalogs/production-policy.json", "sha256": "d55a85689d5e18e9d9c75f6fb1fa142b3044a196fa21ad9ab574bf6f1929dda4"},
+    {"path": "v1/catalogs/migration.json", "sha256": "6f46fcb4ae0154834834b05e41f9c9dd9986ba436925ebd07a2cb8e24d8fe2ea"},
     {"path": "v1/fixtures/production-policy/cases.json", "sha256": "5b72b973eafbca3262a935239026e1767c7aade0071d6aa11ed606ca0946126e"},
     {"path": "v1/schemas/production-policy.schema.json", "sha256": "13eff3a5c85a0da04e7f99563772f35b35b683acd5ab39f7c970ad6c168bd48d"},
     {"path": "v1/schemas/production-exception.schema.json", "sha256": "1d25681b3cf1a6a8a3058577388231e4438efd1056488994effffe1cb377b607"},
@@ -42,9 +43,12 @@
     {"path": "v1/schemas/deployment-evidence.schema.json", "sha256": "2544f3b0e50c9c9e391632038cc2aed24e22f37a5ef9aada760ea8cea67697b5"},
     {"path": "v1/schemas/production-emergency-evidence.schema.json", "sha256": "246b6aba25704c981a3a7e50ae0ceaab73238f69cba48e0e80655318fd36f52d"},
     {"path": "v1/schemas/release-manifest.schema.json", "sha256": "be796c936d0a2dc02508b1d780acc91dbcf44dd7606097efe84078dfd642d068"},
+    {"path": "v1/schemas/migration-manifest.schema.json", "sha256": "1f05316076c3deb6b2ea5a93c40977d802f02437bd33229dddd60d6025277aba"},
+    {"path": "v1/schemas/migration-acknowledgement.schema.json", "sha256": "1a07f0edc4d2b8fc553cbea6c0730dd20b866be48e05e087fdf7fbfbdaf8dce4"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},
     {"path": "v1/fixtures/canonical-json/vectors.json", "sha256": "579a19b231afdce63744046a4e14772bbf8d2d6fbba3df08fe7100118718072c"},
     {"path": "v1/fixtures/compatibility/cases.json", "sha256": "a049e4945eb0cf4be165f33c56f4a128b31ff49231e06fc512ccf49a6a2818a1"},
+    {"path": "v1/fixtures/migration/cases.json", "sha256": "58125787c1207ce502439d4261bb3dffad539c1c20e57f3a24c78d6419b0b1e3"},
     {"path": "v1/fixtures/compatibility/commands.json", "sha256": "32e94a5063d1d6b771931abc7b71a812f5cd723a59b3e4dbd0ba01610f917517"},
     {"path": "v1/fixtures/compatibility/semantic-change-classification.json", "sha256": "2a833e9ca5e9f7bbe49d31ad965d694d63ca1c24ea5abd2361948f661fa1a46b"},
     {"path": "v1/fixtures/iam/cases.json", "sha256": "41cde6a026820c710fde1f5084f934d2dc698ad4b13728b076f26fc91bf2a6b8"},
@@ -117,6 +121,7 @@
     "v1/catalogs/secret-safety.json"
     ,"v1/catalogs/trusted-plan.json"
     ,"v1/catalogs/production-policy.json"
+    ,"v1/catalogs/migration.json"
   ],
   "component_ranges": {
     "alert_router": ">=1.0.0,<2.0.0",
@@ -196,6 +201,8 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-bundle-manifest",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deployment-evidence",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-emergency-evidence",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:release-manifest"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:release-manifest",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-manifest",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-acknowledgement"
   ]
 }

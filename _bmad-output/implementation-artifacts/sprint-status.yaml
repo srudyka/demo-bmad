@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-14T17:04:01-0500
-last_updated: 2026-07-30T00:00:00-0500
+last_updated: 2026-07-30T12:00:00-0500
 project: demo-bmad
 project_key: NOKEY
 tracking_system: file-system
@@ -88,7 +88,7 @@ development_status:
   3-5-approve-and-apply-the-exact-production-plan: done
  3-6-record-deployment-and-rollback-evidence: done
  3-7-publish-immutable-platform-releases: done
-  3-8-migrate-compatible-platform-versions: backlog
+ 3-8-migrate-compatible-platform-versions: done
   3-9-deprecate-and-retire-platform-versions: backlog
   epic-3-retrospective: optional
 

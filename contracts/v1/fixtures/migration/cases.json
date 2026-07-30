@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {"name": "unknown horizon", "operation": "horizon_missing", "expected_error": "MIGRATION_HORIZON_UNKNOWN"},
+    {"name": "launch enabled", "operation": "launch_enabled", "expected_error": "MIGRATION_LAUNCH_MUST_BE_DISABLED"},
+    {"name": "unsupported component", "operation": "unsupported_component", "expected_error": "MIGRATION_UNSUPPORTED_COMPONENT"},
+    {"name": "stale acknowledgement", "operation": "acknowledgement_mismatch", "expected_error": "MIGRATION_ACKNOWLEDGEMENT"},
+    {"name": "partial migration", "operation": "partial_counts", "expected_error": "MIGRATION_PHASE_EVIDENCE_COUNTS"},
+    {"name": "state move drift", "operation": "predecessor_missing", "expected_error": "MIGRATION_PREDECESSOR_REQUIRED"},
+    {"name": "rollback without supported evidence", "operation": "rollback_evidence_missing", "expected_error": "MIGRATION_ROLLBACK_EVIDENCE_REQUIRED"}
+  ]
+}
