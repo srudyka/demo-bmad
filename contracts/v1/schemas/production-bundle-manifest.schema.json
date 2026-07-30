@@ -11,7 +11,7 @@
     "files": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["approved.tfplan", "trusted-plan.json", "trusted-policy.json", "trusted-artifact-manifest.json", "approval.json", "readiness.json", "apply-authorization.json", "caller.json", "authority.json", "github-claims.json", "cell-contract.json", "lock.json"],
+      "required": ["approved.tfplan", "trusted-plan.json", "trusted-policy.json", "trusted-artifact-manifest.json", "approval.json", "readiness.json", "apply-authorization.json", "caller.json", "authority.json", "github-claims.json", "cell-contract.json", "lock.json", "deployment-evidence.json"],
       "properties": {
         "approved.tfplan": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "trusted-plan.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -24,7 +24,8 @@
         "authority.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "github-claims.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "cell-contract.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "lock.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "lock.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "deployment-evidence.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
     }
   }

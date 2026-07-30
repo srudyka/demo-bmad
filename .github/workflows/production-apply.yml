@@ -182,10 +182,22 @@ jobs:
           from scripts.deployment_evidence import finalize_deployment_evidence, validate_deployment_evidence
           root, outcome = Path(sys.argv[1]), sys.argv[2]
           pre = json.loads((root / "deployment-evidence.json").read_text())
+          approval = json.loads((root / "approval.json").read_text())
+          policy = json.loads((root / "trusted-policy.json").read_text())
+          plan = json.loads((root / "trusted-plan.json").read_text())
           ended = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
           started = os.environ.get("APPLY_STARTED_AT", ended)
+          verification_path = root / "verification.json"
+          identities_path = root / "resource-identities.json"
+          verification = json.loads(verification_path.read_text()) if verification_path.is_file() else {"status": "blocked", "launch_enabled": False}
+          identities = json.loads(identities_path.read_text()) if identities_path.is_file() else {}
+          errors = [] if outcome == "succeeded" else ["apply workflow did not complete successfully"]
+          if outcome == "succeeded" and (not identities or verification.get("status") != "passed"):
+              outcome = "failed"
+              errors = ["apply completed without independent resource and verification evidence"]
           state_result = "succeeded" if outcome == "succeeded" else "failed"
-          final = finalize_deployment_evidence(pre, outcome=outcome, apply_actor=os.environ.get("APPLY_ACTOR", "unknown"), started_at=started, ended_at=ended, state_result=state_result, lock_condition="clear" if outcome == "succeeded" else "inspect-required", lifecycle_state="UNKNOWN", errors=[] if outcome == "succeeded" else ["apply workflow did not complete successfully"], output_checksums={}, verification={"status": "blocked", "launch_enabled": False})
+          approvers = approval.get("approvals", [])
+          final = finalize_deployment_evidence(pre, outcome=outcome, apply_actor=os.environ.get("APPLY_ACTOR", "unknown"), started_at=started, ended_at=ended, state_result=state_result, lock_condition="clear" if outcome == "succeeded" else "inspect-required", lifecycle_state=plan.get("lifecycle_state", "UNKNOWN"), errors=errors, output_checksums={}, resource_identities=identities, verification=verification, approvals=approvers, policy_result=policy)
           validate_deployment_evidence(final)
           (root / "deployment-evidence-final.json").write_text(json.dumps(final, sort_keys=True) + "\n")
           PY

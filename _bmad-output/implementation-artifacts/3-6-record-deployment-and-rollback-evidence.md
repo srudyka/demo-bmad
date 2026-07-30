@@ -174,6 +174,9 @@ Codex (GPT-5)
 
 ### Review Findings
 
+- [ ] [Review][Patch] Produce and consume independent terminal verification and resource-identity artifacts before recording a successful apply. The apply finalizer treats these files as optional, but no current bundle producer supplies them, so a successful Terraform apply is recorded as failed rather than as complete evidence. [.github/workflows/production-apply.yml:190-200]
+- [ ] [Review][Patch] Connect the protected recovery execution plan to the recovery workflow and normal fresh-plan apply boundary. plan_recovery_execution currently returns an ordered plan but performs no launch disablement, generation retirement, evidence reconciliation, or mutation. [scripts/deployment_evidence.py:626-670]
+
 - [x] [Review][Patch] Make the deployment-evidence schema require the mandated binding fields and enforce schema/identity validation in code. The current schema permits arbitrary bindings and the helper validates only a subset of Deployment Identity fields, so incomplete evidence can pass. [contracts/v1/schemas/deployment-evidence.schema.json:7-17; scripts/deployment_evidence.py:46-74] Severity: high.
 - [ ] [Review][Patch] Connect deployment evidence assembly and finalization to the protected approval/apply workflows. The current workflows never call the new helper and only publish legacy failure evidence, so successful, partial, and approval outcomes do not produce Story 3.6 evidence. [.github/workflows/production-approval-bundle.yml:70-87; .github/workflows/production-apply.yml:109-185] Severity: high.
 - [x] [Review][Patch] Make finalization verify the pre-approval checksum, exact Deployment Identity, actual caller/session, and apply result before accepting an outcome. The current function accepts a caller-supplied mapping and outcome without those bindings and is never invoked by apply. [scripts/deployment_evidence.py:80-95] Severity: high.

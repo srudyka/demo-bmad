@@ -27,8 +27,11 @@ from scripts.production_apply import (
 from scripts.production_bundle import FILES, assemble_bundle, verify_bundle_manifest
 from scripts.deployment_evidence import (
     assemble_deployment_evidence,
+    build_deployment_identity_index,
     finalize_deployment_evidence,
     lookup_deployment_identity,
+    plan_recovery_execution,
+    validate_deployment_evidence,
     validate_recovery_plan,
     validate_verification,
 )
@@ -692,6 +695,7 @@ def deployment_identity() -> dict:
             "workflow": {
                 "job_workflow_ref": "org/repo/.github/workflows/deploy.yml@" + "d" * 40,
                 "run_id": 123,
+                "workflow_sha": "d" * 40,
             },
             "tool_versions": {"terraform": "1.15.8"},
             "resolved_platform": {"fargate": "1.4.0", "lambda_runtime": "python3.14"},
@@ -824,3 +828,101 @@ def test_recovery_and_verification_fail_closed_until_safe_to_resume() -> None:
     )
     assert result["status"] == "blocked"
     assert result["launch_enabled"] is False
+
+
+def test_identity_and_binding_validation_are_not_optional() -> None:
+    expected = evidence_expected()
+    record = assemble_deployment_evidence(
+        expected, deployment_identity=deployment_identity(), changed_addresses=[]
+    )
+    malformed = json.loads(json.dumps(record))
+    malformed["bindings"]["workflow_run_id"] = "not-a-run"
+    malformed["evidence_sha256"] = hashlib.sha256(
+        json.dumps(
+            {
+                key: value
+                for key, value in malformed.items()
+                if key != "evidence_sha256"
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    with pytest.raises(TargetViolation, match="DEPLOYMENT_BINDING"):
+        validate_deployment_evidence(malformed)
+
+
+def test_emergency_identity_must_match_verification() -> None:
+    from scripts.deployment_evidence import validate_emergency_record
+
+    record = {
+        "schema_version": "1.0.0",
+        "status": "approved",
+        "actor": "operator",
+        "approver": "independent-approver",
+        "reason": "restore service",
+        "scope": "production/job",
+        "started_at": "2026-07-29T12:00:00Z",
+        "expires_at": "2099-07-29T12:30:00Z",
+        "commands": ["disable launch"],
+        "deployment_identity_sha256": "a" * 64,
+        "verification": {
+            "target_identity": True,
+            "deployment_identity": True,
+            "review_complete": True,
+            "deployment_identity_sha256": "b" * 64,
+        },
+        "alert_received": True,
+        "review_due_at": "2099-07-30T12:00:00Z",
+    }
+    with pytest.raises(TargetViolation, match="EMERGENCY_IDENTITY"):
+        validate_emergency_record(record)
+
+
+def test_identity_index_is_authoritative_and_recovery_order_is_protected() -> None:
+    expected = evidence_expected()
+    expected["occurrence_id"] = "occurrence-7"
+    expected["task_arn"] = "arn:aws:ecs:us-east-1:123456789012:task/job/7"
+    pre = assemble_deployment_evidence(
+        expected, deployment_identity=deployment_identity(), changed_addresses=[]
+    )
+    final = finalize_deployment_evidence(
+        pre,
+        outcome="partial",
+        apply_actor="arn:aws:sts::123456789012:assumed-role/apply/run",
+        started_at="2026-07-29T12:00:00Z",
+        ended_at="2026-07-29T12:05:00Z",
+        state_result="partial",
+        lock_condition="inspect-required",
+        lifecycle_state="VALIDATED",
+        errors=["bounded failure"],
+        output_checksums={"terraform-output": "a" * 64},
+    )
+    index = build_deployment_identity_index([final])
+    lookup_deployment_identity(final, occurrence_id="occurrence-7", index=index)
+    recovery = {
+        "known_good_identity_sha256": "d" * 64,
+        "target_manifest_sha256": "b" * 64,
+        "current_identity_sha256": "a" * 64,
+        "current_generation": "generation-7",
+        "changed_addresses": ["aws_ecs_task_definition.job"],
+        "disable_launch_first": True,
+        "retire_generation": "generation-6",
+        "evidence_action": "quarantine-and-drain",
+        "fresh_plan_required": True,
+        "state_migration": "none",
+        "application_compensation_owner": "job-owner",
+        "recovery_objective_seconds": 900,
+        "verification": ["schedule", "occurrences", "alarms"],
+    }
+    known = deployment_identity()
+    current = deployment_identity()
+    known["deployment_identity_id"] = "d" * 64
+    current["deployment_identity_id"] = "a" * 64
+    current["identity"]["source_commit"] = "e" * 40
+    steps = plan_recovery_execution(recovery, known_good=known, current=current)
+    assert [step["action"] for step in steps[:3]] == [
+        "disable-launch",
+        "retire-generation",
+        "quarantine-and-drain",
+    ]

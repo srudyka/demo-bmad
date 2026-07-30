@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "3ba5382aafd2dc703a25c1bfb4a95cd5653526e74c51bd71e295626979e62cc7"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "4233487a719a8ed2f68894c521536b26d4fdcc0b9c72fee090cf28fcd99d0e7a"},
+    {"path": "releases/1.0.0.json", "sha256": "aa65d818905ece126ccd3a7dae4715ede3d57704614bcf882ff2ec93f235bc52"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
     {"path": "v1/catalogs/dashboard.json", "sha256": "8b49e90e7ee39c424c731ebf0632166fb183c94e6ab7cc12fea88850a9fdaf92"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
@@ -36,7 +36,7 @@
     {"path": "v1/schemas/production-apply-authorization.schema.json", "sha256": "459e0095a4f9479593322be5d2dc00062569f461f1b51f8b934bb7419c1e6873"},
     {"path": "v1/schemas/production-failure-evidence.schema.json", "sha256": "7f1ecf95577f57ac073cb3aaa26441d3700eda4fe72328032dd3b06863387a65"},
     {"path": "v1/schemas/production-emergency-access.schema.json", "sha256": "6b7d32b40ab57a7d5915ab2054c8a1866f211a0090e4eb3f61413f2c3cd3392a"},
-    {"path": "v1/schemas/production-bundle-manifest.schema.json", "sha256": "05ea217f6de187034c13647f0bac358dd06628e7bbaf3356cdf58afb2545a2bf"},
+    {"path": "v1/schemas/production-bundle-manifest.schema.json", "sha256": "5959b1d79db4a74810cdc05be205c3284ab1fbdd2bf5593616a8edeef1fddffc"},
     {"path": "v1/schemas/deployment-evidence.schema.json", "sha256": "2544f3b0e50c9c9e391632038cc2aed24e22f37a5ef9aada760ea8cea67697b5"},
     {"path": "v1/schemas/production-emergency-evidence.schema.json", "sha256": "246b6aba25704c981a3a7e50ae0ceaab73238f69cba48e0e80655318fd36f52d"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},

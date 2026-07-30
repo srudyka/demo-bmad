@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+from referencing import Registry, Resource
 
 from scripts.deployment_targets import TargetViolation
 
@@ -39,6 +43,10 @@ SECRET_PATTERN = re.compile(
 SECRET_KEY_PATTERN = re.compile(
     r"(?i)(password|secret|token|credential|private[_-]?key|access[_-]?key)"
 )
+SECRET_VALUE_PATTERN = re.compile(
+    r"(?i)(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]+PRIVATE KEY-----|"
+    r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)"
+)
 
 
 def _timestamp(value: str, code: str) -> datetime:
@@ -57,7 +65,7 @@ def _hash(value: Any) -> bool:
 
 def _screen(value: Any) -> None:
     if isinstance(value, str):
-        if SECRET_PATTERN.search(value):
+        if SECRET_PATTERN.search(value) or SECRET_VALUE_PATTERN.search(value):
             raise TargetViolation("DEPLOYMENT_SECRET")
         return
     if isinstance(value, Mapping):
@@ -100,6 +108,29 @@ def _validate_identity(identity: Mapping[str, Any]) -> None:
         raise TargetViolation("DEPLOYMENT_IDENTITY_SHAPE")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(body["image_digest"])):
         raise TargetViolation("DEPLOYMENT_IDENTITY_SHAPE")
+    if set(body) != required:
+        raise TargetViolation("DEPLOYMENT_IDENTITY_SHAPE")
+    schema_root = Path(__file__).resolve().parents[1] / "contracts" / "v1" / "schemas"
+    try:
+        resources = []
+        selected = None
+        for path in schema_root.glob("*.schema.json"):
+            document = json.loads(path.read_text(encoding="utf-8"))
+            resources.append((document["$id"], Resource.from_contents(document)))
+            if path.name == "deployment-identity.schema.json":
+                selected = document
+        if selected is None:
+            raise TargetViolation("DEPLOYMENT_IDENTITY_SCHEMA_MISSING")
+        errors = sorted(
+            Draft202012Validator(
+                selected, registry=Registry().with_resources(resources)
+            ).iter_errors(identity),
+            key=lambda error: list(error.absolute_path),
+        )
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise TargetViolation("DEPLOYMENT_IDENTITY_SCHEMA_UNAVAILABLE") from error
+    if errors:
+        raise TargetViolation("DEPLOYMENT_IDENTITY_SCHEMA")
 
 
 def assemble_deployment_evidence(
@@ -224,13 +255,50 @@ def validate_deployment_evidence(
         raise TargetViolation("DEPLOYMENT_BINDING")
     bindings = evidence["bindings"]
     required_bindings = {
-        "source_commit", "workflow_sha", "workflow_run_id", "manifest_sha256",
-        "account_id", "region", "environment", "root", "state_key",
-        "plan_sha256", "policy_sha256", "readiness_sha256", "provider_lock_sha256",
-        "backend_lock_sha256", "cell_contract_sha256", "config_sha256",
-        "schedule_generation", "deployment_identity_sha256", "phase",
+        "source_commit",
+        "workflow_sha",
+        "workflow_run_id",
+        "manifest_sha256",
+        "account_id",
+        "region",
+        "environment",
+        "root",
+        "state_key",
+        "plan_sha256",
+        "policy_sha256",
+        "readiness_sha256",
+        "provider_lock_sha256",
+        "backend_lock_sha256",
+        "cell_contract_sha256",
+        "config_sha256",
+        "schedule_generation",
+        "deployment_identity_sha256",
+        "phase",
     }
     if set(bindings) != required_bindings:
+        raise TargetViolation("DEPLOYMENT_BINDING")
+    if (
+        not SHA1.fullmatch(str(bindings["source_commit"]))
+        or not SHA1.fullmatch(str(bindings["workflow_sha"]))
+        or not re.fullmatch(r"[1-9][0-9]*", str(bindings["workflow_run_id"]))
+        or not re.fullmatch(r"[0-9]{12}", str(bindings["account_id"]))
+        or not re.fullmatch(r"[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+", str(bindings["region"]))
+        or any(
+            not _hash(bindings[key])
+            for key in required_bindings
+            if key.endswith("sha256")
+        )
+        or not all(
+            isinstance(bindings[key], str) and bindings[key]
+            for key in (
+                "environment",
+                "root",
+                "state_key",
+                "schedule_generation",
+                "phase",
+            )
+        )
+    ):
         raise TargetViolation("DEPLOYMENT_BINDING")
     if expected is not None:
         for key in required_bindings:
@@ -239,9 +307,12 @@ def validate_deployment_evidence(
     identity_body = evidence["deployment_identity"].get("identity")
     if not isinstance(identity_body, Mapping):
         raise TargetViolation("DEPLOYMENT_IDENTITY_SHAPE")
-    if evidence["deployment_identity_sha256"] != hashlib.sha256(
-        json.dumps(identity_body, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest():
+    if (
+        evidence["deployment_identity_sha256"]
+        != hashlib.sha256(
+            json.dumps(identity_body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    ):
         raise TargetViolation("DEPLOYMENT_IDENTITY_BINDING")
     if bindings["deployment_identity_sha256"] != evidence["deployment_identity_sha256"]:
         raise TargetViolation("DEPLOYMENT_IDENTITY_BINDING")
@@ -266,6 +337,13 @@ def validate_deployment_evidence(
         != evidence["evidence_sha256"]
     ):
         raise TargetViolation("DEPLOYMENT_CHECKSUM")
+    if (
+        not isinstance(evidence["expected_plan_impact"], str)
+        or not evidence["expected_plan_impact"]
+    ):
+        raise TargetViolation("DEPLOYMENT_IMPACT")
+    if not isinstance(evidence["cost_note"], str) or not evidence["cost_note"]:
+        raise TargetViolation("DEPLOYMENT_COST")
 
 
 def finalize_deployment_evidence(
@@ -282,6 +360,8 @@ def finalize_deployment_evidence(
     output_checksums: Mapping[str, str],
     resource_identities: Mapping[str, str] | None = None,
     verification: Mapping[str, Any] | None = None,
+    approvals: Sequence[Mapping[str, Any]] | None = None,
+    policy_result: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         outcome not in OUTCOMES
@@ -311,6 +391,8 @@ def finalize_deployment_evidence(
         or verification.get("status") != "passed"
     ):
         raise TargetViolation("DEPLOYMENT_OUTCOME")
+    if outcome == "succeeded" and (not approvals or policy_result is None):
+        raise TargetViolation("DEPLOYMENT_PROVENANCE")
     if outcome != "succeeded" and state_result == "succeeded":
         raise TargetViolation("DEPLOYMENT_OUTCOME")
     if outcome == "lock-conflict" and lock_condition not in {
@@ -343,9 +425,15 @@ def finalize_deployment_evidence(
         "errors": list(errors)[:20],
         "output_checksums": dict(output_checksums),
         "resource_identities": dict(resource_identities or {}),
-        "verification": dict(verification or {"status": "not-run", "launch_enabled": False}),
+        "verification": dict(
+            verification or {"status": "not-run", "launch_enabled": False}
+        ),
         "workflow_conclusion": "success" if outcome == "succeeded" else "failure",
     }
+    if approvals is not None:
+        result["approvals"] = [dict(item) for item in approvals]
+    if policy_result is not None:
+        result["policy_result"] = dict(policy_result)
     _screen(result)
     result.pop("evidence_sha256", None)
     result["evidence_sha256"] = hashlib.sha256(
@@ -359,10 +447,21 @@ def lookup_deployment_identity(
     *,
     occurrence_id: str | None = None,
     task_arn: str | None = None,
+    index: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return only bounded identity metadata; occurrence/task identifiers are not echoed."""
+    """Return bounded identity metadata from a checksum-verified authoritative index."""
     if not occurrence_id and not task_arn:
         raise TargetViolation("DEPLOYMENT_LOOKUP_REFERENCE")
+    if index is not None:
+        key = occurrence_id or task_arn
+        entries = index.get("entries") if isinstance(index, Mapping) else None
+        if not isinstance(entries, Mapping) or key not in entries:
+            raise TargetViolation("DEPLOYMENT_LOOKUP_REFERENCE")
+        indexed = entries[key]
+        if not isinstance(indexed, Mapping) or indexed.get(
+            "evidence_sha256"
+        ) != evidence.get("evidence_sha256"):
+            raise TargetViolation("DEPLOYMENT_LOOKUP_INDEX")
     supplied_hash = evidence.get("evidence_sha256")
     if not SHA256.fullmatch(str(supplied_hash)):
         raise TargetViolation("DEPLOYMENT_LOOKUP_CHECKSUM")
@@ -400,6 +499,8 @@ def lookup_deployment_identity(
         "task_definition_arn": body.get("task_definition_arn"),
         "module_versions": body.get("module_versions"),
         "contract_version": body.get("contract_version"),
+        "config_version": body.get("artifact_checksums", {}).get("config_version"),
+        "cell_version": body.get("artifact_checksums", {}).get("cell_contract_version"),
         "workflow": body.get("workflow"),
         "target": {
             key: bindings.get(key)
@@ -413,6 +514,33 @@ def lookup_deployment_identity(
         "approvals": evidence.get("approvals", []),
         "policy_result": evidence.get("policy_result"),
     }
+
+
+def build_deployment_identity_index(
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build a non-sensitive, duplicate-free lookup index from terminal evidence."""
+    entries: dict[str, Any] = {}
+    for record in records:
+        validate_deployment_evidence(record)
+        if record.get("status") == "awaiting-approval":
+            raise TargetViolation("DEPLOYMENT_LOOKUP_TERMINAL")
+        references = record.get("references", {})
+        if not isinstance(references, Mapping):
+            raise TargetViolation("DEPLOYMENT_LOOKUP_REFERENCE")
+        keys = [references.get("occurrence_id"), references.get("task_arn")]
+        for key in filter(None, keys):
+            if (
+                key in entries
+                and entries[key]["evidence_sha256"] != record["evidence_sha256"]
+            ):
+                raise TargetViolation("DEPLOYMENT_LOOKUP_DUPLICATE")
+            entries[str(key)] = {
+                "evidence_sha256": record["evidence_sha256"],
+                "deployment_identity_sha256": record["deployment_identity_sha256"],
+                "deployment_run_id": record["bindings"]["workflow_run_id"],
+            }
+    return {"schema_version": "1.0.0", "entries": entries}
 
 
 def validate_recovery_plan(recovery: Mapping[str, Any]) -> None:
@@ -498,8 +626,47 @@ def validate_recovery_plan(recovery: Mapping[str, Any]) -> None:
         raise TargetViolation("RECOVERY_VERIFICATION")
 
 
+def plan_recovery_execution(
+    recovery: Mapping[str, Any],
+    *,
+    known_good: Mapping[str, Any],
+    current: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return the only permitted recovery order; no mutation occurs here."""
+    validate_recovery_plan(recovery)
+    _validate_identity(known_good)
+    _validate_identity(current)
+    known_body = known_good["identity"]
+    current_body = current["identity"]
+    if known_good["deployment_identity_id"] != recovery["known_good_identity_sha256"]:
+        raise TargetViolation("RECOVERY_IDENTITY")
+    if current["deployment_identity_id"] != recovery["current_identity_sha256"]:
+        raise TargetViolation("RECOVERY_IDENTITY")
+    for field in ("account_id", "region", "environment"):
+        if known_body[field] != current_body[field]:
+            raise TargetViolation("RECOVERY_COMPATIBILITY")
+    if known_body["source_commit"] == current_body["source_commit"]:
+        raise TargetViolation("RECOVERY_NOOP")
+    return (
+        {"step": 1, "action": "disable-launch", "required": True},
+        {
+            "step": 2,
+            "action": "retire-generation",
+            "generation": recovery["current_generation"],
+        },
+        {"step": 3, "action": recovery["evidence_action"]},
+        {"step": 4, "action": "create-fresh-plan", "stale_plan_reuse": False},
+        {"step": 5, "action": "normal-target-policy-readiness-approval-lock-controls"},
+        {"step": 6, "action": "apply-fresh-approved-plan"},
+    )
+
+
 def validate_verification(
-    observed: Mapping[str, Any], *, required: Sequence[str]
+    observed: Mapping[str, Any],
+    *,
+    required: Sequence[str],
+    evidence_refs: Mapping[str, str] | None = None,
+    observed_at: str | None = None,
 ) -> dict[str, Any]:
     allowed = {
         "target_identity",
@@ -522,12 +689,28 @@ def validate_verification(
     if not isinstance(observed, Mapping):
         raise TargetViolation("VERIFICATION_OBSERVED")
     missing = [key for key in required if observed.get(key) is not True]
+    timestamp = observed_at or datetime.now(timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    _timestamp(timestamp, "VERIFICATION_TIMESTAMP")
     return {
         "schema_version": "1.0.0",
         "status": "passed" if not missing else "blocked",
         "launch_enabled": not missing,
         "missing": missing,
         "checks": {key: observed.get(key) is True for key in required},
+        "observed_at": timestamp,
+        "evidence_refs": {
+            key: value
+            for key, value in (evidence_refs or {}).items()
+            if key in required
+        },
+        "remediation": (
+            "Keep launch disabled; execute the reviewed rollback or forward-fix plan."
+            if missing
+            else ""
+        ),
+        "decision": "blocked" if missing else "resume-eligible",
     }
 
 
@@ -586,3 +769,8 @@ def validate_emergency_record(
     required_checks = {"target_identity", "deployment_identity", "review_complete"}
     if any(record["verification"].get(key) is not True for key in required_checks):
         raise TargetViolation("EMERGENCY_VERIFICATION")
+    if (
+        record["verification"].get("deployment_identity_sha256")
+        != record["deployment_identity_sha256"]
+    ):
+        raise TargetViolation("EMERGENCY_IDENTITY")
