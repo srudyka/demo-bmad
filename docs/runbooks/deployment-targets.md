@@ -108,3 +108,29 @@ Emergency access is not a recovery shortcut: issue a time-bound, independently
 approved emergency record, page the responsible responders immediately, retain
 the actor/target/incident evidence, and complete the post-incident review before
 closing the incident.
+
+## Deployment identity and recovery evidence
+
+Every protected apply must retain the sanitized Deployment Identity projection
+and bind it to the source commit, workflow run, target manifest, plan/policy/
+readiness checksums, CONFIG hash, schedule generation, and provider/backend
+locks. Use the evidence projection for operational lookup; do not expose raw
+plans, CONFIG, credentials, secret values, or unrestricted logs.
+
+Apply results are terminal and distinguish success, failure, partial apply,
+runner loss, cancellation, and lock conflict. A partial or failed result is
+never rewritten as successful. Preserve stable resource addresses, bounded
+errors, lock condition, lifecycle state, and output checksums.
+
+Recovery starts by disabling launch and retiring or draining the affected
+generation. Quarantine/reconcile in-flight evidence, select a known-good
+compatible Deployment Identity, and create a fresh plan from actual state.
+Run that plan through the normal target, policy, readiness, approval, OIDC,
+concurrency, lock, and exact-plan controls. Never reuse a saved plan or delete
+evidence as part of rollback.
+
+Post-apply verification must record target identity, lifecycle acknowledgement,
+schedule and expectation horizon, task revision/networking, logs, occurrence
+processing, alarms, and alert routing as applicable. Launch remains disabled
+until blocking checks and Job Owner application-compensation acknowledgements
+are complete within the recovery objective.

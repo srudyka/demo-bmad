@@ -86,7 +86,7 @@ development_status:
   3-3-generate-a-trusted-and-reviewable-terraform-plan: done
   3-4-enforce-production-policies-and-govern-exceptions: done
   3-5-approve-and-apply-the-exact-production-plan: done
-  3-6-record-deployment-and-rollback-evidence: backlog
+ 3-6-record-deployment-and-rollback-evidence: in-progress
   3-7-publish-immutable-platform-releases: backlog
   3-8-migrate-compatible-platform-versions: backlog
   3-9-deprecate-and-retire-platform-versions: backlog

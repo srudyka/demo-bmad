@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "3ba5382aafd2dc703a25c1bfb4a95cd5653526e74c51bd71e295626979e62cc7"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "4656b147aa7e79db7a235b38aadbc66787dc1acefd22e815ea7c597c44c896de"},
+    {"path": "releases/1.0.0.json", "sha256": "4233487a719a8ed2f68894c521536b26d4fdcc0b9c72fee090cf28fcd99d0e7a"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
     {"path": "v1/catalogs/dashboard.json", "sha256": "8b49e90e7ee39c424c731ebf0632166fb183c94e6ab7cc12fea88850a9fdaf92"},
     {"path": "v1/catalogs/compatibility.json", "sha256": "a0a9cacc75ca0d05234e2b844a537b851fd413d9543ba4f424da333f6d4c27d0"},
@@ -37,6 +37,8 @@
     {"path": "v1/schemas/production-failure-evidence.schema.json", "sha256": "7f1ecf95577f57ac073cb3aaa26441d3700eda4fe72328032dd3b06863387a65"},
     {"path": "v1/schemas/production-emergency-access.schema.json", "sha256": "6b7d32b40ab57a7d5915ab2054c8a1866f211a0090e4eb3f61413f2c3cd3392a"},
     {"path": "v1/schemas/production-bundle-manifest.schema.json", "sha256": "05ea217f6de187034c13647f0bac358dd06628e7bbaf3356cdf58afb2545a2bf"},
+    {"path": "v1/schemas/deployment-evidence.schema.json", "sha256": "2544f3b0e50c9c9e391632038cc2aed24e22f37a5ef9aada760ea8cea67697b5"},
+    {"path": "v1/schemas/production-emergency-evidence.schema.json", "sha256": "246b6aba25704c981a3a7e50ae0ceaab73238f69cba48e0e80655318fd36f52d"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},
     {"path": "v1/fixtures/canonical-json/vectors.json", "sha256": "579a19b231afdce63744046a4e14772bbf8d2d6fbba3df08fe7100118718072c"},
     {"path": "v1/fixtures/compatibility/cases.json", "sha256": "a049e4945eb0cf4be165f33c56f4a128b31ff49231e06fc512ccf49a6a2818a1"},
@@ -188,6 +190,8 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-apply-authorization",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-failure-evidence",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-emergency-access",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-bundle-manifest"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-bundle-manifest",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deployment-evidence",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-emergency-evidence"
   ]
 }

@@ -16,6 +16,7 @@ from typing import Any, Mapping
 
 from scripts.deployment_targets import TargetViolation
 from scripts.production_apply import validate_approval, validate_readiness
+from scripts.deployment_evidence import validate_deployment_evidence
 
 FILES = (
     "approved.tfplan",
@@ -30,6 +31,7 @@ FILES = (
     "github-claims.json",
     "cell-contract.json",
     "lock.json",
+    "deployment-evidence.json",
 )
 
 
@@ -73,6 +75,12 @@ def assemble_bundle(
         raise TargetViolation("BUNDLE_POLICY_BINDING")
     approval = json.loads((source / "approval.json").read_text(encoding="utf-8"))
     readiness = json.loads((source / "readiness.json").read_text(encoding="utf-8"))
+    deployment_evidence = json.loads(
+        (source / "deployment-evidence.json").read_text(encoding="utf-8")
+    )
+    validate_deployment_evidence(
+        deployment_evidence, expected_status="awaiting-approval", expected=expected
+    )
     validate_approval(approval, expected, now=now)
     validate_readiness(readiness, expected, now=now)
     if (

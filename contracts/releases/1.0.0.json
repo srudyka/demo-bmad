@@ -33,7 +33,7 @@
       "schemas",
       "production-policy"
     ],
-      "schema_count": 33
+      "schema_count": 35
   },
   "classification": "initial",
   "manifest_surface": {
@@ -69,5 +69,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "84fafabd42495cbe233e7df9d3a6a27e201dc7c1cbac5da7c1da07e0f9474048"
+  "semantic_surface_sha256": "257c45aa6f5a43c446b4f1b398b2dcb8ccbc69348fd77e37930e67aacf6962fd"
 }

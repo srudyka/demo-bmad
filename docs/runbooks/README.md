@@ -195,3 +195,10 @@ Emergency access requires a separate approved emergency record with an exact
 manifest checksum, named actor and approver, short expiry, alert identifier,
 incident identifier, and post-incident review deadline. It cannot bypass target,
 secret-safety, privilege-escalation, or occurrence-tracking controls.
+
+Deployment and rollback evidence uses the existing Deployment Identity contract
+and a sanitized projection. It records exact source, target, workflow, plan,
+policy, readiness, CONFIG, schedule-generation, lock, apply-result, and
+verification bindings without exposing raw plans, credentials, or secret data.
+Rollback disables launch first, preserves and reconciles evidence, then creates
+a fresh compatible plan through the normal approval/apply boundary.

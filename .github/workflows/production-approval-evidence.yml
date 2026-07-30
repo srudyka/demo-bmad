@@ -12,6 +12,7 @@ on:
       github_claims_json: {required: true, type: string}
       cell_contract_json: {required: true, type: string}
       lock_json: {required: true, type: string}
+      deployment_evidence_json: {required: true, type: string}
 
 permissions:
   contents: read
@@ -44,10 +45,12 @@ jobs:
           GITHUB_CLAIMS_JSON: ${{ inputs.github_claims_json }}
           CELL_CONTRACT_JSON: ${{ inputs.cell_contract_json }}
           LOCK_JSON: ${{ inputs.lock_json }}
+          DEPLOYMENT_EVIDENCE_JSON: ${{ inputs.deployment_evidence_json }}
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
+          from scripts.deployment_evidence import validate_deployment_evidence
           root = Path(os.environ["RUNNER_TEMP"]) / "evidence"
           root.mkdir()
           values = {
@@ -59,9 +62,12 @@ jobs:
               "github-claims.json": os.environ["GITHUB_CLAIMS_JSON"],
               "cell-contract.json": os.environ["CELL_CONTRACT_JSON"],
               "lock.json": os.environ["LOCK_JSON"],
+              "deployment-evidence.json": os.environ["DEPLOYMENT_EVIDENCE_JSON"],
           }
           for name, raw in values.items():
               parsed = json.loads(raw)
+              if name == "deployment-evidence.json":
+                  validate_deployment_evidence(parsed, expected_status="awaiting-approval")
               (root / name).write_text(json.dumps(parsed, sort_keys=True) + "\n")
           PY
       - name: Publish evidence artifact

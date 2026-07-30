@@ -25,6 +25,13 @@ from scripts.production_apply import (
     validate_emergency_access,
 )
 from scripts.production_bundle import FILES, assemble_bundle, verify_bundle_manifest
+from scripts.deployment_evidence import (
+    assemble_deployment_evidence,
+    finalize_deployment_evidence,
+    lookup_deployment_identity,
+    validate_recovery_plan,
+    validate_verification,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -667,3 +674,153 @@ def test_bundle_manifest_detects_tampering(tmp_path: Path) -> None:
     (root / "approved.tfplan").write_bytes(b"tampered")
     with pytest.raises(TargetViolation, match="BUNDLE_MANIFEST_DIGEST"):
         verify_bundle_manifest(root, manifest)
+
+
+def deployment_identity() -> dict:
+    return {
+        "schema_version": "1.0.0",
+        "deployment_identity_id": "a" * 64,
+        "identity": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "environment": "production",
+            "source_commit": "b" * 40,
+            "image_digest": "sha256:" + "c" * 64,
+            "task_definition_arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/job:7",
+            "module_versions": {"job": "1.0.0"},
+            "contract_version": "1.0.0",
+            "workflow": {
+                "job_workflow_ref": "org/repo/.github/workflows/deploy.yml@" + "d" * 40,
+                "run_id": 123,
+            },
+            "tool_versions": {"terraform": "1.15.8"},
+            "resolved_platform": {"fargate": "1.4.0", "lambda_runtime": "python3.14"},
+            "artifact_checksums": {"config": "e" * 64},
+        },
+    }
+
+
+def evidence_expected() -> dict:
+    identity_body = deployment_identity()["identity"]
+    identity_sha = hashlib.sha256(
+        json.dumps(identity_body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "source_commit": "b" * 40,
+        "workflow_sha": "d" * 40,
+        "workflow_run_id": "123",
+        "manifest_sha256": "f" * 64,
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "environment": "production",
+        "root": "envs/production",
+        "state_key": "production/us-east-1/envs/production/terraform.tfstate",
+        "plan_sha256": "1" * 64,
+        "policy_sha256": "2" * 64,
+        "readiness_sha256": "3" * 64,
+        "provider_lock_sha256": "4" * 64,
+        "backend_lock_sha256": "5" * 64,
+        "cell_contract_sha256": "6" * 64,
+        "config_sha256": "7" * 64,
+        "schedule_generation": "generation-7",
+        "deployment_identity_sha256": identity_sha,
+        "phase": "phase-two",
+        "expected_plan_impact": "one task revision update",
+        "cost_note": "within approved monthly budget",
+        "occurrence_id": "occurrence-secret",
+        "task_arn": "arn:aws:ecs:secret",
+    }
+
+
+def test_deployment_evidence_requires_identity_impact_and_secret_screening() -> None:
+    expected = evidence_expected()
+    record = assemble_deployment_evidence(
+        expected,
+        deployment_identity=deployment_identity(),
+        changed_addresses=["aws_ecs_task_definition.job"],
+    )
+    assert (
+        record["deployment_identity_sha256"] == expected["deployment_identity_sha256"]
+    )
+    assert record["changed_addresses"] == ["aws_ecs_task_definition.job"]
+    with pytest.raises(TargetViolation, match="DEPLOYMENT_REQUIRED"):
+        assemble_deployment_evidence(
+            {key: value for key, value in expected.items() if key != "cost_note"},
+            deployment_identity=deployment_identity(),
+            changed_addresses=[],
+        )
+    with pytest.raises(TargetViolation, match="DEPLOYMENT_SECRET"):
+        assemble_deployment_evidence(
+            {**expected, "password": "redacted"},
+            deployment_identity=deployment_identity(),
+            changed_addresses=[],
+        )
+
+
+def test_finalized_outcomes_cannot_hide_failure_and_lookup_is_sanitized() -> None:
+    expected = evidence_expected()
+    pre = assemble_deployment_evidence(
+        expected, deployment_identity=deployment_identity(), changed_addresses=[]
+    )
+    final = finalize_deployment_evidence(
+        pre,
+        outcome="partial",
+        apply_actor="arn:aws:sts::123456789012:assumed-role/apply/run",
+        started_at="2026-07-29T12:00:00Z",
+        ended_at="2026-07-29T12:05:00Z",
+        state_result="partial",
+        lock_condition="inspect-required",
+        lifecycle_state="VALIDATED",
+        errors=["provider returned a bounded failure"],
+        output_checksums={"terraform-output": "a" * 64},
+    )
+    assert final["status"] == "partial"
+    with pytest.raises(TargetViolation, match="DEPLOYMENT_OUTCOME"):
+        finalize_deployment_evidence(
+            pre,
+            outcome="succeeded",
+            apply_actor="actor",
+            started_at="2026-07-29T12:00:00Z",
+            ended_at="2026-07-29T12:05:00Z",
+            state_result="partial",
+            lock_condition="inspect-required",
+            lifecycle_state="VALIDATED",
+            errors=["failure"],
+            output_checksums={},
+        )
+    lookup = lookup_deployment_identity(
+        final, occurrence_id="occurrence-secret", task_arn="arn:aws:ecs:secret"
+    )
+    assert (
+        lookup["deployment_identity_sha256"] == expected["deployment_identity_sha256"]
+    )
+    assert "occurrence-secret" not in json.dumps(lookup)
+    assert "arn:aws:ecs:secret" not in json.dumps(lookup)
+
+
+def test_recovery_and_verification_fail_closed_until_safe_to_resume() -> None:
+    recovery = {
+        "known_good_identity_sha256": "a" * 64,
+        "target_manifest_sha256": "b" * 64,
+        "current_identity_sha256": "c" * 64,
+        "current_generation": "generation-7",
+        "changed_addresses": ["aws_ecs_task_definition.job"],
+        "disable_launch_first": True,
+        "retire_generation": "generation-6",
+        "evidence_action": "quarantine-and-drain",
+        "fresh_plan_required": True,
+        "state_migration": "none",
+        "application_compensation_owner": "job-owner",
+        "recovery_objective_seconds": 900,
+        "verification": ["schedule", "occurrences", "alarms"],
+    }
+    validate_recovery_plan(recovery)
+    bad = dict(recovery, instructions="revert the commit")
+    with pytest.raises(TargetViolation, match="RECOVERY_GENERIC"):
+        validate_recovery_plan(bad)
+    result = validate_verification(
+        {"target_identity": True, "lifecycle": True, "schedule": False, "alarms": True},
+        required=("target_identity", "lifecycle", "schedule", "alarms"),
+    )
+    assert result["status"] == "blocked"
+    assert result["launch_enabled"] is False

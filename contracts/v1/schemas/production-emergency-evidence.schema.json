@@ -1,0 +1,9 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-emergency-evidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production emergency evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "actor", "approver", "reason", "scope", "started_at", "expires_at", "commands", "deployment_identity_sha256", "verification", "alert_received", "review_due_at"],
+  "properties": {"schema_version": {"const": "1.0.0"}, "status": {"const": "approved"}, "actor": {"type": "string", "minLength": 1}, "approver": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1, "maxLength": 240}, "scope": {"type": "string", "minLength": 1, "maxLength": 240}, "started_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "commands": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "string", "maxLength": 240}}, "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "verification": {"type": "object"}, "alert_received": {"const": true}, "review_due_at": {"type": "string", "format": "date-time"}}
+}

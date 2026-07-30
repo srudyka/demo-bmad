@@ -73,7 +73,7 @@ jobs:
           manifest_role="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
           printf 'AWS_REGION=%s\nTARGET_ROOT=%s\nAWS_ROLE_ARN=%s\n' "$manifest_region" "$manifest_root" "$manifest_role" >> "$GITHUB_ENV"
           export AWS_REGION="$manifest_region" TARGET_ROOT="$manifest_root"
-          for required in approval.json readiness.json apply-authorization.json caller.json authority.json github-claims.json cell-contract.json lock.json approved.tfplan trusted-plan.json trusted-policy.json trusted-artifact-manifest.json bundle-manifest.json; do test -f "$RUNNER_TEMP/$required"; done
+          for required in approval.json readiness.json apply-authorization.json caller.json authority.json github-claims.json cell-contract.json lock.json deployment-evidence.json approved.tfplan trusted-plan.json trusted-policy.json trusted-artifact-manifest.json bundle-manifest.json; do test -f "$RUNNER_TEMP/$required"; done
           python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$TARGET_MANIFEST" "$SOURCE_COMMIT" "$GITHUB_RUN_ID" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -145,6 +145,7 @@ jobs:
           actual_account="$(aws sts get-caller-identity --query Account --output text)"
           test "$actual_account" = "$expected_account"
           actual_arn="$(aws sts get-caller-identity --query Arn --output text)"
+          printf 'APPLY_ACTOR=%s\n' "$actual_arn" >> "$GITHUB_ENV"
           expected_role="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
           authorized_role="$(python -c 'import json,os; print(json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "apply-authorization.json")))['"'"'caller_role_arn'"'"'])')"
           test "${actual_arn#arn:aws:sts::}" != "$actual_arn"
@@ -155,16 +156,47 @@ jobs:
           test "$actual_role" = "$expected_role_name"
           test "$authorized_role_name" = "$expected_role_name"
       - name: Apply exact approved binary plan
+        id: apply
         env:
           AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
           AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
           AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
         run: |
+          apply_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf 'APPLY_STARTED_AT=%s\n' "$apply_started_at" >> "$GITHUB_ENV"
           export AWS_DEFAULT_REGION="$AWS_REGION"
           test -f "$RUNNER_TEMP/approved.tfplan"
           test "$(sha256sum "$RUNNER_TEMP/approved.tfplan" | cut -d' ' -f1)" = "$PLAN_SHA256"
           terraform -chdir="$TARGET_ROOT" init -lockfile=readonly
           terraform -chdir="$TARGET_ROOT" apply -input=false "$RUNNER_TEMP/approved.tfplan"
+      - name: Finalize deployment evidence
+        if: ${{ always() }}
+        env:
+          DEPLOYMENT_OUTCOME: ${{ steps.apply.outcome == 'success' && 'succeeded' || 'failed' }}
+        run: |
+          python - "$RUNNER_TEMP" "$DEPLOYMENT_OUTCOME" <<'PY'
+          import json, sys
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from scripts.deployment_evidence import finalize_deployment_evidence, validate_deployment_evidence
+          root, outcome = Path(sys.argv[1]), sys.argv[2]
+          pre = json.loads((root / "deployment-evidence.json").read_text())
+          ended = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+          started = os.environ.get("APPLY_STARTED_AT", ended)
+          state_result = "succeeded" if outcome == "succeeded" else "failed"
+          final = finalize_deployment_evidence(pre, outcome=outcome, apply_actor=os.environ.get("APPLY_ACTOR", "unknown"), started_at=started, ended_at=ended, state_result=state_result, lock_condition="clear" if outcome == "succeeded" else "inspect-required", lifecycle_state="UNKNOWN", errors=[] if outcome == "succeeded" else ["apply workflow did not complete successfully"], output_checksums={}, verification={"status": "blocked", "launch_enabled": False})
+          validate_deployment_evidence(final)
+          (root / "deployment-evidence-final.json").write_text(json.dumps(final, sort_keys=True) + "\n")
+          PY
+      - name: Publish deployment evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deployment-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/deployment-evidence-final.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Record bounded failure evidence
         if: ${{ always() && failure() }}
         run: |
