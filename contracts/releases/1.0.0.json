@@ -2,6 +2,7 @@
   "artifacts": {
     "catalogs": [
       "compatibility",
+      "deprecation",
       "migration",
       "commands",
       "dashboard",
@@ -33,9 +34,10 @@
       "schedules",
       "schemas",
       "production-policy",
-      "migration"
+      "migration",
+      "deprecation"
     ],
-      "schema_count": 38
+      "schema_count": 39
   },
   "classification": "initial",
   "manifest_surface": {
@@ -71,5 +73,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "650361d9c1e117f346775ff808690a6662b14f981c2838ac7fd81aeeb29815c5"
+  "semantic_surface_sha256": "ec106dc1db6627bf176621e1de9bd3cdf585914c13e6571b5feca33c97892f3d"
 }

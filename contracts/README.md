@@ -43,6 +43,30 @@ longer while referenced by CONFIG, occurrences, queues, DLQs, investigations,
 or rollback. Old artifacts are never removed merely because a newer release
 exists.
 
+## Deprecation and retirement
+
+A deprecation record is additive: it is `warn-only`, names a replacement,
+affected consumers, migration guide, support owner/review date, earliest
+removal major, and sanitized GitHub/internal notice details. Security-emergency
+exceptions require a risk, compensating control, migration path, independent
+approvers, and an exact end date. Notice tracking names immutable
+contracts/retirement-evidence artifacts and their raw-byte checksums for both
+publication channels, every acknowledgement, and each open exception; the
+lifecycle-owned evidence reader verifies those bytes without retaining
+sensitive deployment data.
+
+Only a complete checksum-bound retirement handoff can enter lifecycle cleanup.
+It binds completed migration evidence, exact release and artifact identities,
+inventory/reference proof, all recovery horizons, a fresh reviewed plan, and
+protected approval. Unknown owners/telemetry/references, active aliases, an
+unexpired horizon, or current/previous-major support block retirement. The
+dedicated lifecycle principal alone deletes the exact artifact and records the
+tombstone; no release/deployment/workflow/operator role gets deletion authority.
+The principal accepts only strict-JSON handoff bytes accompanied by the
+protected workflow's raw-byte checksum envelope from its lifecycle-owned
+evidence store, and it durably records deletion intent, invalidation
+remediation, tombstones, and post-cleanup verification results.
+
 ## Security
 
 Contracts and fixtures contain identifiers and approved secret references only,

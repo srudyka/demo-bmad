@@ -5,6 +5,7 @@ import pytest
 from lifecycle_gc.domain import (
     ArtifactIdentity,
     LifecycleRejected,
+    PostCleanupEvidence,
     ReferenceEvidence,
     build_retirement_manifest,
     evaluate_candidate,
@@ -33,6 +34,15 @@ class Store:
 
     def record_tombstone(self, tombstone: object) -> None:
         self.tombstones.append(tombstone)
+
+    def record_post_cleanup(self, _: object) -> None:
+        pass
+
+    def record_deletion_intent(self, _: object) -> None:
+        pass
+
+    def record_invalidation(self, _: object) -> None:
+        pass
 
 
 def artifact() -> ArtifactIdentity:
@@ -84,7 +94,13 @@ def test_protected_versions_are_not_eligible(
 def test_eligible_manifest_is_exact_and_checksum_bound() -> None:
     manifest = build_retirement_manifest(
         artifact(),
-        ReferenceEvidence(),
+        ReferenceEvidence(
+            surface_digests=(
+                ("aliases", "c" * 64),
+                ("cell_contract_ranges", "c" * 64),
+                ("workflow_manifests", "c" * 64),
+            )
+        ),
         manifest_id="manifest-1",
         owner="platform",
         lifecycle_principal="dev-cell-lifecycle",
@@ -96,6 +112,7 @@ def test_eligible_manifest_is_exact_and_checksum_bound() -> None:
         account_id="123456789012",
         region="test-region",
         environment="dev",
+        retirement_evidence_sha256="c" * 64,
     )
     assert manifest["artifact"] == artifact().as_dict()
     assert manifest["manifest_checksum"] == manifest_checksum(manifest)
@@ -110,10 +127,21 @@ def test_wildcards_and_mutable_versions_are_rejected() -> None:
     assert ArtifactIdentity("config", "object", "s3-version-id", "a" * 64, "cell")
 
 
-def test_execution_revalidates_and_uses_one_exact_adapter() -> None:
+def test_post_cleanup_evidence_requires_exact_boolean_checks() -> None:
+    with pytest.raises(LifecycleRejected, match="LIFECYCLE_POST_CLEANUP_EVIDENCE"):
+        PostCleanupEvidence(True, True, 1, True, True, True, True)  # type: ignore[arg-type]
+
+
+def test_raw_manifest_execution_is_rejected() -> None:
     manifest = build_retirement_manifest(
         artifact(),
-        ReferenceEvidence(),
+        ReferenceEvidence(
+            surface_digests=(
+                ("aliases", "c" * 64),
+                ("cell_contract_ranges", "c" * 64),
+                ("workflow_manifests", "c" * 64),
+            )
+        ),
         manifest_id="manifest-2",
         owner="platform",
         lifecycle_principal="dev-cell-lifecycle",
@@ -126,37 +154,34 @@ def test_execution_revalidates_and_uses_one_exact_adapter() -> None:
         region="test-region",
         environment="dev",
         dry_run=False,
+        retirement_evidence_sha256="c" * 64,
     )
 
-    class Adapter:
-        def __init__(self) -> None:
-            self.seen: list[ArtifactIdentity] = []
-
-        def delete(self, value: ArtifactIdentity) -> str:
-            self.seen.append(value)
-            return "DELETED"
-
-    adapter = Adapter()
-    store = Store()
-    outcome, tombstone = execute_manifest(
-        manifest,
-        now=NOW,
-        inventory_digest="b" * 64,
-        approved=True,
-        dry_run=False,
-        revalidate=lambda _value: ReferenceEvidence(),
-        adapters={"config": adapter},
-        store=store,
-    )
-    assert outcome.status == "DELETED"
-    assert adapter.seen == [artifact()]
-    assert tombstone.manifest_id == "manifest-2"
+    with pytest.raises(
+        LifecycleRejected, match="LIFECYCLE_RETIREMENT_HANDOFF_REQUIRED"
+    ):
+        execute_manifest(
+            manifest,
+            now=NOW,
+            inventory_digest="b" * 64,
+            approved=True,
+            dry_run=False,
+            revalidate=lambda _value: ReferenceEvidence(),
+            adapters={},
+            store=Store(),
+        )
 
 
-def test_execution_calls_no_adapter_after_late_reference() -> None:
+def test_raw_manifest_cannot_bypass_a_late_reference_recheck() -> None:
     manifest = build_retirement_manifest(
         artifact(),
-        ReferenceEvidence(),
+        ReferenceEvidence(
+            surface_digests=(
+                ("aliases", "c" * 64),
+                ("cell_contract_ranges", "c" * 64),
+                ("workflow_manifests", "c" * 64),
+            )
+        ),
         manifest_id="manifest-3",
         owner="platform",
         lifecycle_principal="dev-cell-lifecycle",
@@ -169,15 +194,18 @@ def test_execution_calls_no_adapter_after_late_reference() -> None:
         region="test-region",
         environment="dev",
         dry_run=False,
+        retirement_evidence_sha256="c" * 64,
     )
-    with pytest.raises(LifecycleRejected, match="LIFECYCLE_LATE_REFERENCE"):
+    with pytest.raises(
+        LifecycleRejected, match="LIFECYCLE_RETIREMENT_HANDOFF_REQUIRED"
+    ):
         execute_manifest(
             manifest,
             now=NOW,
             inventory_digest="b" * 64,
             approved=True,
             dry_run=False,
-            revalidate=lambda _: False,
+            revalidate=lambda _: ReferenceEvidence(),
             adapters={},
             store=Store(),
         )

@@ -25,6 +25,7 @@
       ]
     },
     "reference_count": { "minimum": 0, "type": "integer" },
+    "retirement_evidence_sha256": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
     "reference_proof": {
       "additionalProperties": false,
       "properties": {
@@ -32,9 +33,19 @@
         "unresolved_references": { "items": { "type": "string" }, "type": "array" },
         "inventory_complete": { "type": "boolean" },
         "current": { "type": "boolean" },
-        "previous_supported_major": { "type": "boolean" }
+        "previous_supported_major": { "type": "boolean" },
+        "surface_digests": {
+          "additionalProperties": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+          "properties": {
+            "aliases": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "cell_contract_ranges": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "workflow_manifests": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" }
+          },
+          "required": ["aliases", "cell_contract_ranges", "workflow_manifests"],
+          "type": "object"
+        }
       },
-      "required": ["active_references", "unresolved_references", "inventory_complete", "current", "previous_supported_major"],
+      "required": ["active_references", "unresolved_references", "inventory_complete", "current", "previous_supported_major", "surface_digests"],
       "type": "object"
     },
     "dry_run": { "type": "boolean" },
@@ -54,7 +65,7 @@
       "type": "object"
     }
   },
-  "required": ["schema_version", "manifest_id", "manifest_checksum", "inventory_digest", "owner", "lifecycle_principal", "approval_reference", "approval_result", "account_id", "region", "environment", "support_status", "expected_effects", "inventory_at", "expires_at", "maximum_horizon", "reference_count", "reference_proof", "dry_run", "rollback_limitation", "preserve", "artifact"],
+  "required": ["schema_version", "manifest_id", "manifest_checksum", "inventory_digest", "owner", "lifecycle_principal", "approval_reference", "approval_result", "account_id", "region", "environment", "support_status", "expected_effects", "inventory_at", "expires_at", "maximum_horizon", "reference_count", "retirement_evidence_sha256", "reference_proof", "dry_run", "rollback_limitation", "preserve", "artifact"],
   "title": "Exact Platform Lifecycle Retirement Manifest",
   "type": "object"
 }

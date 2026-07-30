@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_id": "deprecation",
+  "warning_behavior": "warn-only",
+  "supported_statuses": ["deprecated-supported", "security-emergency"],
+  "lifecycle_principal": "lifecycle-garbage-collection",
+  "required_notice_channels": ["github_release", "internal_channel"],
+  "retirement_requirements": [
+    "completed_migration",
+    "exact_inventory",
+    "no_active_reference",
+    "no_unknown_reference",
+    "expired_horizon",
+    "fresh_reviewed_plan",
+    "protected_approval"
+  ],
+  "stable_denials": [
+    "DEPRECATION_BEHAVIOR",
+    "DEPRECATION_EMERGENCY",
+    "DEPRECATION_SENSITIVE_NOTICE",
+    "RETIREMENT_PLAN_STALE",
+    "RETIREMENT_RELEASE_BINDING",
+    "RETIREMENT_INVENTORY_CHECKSUM",
+    "RETIREMENT_MIGRATION_COMPLETION",
+    "RETIREMENT_POLICY_BINDING",
+    "RETIREMENT_APPROVAL_BINDING",
+    "RETIREMENT_WITHDRAWAL_BINDING",
+    "RETIREMENT_LIFECYCLE_BINDING",
+    "RETIREMENT_LIFECYCLE_INVALID"
+  ]
+}

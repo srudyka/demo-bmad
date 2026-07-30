@@ -80,10 +80,58 @@ class ReferenceEvidence:
     current: bool = False
     previous_supported_major: bool = False
     inventory_complete: bool = True
+    surface_digests: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if self.horizon_until is not None and self.horizon_until.tzinfo is None:
             raise LifecycleRejected("LIFECYCLE_HORIZON_TIMEZONE")
+        if len({name for name, _ in self.surface_digests}) != len(self.surface_digests):
+            raise LifecycleRejected("LIFECYCLE_SURFACE_PROOF")
+        if any(
+            not name or not _SHA256.fullmatch(digest)
+            for name, digest in self.surface_digests
+        ):
+            raise LifecycleRejected("LIFECYCLE_SURFACE_PROOF")
+
+
+@dataclass(frozen=True)
+class PostCleanupEvidence:
+    consumers_verified: bool
+    delayed_replay_verified: bool
+    prior_major_replay_verified: bool
+    rollback_identities_verified: bool
+    documentation_verified: bool
+    monitoring_verified: bool
+    canary_verified: bool
+
+    def __post_init__(self) -> None:
+        if any(
+            type(value) is not bool
+            for value in (
+                self.consumers_verified,
+                self.delayed_replay_verified,
+                self.prior_major_replay_verified,
+                self.rollback_identities_verified,
+                self.documentation_verified,
+                self.monitoring_verified,
+                self.canary_verified,
+            )
+        ):
+            raise LifecycleRejected("LIFECYCLE_POST_CLEANUP_EVIDENCE")
+
+    @property
+    def complete(self) -> bool:
+        return all(
+            (
+                self.consumers_verified,
+                self.delayed_replay_verified,
+                self.prior_major_replay_verified,
+                self.rollback_identities_verified,
+                self.documentation_verified,
+                self.monitoring_verified,
+                self.canary_verified,
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -166,6 +214,7 @@ def build_retirement_manifest(
     expected_effects: tuple[str, ...] = (),
     approval_result: str = "APPROVED",
     dry_run: bool = True,
+    retirement_evidence_sha256: str = "",
 ) -> dict[str, object]:
     """Build a checksum-bound exact retirement manifest after eligibility proof."""
 
@@ -191,6 +240,14 @@ def build_retirement_manifest(
             raise LifecycleRejected(code)
     if support_status != "unsupported-candidate" or approval_result != "APPROVED":
         raise LifecycleRejected("LIFECYCLE_SUPPORT_OR_APPROVAL")
+    if not _SHA256.fullmatch(retirement_evidence_sha256):
+        raise LifecycleRejected("LIFECYCLE_RETIREMENT_EVIDENCE")
+    if set(name for name, _ in evidence.surface_digests) != {
+        "aliases",
+        "cell_contract_ranges",
+        "workflow_manifests",
+    }:
+        raise LifecycleRejected("LIFECYCLE_SURFACE_PROOF")
     created = _utc(inventory_at)
     expiry = _utc(expires_at)
     current = _utc(now)
@@ -224,10 +281,12 @@ def build_retirement_manifest(
             "inventory_complete": evidence.inventory_complete,
             "current": evidence.current,
             "previous_supported_major": evidence.previous_supported_major,
+            "surface_digests": dict(sorted(evidence.surface_digests)),
         },
         "dry_run": dry_run,
         "rollback_limitation": "deleted identities are not reusable",
         "preserve": ["audit", "recovery", "tombstone"],
     }
+    body["retirement_evidence_sha256"] = retirement_evidence_sha256
     body["manifest_checksum"] = manifest_checksum(body)
     return body

@@ -105,6 +105,23 @@ def validate_immutable_reference(kind: str, reference: str) -> None:
         raise TargetViolation("RELEASE_MUTABLE_REFERENCE")
 
 
+def _validate_artifact_identity(identity: object) -> None:
+    if not isinstance(identity, Mapping) or set(identity) not in (
+        {"artifact_class", "resource", "version", "checksum", "cell_id"},
+        {"artifact_class", "resource", "version", "checksum", "cell_id", "job_id"},
+    ):
+        raise TargetViolation("RELEASE_ARTIFACT")
+    if any(
+        not isinstance(identity.get(field), str) or not identity[field]
+        for field in ("artifact_class", "resource", "version", "checksum", "cell_id")
+    ) or not SHA256.fullmatch(str(identity["checksum"])):
+        raise TargetViolation("RELEASE_ARTIFACT")
+    if "job_id" in identity and (
+        not isinstance(identity["job_id"], str) or not identity["job_id"]
+    ):
+        raise TargetViolation("RELEASE_ARTIFACT")
+
+
 def build_release_manifest(
     *,
     version: str,
@@ -146,11 +163,16 @@ def build_release_manifest(
         raise TargetViolation("RELEASE_QUALIFICATION")
     normalized: dict[str, Any] = {}
     for name, artifact in sorted(artifacts.items()):
-        if set(artifact) != {"kind", "reference", "sha256"}:
+        if set(artifact) not in (
+            {"kind", "reference", "sha256"},
+            {"kind", "reference", "sha256", "identity"},
+        ):
             raise TargetViolation("RELEASE_ARTIFACT")
         validate_immutable_reference(str(artifact["kind"]), str(artifact["reference"]))
         if not SHA256.fullmatch(str(artifact["sha256"])):
             raise TargetViolation("RELEASE_ARTIFACT")
+        if "identity" in artifact:
+            _validate_artifact_identity(artifact["identity"])
         normalized[name] = dict(artifact)
     try:
         datetime.fromisoformat(published_at.replace("Z", "+00:00"))
@@ -272,6 +294,8 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
         )
         if not SHA256.fullmatch(str(artifact.get("sha256"))):
             raise TargetViolation("RELEASE_ARTIFACT")
+        if "identity" in artifact:
+            _validate_artifact_identity(artifact["identity"])
 
 
 def verify_release_artifacts(root: Path, manifest: Mapping[str, Any]) -> None:

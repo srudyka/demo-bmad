@@ -10,6 +10,7 @@ from .domain import (
     ArtifactClass,
     ArtifactIdentity,
     LifecycleRejected,
+    PostCleanupEvidence,
     ReferenceEvidence,
     manifest_checksum,
 )
@@ -22,6 +23,16 @@ class DeleteAdapter(Protocol):
         """Return ``DELETED`` or idempotent ``ALREADY_ABSENT``."""
 
 
+class RetirementEvidenceStore(Protocol):
+    """Lifecycle-owned reader for protected workflow and notice artifacts."""
+
+    def load_submission(
+        self, handoff_sha256: str
+    ) -> tuple[bytes, Mapping[str, object]]: ...
+
+    def read_notice_evidence(self, reference: str) -> bytes: ...
+
+
 class CleanupStore(Protocol):
     """Durable conditional lifecycle evidence store."""
 
@@ -30,6 +41,12 @@ class CleanupStore(Protocol):
     def record_outcome(self, outcome: "DeletionOutcome") -> None: ...
 
     def record_tombstone(self, tombstone: "Tombstone") -> None: ...
+
+    def record_post_cleanup(self, verification: "PostCleanupRecord") -> None: ...
+
+    def record_deletion_intent(self, intent: "DeletionIntent") -> None: ...
+
+    def record_invalidation(self, invalidation: "InvalidationRecord") -> None: ...
 
 
 class DynamoCleanupStore:
@@ -65,9 +82,12 @@ class DynamoCleanupStore:
         self.client.update_item(
             TableName=self.table_name,
             Key=self._key(outcome.manifest_id, outcome.artifact),
-            UpdateExpression="SET #status = :status",
+            UpdateExpression="SET #status = :status, #reason = :reason",
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={":status": {"S": outcome.status}},
+            ExpressionAttributeValues={
+                ":status": {"S": outcome.status},
+                ":reason": {"S": outcome.reason or ""},
+            },
         )
 
     def record_tombstone(self, tombstone: "Tombstone") -> None:
@@ -78,6 +98,61 @@ class DynamoCleanupStore:
             ExpressionAttributeValues={
                 ":checksum": {"S": tombstone.manifest_checksum},
                 ":deleted_at": {"S": tombstone.deleted_at.isoformat()},
+            },
+        )
+
+    def record_post_cleanup(self, verification: "PostCleanupRecord") -> None:
+        self.client.update_item(
+            TableName=self.table_name,
+            Key=self._key(verification.manifest_id, verification.artifact),
+            UpdateExpression=(
+                "SET post_cleanup_status = :status, post_cleanup_reason = :reason, "
+                "post_cleanup_checks = :checks"
+            ),
+            ExpressionAttributeValues={
+                ":status": {"S": verification.status},
+                ":reason": {"S": verification.reason or ""},
+                ":checks": {
+                    "M": {
+                        name: {"BOOL": passed}
+                        for name, passed in verification.checks.items()
+                    }
+                },
+            },
+        )
+
+    def record_deletion_intent(self, intent: "DeletionIntent") -> None:
+        self.client.update_item(
+            TableName=self.table_name,
+            Key=self._key(intent.manifest_id, intent.artifact),
+            UpdateExpression=(
+                "SET deletion_intent_status = :status, "
+                "deletion_manifest_checksum = :checksum, deletion_requested_at = :at"
+            ),
+            ExpressionAttributeValues={
+                ":status": {"S": "PENDING"},
+                ":checksum": {"S": intent.manifest_checksum},
+                ":at": {"S": intent.requested_at.isoformat()},
+            },
+        )
+
+    def record_invalidation(self, invalidation: "InvalidationRecord") -> None:
+        self.client.update_item(
+            TableName=self.table_name,
+            Key=self._key(invalidation.manifest_id, invalidation.artifact),
+            UpdateExpression=(
+                "SET invalidation_status = :status, invalidation_reason = :reason, "
+                "invalidation_remediation = :remediation"
+            ),
+            ExpressionAttributeValues={
+                ":status": {"S": invalidation.status},
+                ":reason": {"S": invalidation.reason},
+                ":remediation": {
+                    "M": {
+                        name: {"BOOL": complete}
+                        for name, complete in invalidation.remediation.items()
+                    }
+                },
             },
         )
 
@@ -98,6 +173,76 @@ class Tombstone:
     actor: str
     deleted_at: datetime
     result: str
+
+
+@dataclass(frozen=True)
+class DeletionIntent:
+    manifest_id: str
+    manifest_checksum: str
+    artifact: ArtifactIdentity
+    requested_at: datetime
+
+
+@dataclass(frozen=True)
+class InvalidationEvidence:
+    support_status_updated: bool
+    communications_updated: bool
+    launch_blocked: bool
+
+    @property
+    def complete(self) -> bool:
+        return (
+            type(self.support_status_updated) is bool
+            and type(self.communications_updated) is bool
+            and type(self.launch_blocked) is bool
+            and self.support_status_updated
+            and self.communications_updated
+            and self.launch_blocked
+        )
+
+
+@dataclass(frozen=True)
+class InvalidationRecord:
+    manifest_id: str
+    artifact: ArtifactIdentity
+    status: str
+    reason: str
+    remediation: Mapping[str, bool]
+
+
+@dataclass(frozen=True)
+class PostCleanupRecord:
+    manifest_id: str
+    artifact: ArtifactIdentity
+    status: str
+    checks: Mapping[str, bool]
+    reason: str | None = None
+
+
+def _post_cleanup_record(
+    manifest_id: str,
+    artifact: ArtifactIdentity,
+    verification: PostCleanupEvidence | None,
+    *,
+    status: str,
+    reason: str | None = None,
+) -> PostCleanupRecord:
+    names = (
+        "consumers_verified",
+        "delayed_replay_verified",
+        "prior_major_replay_verified",
+        "rollback_identities_verified",
+        "documentation_verified",
+        "monitoring_verified",
+        "canary_verified",
+    )
+    return PostCleanupRecord(
+        manifest_id,
+        artifact,
+        status,
+        {name: bool(getattr(verification, name, False)) for name in names},
+        reason,
+    )
 
 
 def _utc(value: datetime) -> datetime:
@@ -204,16 +349,17 @@ def validate_manifest_for_execution(
     return _artifact_from_manifest(manifest)
 
 
-def execute_manifest(
+def _execute_manifest(
     manifest: Mapping[str, object],
     *,
     now: datetime,
     inventory_digest: str,
     approved: bool,
     dry_run: bool,
-    revalidate: Callable[[ArtifactIdentity], "ReferenceEvidence | bool"],
+    revalidate: Callable[[ArtifactIdentity], ReferenceEvidence],
     adapters: Mapping[ArtifactClass, DeleteAdapter],
     store: CleanupStore,
+    on_invalidation: Callable[[ArtifactIdentity, str], InvalidationEvidence],
 ) -> tuple[DeletionOutcome, Tombstone]:
     """Revalidate immediately before one exact destructive operation."""
 
@@ -227,25 +373,81 @@ def execute_manifest(
     if not store.claim(str(manifest["manifest_id"]), artifact):
         raise LifecycleRejected("LIFECYCLE_MANIFEST_ALREADY_CLAIMED")
     live_evidence = revalidate(artifact)
-    if isinstance(live_evidence, bool):
-        eligible = live_evidence
-    else:
-        from .domain import evaluate_candidate
+    if not isinstance(live_evidence, ReferenceEvidence):
+        raise LifecycleRejected("LIFECYCLE_LATE_REFERENCE_EVIDENCE")
+    from .domain import evaluate_candidate
 
-        eligible = evaluate_candidate(artifact, live_evidence, now=now).eligible
-    if not eligible:
-        store.record_outcome(
-            DeletionOutcome(
+    expected_proof = manifest.get("reference_proof")
+    expected_surfaces = (
+        expected_proof.get("surface_digests")
+        if isinstance(expected_proof, Mapping)
+        else None
+    )
+
+    def invalidate(reason: str) -> None:
+        try:
+            remediation = on_invalidation(artifact, reason)
+        except Exception as error:
+            store.record_invalidation(
+                InvalidationRecord(
+                    str(manifest["manifest_id"]),
+                    artifact,
+                    "FAILED",
+                    reason,
+                    {},
+                )
+            )
+            raise LifecycleRejected("LIFECYCLE_INVALIDATION_HANDLER_FAILED") from error
+        checks = {
+            name: bool(getattr(remediation, name, False))
+            for name in (
+                "support_status_updated",
+                "communications_updated",
+                "launch_blocked",
+            )
+        }
+        complete = (
+            isinstance(remediation, InvalidationEvidence) and remediation.complete
+        )
+        store.record_invalidation(
+            InvalidationRecord(
                 str(manifest["manifest_id"]),
                 artifact,
-                "BLOCKED",
-                "LIFECYCLE_LATE_REFERENCE",
+                "COMPLETED" if complete else "INCOMPLETE",
+                reason,
+                checks,
             )
         )
+        if not complete:
+            raise LifecycleRejected("LIFECYCLE_INVALIDATION_INCOMPLETE")
+
+    if not isinstance(expected_surfaces, Mapping) or dict(
+        live_evidence.surface_digests
+    ) != dict(expected_surfaces):
+        reason = "LIFECYCLE_LATE_SURFACE_CHANGE"
+        store.record_outcome(
+            DeletionOutcome(str(manifest["manifest_id"]), artifact, "BLOCKED", reason)
+        )
+        invalidate(reason)
+        raise LifecycleRejected("LIFECYCLE_LATE_SURFACE_CHANGE")
+
+    eligible = evaluate_candidate(artifact, live_evidence, now=now).eligible
+    if not eligible:
+        reason = "LIFECYCLE_LATE_REFERENCE"
+        store.record_outcome(
+            DeletionOutcome(str(manifest["manifest_id"]), artifact, "BLOCKED", reason)
+        )
+        invalidate(reason)
         raise LifecycleRejected("LIFECYCLE_LATE_REFERENCE")
     adapter = adapters.get(artifact.artifact_class)
     if adapter is None:
         raise LifecycleRejected("LIFECYCLE_ADAPTER_MISSING")
+    checksum = manifest["manifest_checksum"]
+    if not isinstance(checksum, str):
+        raise LifecycleRejected("LIFECYCLE_MANIFEST_CHECKSUM")
+    store.record_deletion_intent(
+        DeletionIntent(str(manifest["manifest_id"]), checksum, artifact, _utc(now))
+    )
     try:
         status = adapter.delete(artifact)
     except Exception as error:
@@ -264,9 +466,6 @@ def execute_manifest(
             )
         )
         raise LifecycleRejected("LIFECYCLE_DELETE_RESULT")
-    checksum = manifest["manifest_checksum"]
-    if not isinstance(checksum, str):
-        raise LifecycleRejected("LIFECYCLE_MANIFEST_CHECKSUM")
     result = DeletionOutcome(str(manifest["manifest_id"]), artifact, status)
     tombstone = Tombstone(
         manifest_id=str(manifest["manifest_id"]),
@@ -276,8 +475,135 @@ def execute_manifest(
         deleted_at=_utc(now),
         result=status,
     )
-    store.record_outcome(result)
-    store.record_tombstone(tombstone)
+    try:
+        store.record_outcome(result)
+        store.record_tombstone(tombstone)
+    except Exception as error:
+        # The durable pending intent permits exact post-delete reconciliation.
+        raise LifecycleRejected("LIFECYCLE_DELETE_RECONCILIATION_REQUIRED") from error
+    return result, tombstone
+
+
+def execute_manifest(
+    manifest: Mapping[str, object],
+    *,
+    now: datetime,
+    inventory_digest: str,
+    approved: bool,
+    dry_run: bool,
+    revalidate: Callable[[ArtifactIdentity], ReferenceEvidence],
+    adapters: Mapping[ArtifactClass, DeleteAdapter],
+    store: CleanupStore,
+) -> tuple[DeletionOutcome, Tombstone]:
+    """Reject raw-manifest execution.
+
+    Retirement can reach a delete adapter only through
+    :func:`execute_retirement_handoff`, which validates its complete immutable
+    deprecation, migration, inventory, plan, approval, and withdrawal proof.
+    The retained signature makes accidental callers fail closed rather than
+    silently acquiring a second destructive execution path.
+    """
+    del manifest, now, inventory_digest, approved, dry_run, revalidate, adapters, store
+    raise LifecycleRejected("LIFECYCLE_RETIREMENT_HANDOFF_REQUIRED")
+
+
+def execute_retirement_handoff(
+    handoff: Mapping[str, object],
+    *,
+    now: datetime,
+    revalidate: Callable[[ArtifactIdentity], ReferenceEvidence],
+    post_verify: Callable[[ArtifactIdentity, Tombstone], PostCleanupEvidence],
+    on_invalidation: Callable[[ArtifactIdentity, str], InvalidationEvidence],
+    adapters: Mapping[ArtifactClass, DeleteAdapter],
+    store: CleanupStore,
+    evidence_store: "RetirementEvidenceStore",
+) -> tuple[DeletionOutcome, Tombstone]:
+    """Execute only a Story 3.9-validated retirement handoff.
+
+    The import is local to keep the lifecycle package free of an import cycle:
+    the handoff builder already imports lifecycle primitives.
+    """
+    from scripts.deprecation_contract import (
+        validate_retirement_handoff,
+        validate_retirement_submission,
+    )
+
+    stored_raw_handoff, submission = evidence_store.load_submission(
+        str(handoff.get("handoff_sha256", ""))
+    )
+    validate_retirement_handoff(
+        handoff, now=now, notice_evidence_reader=evidence_store.read_notice_evidence
+    )
+    validate_retirement_submission(
+        handoff, raw_handoff=stored_raw_handoff, submission=submission
+    )
+    manifest = handoff.get("lifecycle_manifest")
+    if not isinstance(manifest, Mapping):
+        raise LifecycleRejected("LIFECYCLE_HANDOFF_MANIFEST")
+    inventory = handoff.get("inventory")
+    if not isinstance(inventory, Mapping) or not isinstance(
+        inventory.get("inventory_sha256"), str
+    ):
+        raise LifecycleRejected("LIFECYCLE_HANDOFF_INVENTORY")
+    result, tombstone = _execute_manifest(
+        manifest,
+        now=now,
+        inventory_digest=inventory["inventory_sha256"],
+        approved=True,
+        dry_run=False,
+        revalidate=revalidate,
+        adapters=adapters,
+        store=store,
+        on_invalidation=on_invalidation,
+    )
+    try:
+        verification = post_verify(result.artifact, tombstone)
+    except Exception as error:
+        store.record_post_cleanup(
+            _post_cleanup_record(
+                result.manifest_id,
+                result.artifact,
+                None,
+                status="BLOCKED",
+                reason="LIFECYCLE_POST_CLEANUP_FAILED",
+            )
+        )
+        store.record_outcome(
+            DeletionOutcome(
+                result.manifest_id,
+                result.artifact,
+                "POST_DELETE_BLOCKED",
+                "LIFECYCLE_POST_CLEANUP_FAILED",
+            )
+        )
+        raise LifecycleRejected("LIFECYCLE_POST_CLEANUP_FAILED") from error
+    if not isinstance(verification, PostCleanupEvidence) or not verification.complete:
+        store.record_post_cleanup(
+            _post_cleanup_record(
+                result.manifest_id,
+                result.artifact,
+                verification if isinstance(verification, PostCleanupEvidence) else None,
+                status="BLOCKED",
+                reason="LIFECYCLE_POST_CLEANUP_INCOMPLETE",
+            )
+        )
+        store.record_outcome(
+            DeletionOutcome(
+                result.manifest_id,
+                result.artifact,
+                "POST_DELETE_BLOCKED",
+                "LIFECYCLE_POST_CLEANUP_INCOMPLETE",
+            )
+        )
+        raise LifecycleRejected("LIFECYCLE_POST_CLEANUP_INCOMPLETE")
+    store.record_post_cleanup(
+        _post_cleanup_record(
+            result.manifest_id,
+            result.artifact,
+            verification,
+            status="VERIFIED",
+        )
+    )
     return result, tombstone
 
 
