@@ -77,3 +77,16 @@ This package creates no AWS resources. Revert the package, tests, dependency
 lock, and documentation together, then rerun `./scripts/validate.sh`. Never
 remove a contract version still referenced by a queue, DLQ, CONFIG, occurrence,
 investigation, or rollback window.
+
+## Immutable platform releases
+
+Platform releases use `release-manifest.schema.json`. The source commit, builder
+workflow, qualification evidence, policy bundle, artifact checksums, and
+immutable references are bound in one manifest. Defective releases receive a
+new corrected version; original evidence is retained and never overwritten for
+the 30-day rollback horizon. The immutable GitHub release/tag is the release
+registry; publication notices are sent through the GitHub release and the
+internal engineering channel. An affected release is recorded without deleting
+or overwriting the original, and a correction points to both the affected and
+replacement versions. Rollback uses the exact replacement/known-good release
+identity recorded in the release notes; migration actions remain two-phase.

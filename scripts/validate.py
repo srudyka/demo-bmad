@@ -230,6 +230,7 @@ def artifact_policy_check() -> None:
             "production-approval-bundle.yml",
             "production-approval-evidence.yml",
             "production-emergency-evidence.yml",
+            "publish-platform-release.yml",
             "production-recovery.yml",
         }
         violations = workflow_security_violations(contents)

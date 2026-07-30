@@ -1,0 +1,96 @@
+name: Publish immutable platform release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit: {required: true, type: string}
+      version: {required: true, type: string}
+      release_manifest_json: {required: true, type: string}
+      builder_workflow_sha: {required: true, type: string}
+      builder_run_id: {required: true, type: string}
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: platform-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: inputs.source_commit == github.sha
+    runs-on: ubuntu-24.04
+    environment: platform-release
+    steps:
+      - name: Check out immutable source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+      - name: Validate release manifest and source provenance
+        env:
+          RELEASE_MANIFEST_JSON: ${{ inputs.release_manifest_json }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          BUILDER_WORKFLOW_SHA: ${{ inputs.builder_workflow_sha }}
+          BUILDER_RUN_ID: ${{ inputs.builder_run_id }}
+          PUBLISHER_ACTOR: ${{ github.actor }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from scripts.release_manifest import validate_release_manifest
+          manifest = json.loads(os.environ["RELEASE_MANIFEST_JSON"])
+          validate_release_manifest(manifest)
+          if manifest["version"] != os.environ["RELEASE_VERSION"]:
+              raise SystemExit("RELEASE_VERSION_BINDING")
+          if manifest["source_commit"] != os.environ["SOURCE_COMMIT"]:
+              raise SystemExit("RELEASE_SOURCE_BINDING")
+          if manifest["builder"]["workflow_sha"] != os.environ["BUILDER_WORKFLOW_SHA"]:
+              raise SystemExit("RELEASE_WORKFLOW_BINDING")
+          if manifest["builder"]["run_id"] != os.environ["BUILDER_RUN_ID"]:
+              raise SystemExit("RELEASE_RUN_BINDING")
+          if manifest["publisher"]["oidc_actor"] != os.environ["PUBLISHER_ACTOR"]:
+              raise SystemExit("RELEASE_ACTOR_BINDING")
+          if manifest["qualification"]["status"] != "passed" or not manifest["qualification"].get("evidence_sha256"):
+              raise SystemExit("RELEASE_QUALIFICATION_BINDING")
+          path = os.path.join(os.environ["RUNNER_TEMP"], "release-manifest.json")
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Run credential-free qualification gates
+        run: ./scripts/validate.sh
+      - name: Verify and stage manifest-listed artifacts
+        env:
+          RELEASE_MANIFEST_JSON: ${{ inputs.release_manifest_json }}
+        run: |
+          python - <<'PY'
+          import json, os, shutil
+          from pathlib import Path
+          from scripts.release_manifest import verify_release_artifacts
+          manifest = json.loads(os.environ["RELEASE_MANIFEST_JSON"])
+          verify_release_artifacts(Path.cwd(), manifest)
+          output = Path("release-artifacts")
+          output.mkdir()
+          for name in manifest["artifacts"]:
+              source = (Path.cwd() / name).resolve()
+              target = output / name
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, target)
+          PY
+      - name: Publish immutable release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: platform-release-${{ inputs.version }}-${{ inputs.source_commit }}
+          path: |
+            ${{ runner.temp }}/release-manifest.json
+            release-artifacts
+          if-no-files-found: error
+          retention-days: 30
