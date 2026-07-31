@@ -16,6 +16,12 @@ operational procedures: [operator commands](operator-commands.md) are the
 only approved path for reruns and commands, while
 [Cell recovery](cell-recovery.md) owns recovery authority and ordering.
 
+## Job Runbooks
+
+Use the [job Runbook template](job-runbook-template.md) to prepare a production
+job and the [canary Runbook](canary-job-runbook.md) as the completed
+non-production reference.
+
 ## Occurrence Materializer Investigation
 
 The materializer is an independent UTC minute trigger, not the job scheduler.

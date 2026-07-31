@@ -31,7 +31,7 @@ Emit start, success, and failure records with only sanitized errors. Success req
 
 ## Change and recovery
 
-Classify schedule, image, IAM, network, secret, module-version, and address changes. Preserve stable addresses or use reviewed `moved` blocks; record plan impact, Deployment Identity, verification, and rollback. Rollback disables launch first, preserves references/evidence, restores a compatible generation through the protected workflow, and uses application compensation. Never move references, destructively replace resources, or clean up evidence during rollback. See [operator commands](runbooks/operator-commands.md) and [Cell recovery](runbooks/cell-recovery.md).
+Classify schedule, image, IAM, network, secret, module-version, and address changes. Preserve stable addresses or use reviewed `moved` blocks; record plan impact, Deployment Identity, verification, and rollback. Rollback disables launch first, preserves references/evidence, restores a compatible generation through the protected workflow, and uses application compensation. Never move references, destructively replace resources, or clean up evidence during rollback. See [operator commands](runbooks/operator-commands.md), [Cell recovery](runbooks/cell-recovery.md), the [job Runbook template](runbooks/job-runbook-template.md), and the [canary Runbook](runbooks/canary-job-runbook.md).
 
 ## Production reference — non-deployable
 

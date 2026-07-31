@@ -8,6 +8,81 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class DocumentationContractTest(unittest.TestCase):
+    def test_job_runbooks_are_actionable_and_safe(self) -> None:
+        template = (
+            REPOSITORY_ROOT / "docs/runbooks/job-runbook-template.md"
+        ).read_text(encoding="utf-8")
+        canary = (REPOSITORY_ROOT / "docs/runbooks/canary-job-runbook.md").read_text(
+            encoding="utf-8"
+        )
+        for requirement in (
+            "Deployment Identity",
+            "Cell ID",
+            "Cell contract/generation",
+            "EXPECTED",
+            "SUCCEEDED",
+            "FAILED",
+            "OVERDUE",
+            "MISSED",
+            "AMBIGUOUS",
+            "schedule-delivery",
+            "alert-routing",
+            "Cell-health",
+            "First query/output",
+            "Tested procedure evidence",
+            "direct `RunTask`",
+            "unresolved",
+            "Tabletop",
+            "reviewed source revision",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, template)
+        for requirement in (
+            "terraform output canary",
+            "non-production",
+            "operator role",
+            "`job_id`",
+            "`config_hash`",
+            "`schedule_arn`",
+            "`task_definition_arn`",
+            "`log_group_name`",
+            "`notification_sink_arn`",
+            "`scheduler_dlq_arn`",
+            "`ownership_generation`",
+            "SUCCEEDED",
+            "FAILED",
+            "OVERDUE",
+            "MISSED",
+            "AMBIGUOUS",
+            "marker",
+            "essential-container exit",
+            "source revision",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, canary)
+
+        for forbidden in (
+            "TODO",
+            "<account",
+            "<secret",
+            "secret_values",
+            "raw CONFIG",
+            "terraform show",
+            "terraform state",
+            "aws ecs run-task",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, canary)
+
+        for relative_path in (
+            "runbooks/job-runbook-template.md",
+            "runbooks/canary-job-runbook.md",
+            "runbooks/operator-commands.md",
+            "runbooks/cell-recovery.md",
+        ):
+            with self.subTest(relative_path=relative_path):
+                self.assertTrue((REPOSITORY_ROOT / "docs" / relative_path).is_file())
+
     def test_root_readme_preserves_context_and_documents_foundation_operation(
         self,
     ) -> None:
