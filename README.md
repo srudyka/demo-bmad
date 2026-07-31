@@ -1,5 +1,9 @@
 # demo-bmad
 
+## Scheduled Job Adoption
+
+Follow the ordered [scheduled-job adoption guide](docs/scheduled-job-adoption-guide.md): prerequisites, Cell discovery, reservation, IAM/network preparation, task integration, phase-one publication, acknowledgement, materialization, activation, verification, ownership handoff, and production promotion. The path is Scheduler → Cell → ECS, never direct Scheduler → ECS. Module interfaces live in [the job module](modules/ecs-scheduled-job/README.md) and [the Cell module](modules/ecs-scheduled-job-platform/README.md); operational procedures stay in [the runbooks](docs/runbooks/README.md).
+
 ## BMAD Customization
 
 Team-level BMAD overrides live in `_bmad/custom/`. The AWS Terraform

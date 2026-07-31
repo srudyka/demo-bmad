@@ -57,6 +57,8 @@ module "job" {
     routing_enabled           = true
   }
   secret_mode = "ecs-agent"
+  # Keep the fixture's log-retention decision explicit and non-production-safe.
+  log_retention_days = 30
   networking = {
     vpc_id              = "vpc-0123456789abcdef0"
     subnet_ids          = ["subnet-0123456789abcdef0"]

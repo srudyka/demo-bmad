@@ -99,6 +99,75 @@ class DocumentationContractTest(unittest.TestCase):
             with self.subTest(heading=heading):
                 self.assertIn(heading, contents)
 
+    def test_adoption_guide_preserves_cell_control_and_safe_operations(self) -> None:
+        contents = (
+            REPOSITORY_ROOT / "docs" / "scheduled-job-adoption-guide.md"
+        ).read_text(encoding="utf-8")
+        for requirement in (
+            "Scheduler → Cell → ECS",
+            "never target ECS directly",
+            "occurrence_id",
+            "never generates occurrence IDs",
+            "accepted Cell marker",
+            "zero essential-container exit",
+            "direct `RunTask`",
+            "two-phase",
+            "fail closed",
+            "moved` blocks",
+            "MATERIALIZED",
+            "never create a receipt",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, contents)
+
+    def test_adoption_guide_links_and_examples_remain_safe(self) -> None:
+        guide = REPOSITORY_ROOT / "docs" / "scheduled-job-adoption-guide.md"
+        contents = guide.read_text(encoding="utf-8")
+        for relative_path in (
+            "runbooks/README.md",
+            "runbooks/operator-commands.md",
+            "runbooks/cell-recovery.md",
+        ):
+            with self.subTest(relative_path=relative_path):
+                self.assertTrue((guide.parent / relative_path).is_file())
+                self.assertIn(relative_path, contents)
+
+        example = (
+            REPOSITORY_ROOT
+            / "modules"
+            / "ecs-scheduled-job"
+            / "examples"
+            / "basic"
+            / "main.tf"
+        ).read_text(encoding="utf-8")
+        for requirement in (
+            "@sha256:",
+            'secret_mode = "ecs-agent"',
+            "log_retention_days",
+            "completion_policy",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, example)
+        self.assertNotIn("secret_values", example)
+
+    def test_adoption_guide_has_canonical_completion_and_fail_closed_reference(
+        self,
+    ) -> None:
+        contents = (
+            REPOSITORY_ROOT / "docs" / "scheduled-job-adoption-guide.md"
+        ).read_text(encoding="utf-8")
+        for requirement in (
+            '"event":"start"',
+            '"event":"success"',
+            '"event":"failure"',
+            '"task_arn":"<platform-supplied>"',
+            '"error_reason":"sanitized_failure_code"',
+            "production_launch_checklist",
+            "Any unresolved value blocks launch",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, contents)
+
 
 if __name__ == "__main__":
     unittest.main()

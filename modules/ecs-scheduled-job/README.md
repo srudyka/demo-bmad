@@ -29,6 +29,11 @@ the private-network evidence shape with synthetic IDs; it does not contain
 credentials or secret values. A real plan must use trusted AWS evidence for
 the declared VPC, subnets, and existing security groups.
 
+Follow the repository [scheduled-job adoption guide](../../docs/scheduled-job-adoption-guide.md)
+for Cell discovery, reservation, acknowledgement, materialization, two-phase
+activation, and protected promotion. Its production reference is deliberately
+non-deployable: unresolved external checklist evidence blocks launch.
+
 ## Ownership And Assumptions
 
 The job root owns the three per-job roles and their inline policies. The Cell
@@ -37,6 +42,16 @@ and Cell Contract. This module consumes a published Cell Contract from SSM
 and never reads or changes the Cell root's Terraform state.
 
 ## Inputs And Outputs
+
+### Complete interface reference
+
+The authoritative, per-interface reference is maintained beside the module:
+[`variables.tf`](variables.tf) defines every input's Terraform type, default,
+validation, nullable/sensitive handling, operational purpose, and security
+boundary; [`outputs.tf`](outputs.tf) defines every output's type, sensitivity,
+and operator handoff. The [basic example](examples/basic) is the corresponding
+secret-free, backend-free consumer example. Required behavior never relies on
+Terraform state inspection.
 
 Inputs cover identity, immutable repository ownership, Cell discovery, ECS
 dependencies, the Cell permissions boundary and Process Manager role, the

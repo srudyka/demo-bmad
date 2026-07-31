@@ -8,6 +8,14 @@ Contract cutover, and never use routine destructive cleanup as recovery.
 Runtime, alarm, rerun, and incident procedures are introduced with the
 capabilities they operate.
 
+## Scheduled Job Adoption
+
+Use the [scheduled-job adoption guide](../scheduled-job-adoption-guide.md) for
+the application-engineer sequence. It links here instead of duplicating
+operational procedures: [operator commands](operator-commands.md) are the
+only approved path for reruns and commands, while
+[Cell recovery](cell-recovery.md) owns recovery authority and ordering.
+
 ## Occurrence Materializer Investigation
 
 The materializer is an independent UTC minute trigger, not the job scheduler.

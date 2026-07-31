@@ -49,6 +49,12 @@ fictitious structural value for `terraform validate`; a consuming root must
 supply an approved customer-managed KMS key ARN and environment-specific
 non-secret values.
 
+The [scheduled-job adoption guide](../../docs/scheduled-job-adoption-guide.md)
+is the application-facing entry point. It preserves this module's Cell
+ownership boundary and states that production promotion fails closed until
+protected workflow, isolated state, readiness, networking, alarm, and approval
+evidence is supplied.
+
 ## Ownership And Assumptions
 
 Platform Engineering owns this module, its state, the namespace registry, the
@@ -73,6 +79,15 @@ has the checked-in JCS-equivalent profile. Consumers validate its JSON Schema,
 Cell identity, supported ranges, and checksum before using published ARNs.
 
 ## Inputs And Outputs
+
+### Complete interface reference
+
+[`variables.tf`](variables.tf) is the per-input reference for type, default,
+validation, nullable/sensitive handling, operational purpose, and security
+boundary; [`outputs.tf`](outputs.tf) defines every output's type, sensitivity,
+and operator handoff. The [basic example](examples/basic) is backend-free and
+uses only synthetic/externally supplied values; it never requires state
+inspection.
 
 Required inputs:
 
