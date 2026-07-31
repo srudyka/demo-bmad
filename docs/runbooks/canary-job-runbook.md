@@ -22,6 +22,19 @@ Do not copy account identifiers, ARNs, CONFIG contents, or credentials into this
 
 ## Investigation
 
+## Schedule qualification evidence
+
+Schedule qualification is performed only in the disposable non-production Cell
+through the standard workflow. Record the release and Compatibility Package,
+Cell/account/Region, schedule generation, policy versions, test clock, and
+checksum-bound evidence manifest. Materialize the expectation horizon before
+enabling Scheduler delivery, then exercise malformed/DST/anchor/generation,
+delivery retry/DLQ, duplicate delivery, deadline, and twenty-window healthy
+cases. A passing schedule result does not satisfy launch, completion, security,
+or recovery readiness categories. Retain only sanitized evidence and delete
+disposable schedules, tasks, roles, logs, and expectations unless an explicit
+retention decision is recorded.
+
 Confirm the Cell acknowledgement matches the immutable CONFIG, Scheduler role,
 and `MATERIALIZED` horizon before any activation decision. Inspect the occurrence
 ledger through the approved operator role: `EXPECTED` is waiting, `STARTED` has

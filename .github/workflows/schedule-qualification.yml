@@ -1,0 +1,55 @@
+name: Qualify schedule delivery and expectations
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_artifact:
+        description: "Sanitized disposable-Cell qualification evidence artifact"
+        required: true
+        type: string
+      configuration_artifact:
+        description: "Pinned release/Cell qualification configuration artifact"
+        required: true
+        type: string
+      bindings_artifact:
+        description: "Trusted source/plan/Deployment Identity binding artifact"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    environment: schedule-qualification
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+      - name: Run credential-free contract qualification
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/qualification-venv
+        run: |
+          uv run --locked pytest tests/contract/test_contract_schedules.py tests/contract/test_schedule_qualification.py -q -p no:cacheprovider
+      - name: Project protected qualification evidence
+        run: |
+          test -f "${{ inputs.evidence_artifact }}"
+          test -f "${{ inputs.configuration_artifact }}"
+          test -f "${{ inputs.bindings_artifact }}"
+          python scripts/run_schedule_qualification.py \
+            --evidence "${{ inputs.evidence_artifact }}" \
+            --configuration "${{ inputs.configuration_artifact }}" \
+            --bindings "${{ inputs.bindings_artifact }}" \
+            --output "$RUNNER_TEMP/schedule-qualification-manifest.json"
+      - name: Publish sanitized qualification manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: schedule-qualification-manifest
+          path: ${{ runner.temp }}/schedule-qualification-manifest.json
+          retention-days: 14
