@@ -73,7 +73,7 @@ jobs:
           manifest_role="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
           printf 'AWS_REGION=%s\nTARGET_ROOT=%s\nAWS_ROLE_ARN=%s\n' "$manifest_region" "$manifest_root" "$manifest_role" >> "$GITHUB_ENV"
           export AWS_REGION="$manifest_region" TARGET_ROOT="$manifest_root"
-          for required in approval.json readiness.json apply-authorization.json caller.json authority.json github-claims.json cell-contract.json lock.json deployment-evidence.json approved.tfplan trusted-plan.json trusted-policy.json trusted-artifact-manifest.json bundle-manifest.json; do test -f "$RUNNER_TEMP/$required"; done
+          for required in approval.json readiness.json readiness-evidence.json apply-authorization.json caller.json authority.json github-claims.json cell-contract.json lock.json deployment-evidence.json approved.tfplan trusted-plan.json trusted-policy.json trusted-artifact-manifest.json bundle-manifest.json; do test -f "$RUNNER_TEMP/$required"; done
           python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$TARGET_MANIFEST" "$SOURCE_COMMIT" "$GITHUB_RUN_ID" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -93,10 +93,13 @@ jobs:
           root = Path(sys.argv[1])
           approval = json.loads((root / "approval.json").read_text())
           readiness = json.loads((root / "readiness.json").read_text())
+          readiness_evidence = json.loads((root / "readiness-evidence.json").read_text())
           auth = json.loads((root / "apply-authorization.json").read_text())
           if approval.get("approval_id") != "${{ inputs.approval_id }}": raise SystemExit("APPROVAL_ID")
           values = {
               "READINESS_SHA256": __import__("hashlib").sha256((root / "readiness.json").read_bytes()).hexdigest(),
+              "READINESS_EVIDENCE_SHA256": readiness_evidence["evidence_sha256"],
+              "READINESS_EVIDENCE_FILE_SHA256": __import__("hashlib").sha256((root / "readiness-evidence.json").read_bytes()).hexdigest(),
               "APPROVAL_ID": approval["approval_id"], "PHASE": approval["phase"],
               "GENERATION": approval["generation"], "JOB_ID": readiness["job_id"],
               "CONFIG_SHA256": readiness["config_sha256"], "SCHEDULE_GENERATION": readiness["schedule_generation"],
@@ -110,6 +113,7 @@ jobs:
             --manifest "$TARGET_MANIFEST" \
             --approval "$RUNNER_TEMP/approval.json" \
             --readiness "$RUNNER_TEMP/readiness.json" \
+            --readiness-evidence "$RUNNER_TEMP/readiness-evidence.json" \
             --authorization "$RUNNER_TEMP/apply-authorization.json" \
             --plan "$RUNNER_TEMP/approved.tfplan" \
             --caller "$RUNNER_TEMP/caller.json" \

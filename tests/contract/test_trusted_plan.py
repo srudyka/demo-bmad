@@ -638,6 +638,7 @@ def test_production_apply_workflow_requires_bundle_and_publishes_failure_evidenc
     for filename in (
         "approval.json",
         "readiness.json",
+        "readiness-evidence.json",
         "apply-authorization.json",
         "caller.json",
         "lock.json",
@@ -646,6 +647,12 @@ def test_production_apply_workflow_requires_bundle_and_publishes_failure_evidenc
     assert "actions/upload-artifact" in workflow
     assert "TARGET_MANIFEST" in workflow
     assert "get-caller-identity" in workflow
+
+    bundle_workflow = (
+        ROOT.parent / ".github" / "workflows" / "production-approval-bundle.yml"
+    ).read_text(encoding="utf-8")
+    assert "readiness-evidence.json" in bundle_workflow
+    assert "readiness_evidence_sha256" in bundle_workflow
 
 
 def test_bundle_assembly_fails_closed_when_evidence_is_incomplete(

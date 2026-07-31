@@ -129,6 +129,27 @@ def validate_readiness(
         raise TargetViolation("READINESS_TIMESTAMP")
 
 
+def validate_readiness_evidence(
+    envelope: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Validate the additive evidence envelope before exact-plan preflight."""
+    from scripts.readiness_gate import validate_evidence_envelope
+
+    summary = validate_evidence_envelope(envelope, expected, now=now)
+    if summary["status"] != "passed":
+        raise TargetViolation("READINESS_EVIDENCE_NOT_PASSED")
+    expected_checksum = expected.get("readiness_evidence_sha256")
+    if expected_checksum and summary["evidence_sha256"] != expected_checksum:
+        raise TargetViolation("READINESS_EVIDENCE_BINDING")
+    expected_file_checksum = expected.get("readiness_evidence_file_sha256")
+    if expected_file_checksum and not SHA256.fullmatch(str(expected_file_checksum)):
+        raise TargetViolation("READINESS_EVIDENCE_FILE_BINDING")
+    return summary
+
+
 def validate_approval(
     approval: Mapping[str, Any],
     expected: Mapping[str, Any],
@@ -380,6 +401,7 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--approval", type=Path, required=True)
     parser.add_argument("--readiness", type=Path, required=True)
+    parser.add_argument("--readiness-evidence", type=Path, required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--caller", type=Path, required=True)
@@ -411,6 +433,7 @@ def main() -> int:
         "target_manifest_sha256": manifest_sha256,
         "plan_sha256": plan_sha256,
         "readiness_sha256": os.environ["READINESS_SHA256"],
+        "readiness_evidence_sha256": os.environ["READINESS_EVIDENCE_SHA256"],
         "approval_id": os.environ["APPROVAL_ID"],
         "phase": os.environ["PHASE"],
         "generation": os.environ["GENERATION"],
@@ -434,6 +457,8 @@ def main() -> int:
     authority = json.loads(args.authority.read_text(encoding="utf-8"))
     claims = json.loads(args.github_claims.read_text(encoding="utf-8"))
     cell = json.loads(args.cell_contract.read_text(encoding="utf-8"))
+    expected["cell_version"] = cell.get("contract_version")
+    expected["policy_id"] = "production-readiness"
     lock = json.loads(args.lock.read_text(encoding="utf-8"))
     plan_json = json.loads(args.plan_json.read_text(encoding="utf-8"))
     bundle_manifest = json.loads(args.bundle_manifest.read_text(encoding="utf-8"))
@@ -486,6 +511,17 @@ def main() -> int:
         raise TargetViolation("POLICY_RESULT_BINDING")
     validate_approval(json.loads(args.approval.read_text(encoding="utf-8")), expected)
     validate_readiness(json.loads(args.readiness.read_text(encoding="utf-8")), expected)
+    expected_file_checksum = os.environ.get("READINESS_EVIDENCE_FILE_SHA256")
+    if (
+        expected_file_checksum
+        and hashlib.sha256(args.readiness_evidence.read_bytes()).hexdigest()
+        != expected_file_checksum
+    ):
+        raise TargetViolation("READINESS_EVIDENCE_FILE_BINDING")
+    expected["readiness_evidence_file_sha256"] = expected_file_checksum
+    validate_readiness_evidence(
+        json.loads(args.readiness_evidence.read_text(encoding="utf-8")), expected
+    )
     validate_apply_authorization(
         json.loads(args.authorization.read_text(encoding="utf-8")),
         expected,

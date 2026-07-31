@@ -80,6 +80,16 @@ are single-resource, single-plan records bound to the policy version, target,
 source revision, checksum, independent approver, compensating control, review
 date, signature, and expiry. Wildcards, reuse, stale bindings, and
 non-exemptible findings are rejected.
+
+The readiness evidence envelope is additive to the strict Story 3.5 decision.
+It must contain all required category items, exact source/workflow/target/plan/
+Cell/job/CONFIG/schedule/Deployment Identity bindings, tool and policy versions,
+timestamps, artifact checksums, sensitivity classification, and attributable
+attestations. Each blocked item includes a stable code, remediation, evidence
+owner, and resolution point. A changed binding, policy/schema version, item
+checksum, or expiry invalidates the decision and requires recomputation. Lower-
+environment or disposable-fixture evidence exercises the evaluator but cannot
+satisfy production provenance.
 Malformed plan changes, unknown catalog categories, empty production plans,
 unconditioned IAM delegation, wildcard IAM actions/resources, public IP
 assignment, mutable schedule state, and unregistered jobs fail closed before

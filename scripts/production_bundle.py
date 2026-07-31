@@ -25,6 +25,7 @@ FILES = (
     "trusted-artifact-manifest.json",
     "approval.json",
     "readiness.json",
+    "readiness-evidence.json",
     "apply-authorization.json",
     "caller.json",
     "authority.json",
@@ -75,6 +76,9 @@ def assemble_bundle(
         raise TargetViolation("BUNDLE_POLICY_BINDING")
     approval = json.loads((source / "approval.json").read_text(encoding="utf-8"))
     readiness = json.loads((source / "readiness.json").read_text(encoding="utf-8"))
+    readiness_evidence = json.loads(
+        (source / "readiness-evidence.json").read_text(encoding="utf-8")
+    )
     deployment_evidence = json.loads(
         (source / "deployment-evidence.json").read_text(encoding="utf-8")
     )
@@ -83,6 +87,9 @@ def assemble_bundle(
     )
     validate_approval(approval, expected, now=now)
     validate_readiness(readiness, expected, now=now)
+    from scripts.production_apply import validate_readiness_evidence
+
+    validate_readiness_evidence(readiness_evidence, expected, now=now)
     if (
         readiness.get("environment") == "production"
         and readiness.get("evidence_source") != "epic4"

@@ -37,7 +37,7 @@
       "migration",
       "deprecation"
     ],
-      "schema_count": 39
+      "schema_count": 40
   },
   "classification": "initial",
   "manifest_surface": {
@@ -73,5 +73,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "ec106dc1db6627bf176621e1de9bd3cdf585914c13e6571b5feca33c97892f3d"
+  "semantic_surface_sha256": "8adec6540620e0790ada73899de04618ddb3a6a8219183fa181b2e9c56a9fc91"
 }

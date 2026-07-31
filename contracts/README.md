@@ -16,6 +16,10 @@ inputs before side effects. Remote schema retrieval is prohibited.
 - `v1/schemas/production-approval.schema.json` and
   `v1/schemas/production-readiness-decision.schema.json` bind protected apply
   approvals and exact-generation readiness to the deployment plan.
+- `v1/schemas/readiness-evidence.schema.json` defines the separate, additive
+  evidence envelope for category results, tool versions, sensitivity,
+  attestations, bounded remediation, and freshness. It never replaces the
+  strict apply-facing readiness decision.
 - `v1/fixtures/` contains language-neutral positive and negative vectors.
 - `releases/` records immutable release snapshots.
 - `migrations/` contains the actionable note for each release.
@@ -94,6 +98,14 @@ Run the same credential-free command used by pull-request CI:
 
 Conformance tests use only checked-in data, perform no schema network retrieval,
 open no AWS session, and require no deployment-specific environment values.
+
+The readiness gate accepts only exact-generation evidence. Every item is bound
+to the repository/source, workflow run, target, plan, Cell, job, CONFIG,
+schedule generation, Deployment Identity, policy version, and artifact checksum.
+Missing categories, stale or contradictory items, fixture evidence in
+production, secrets/raw CONFIG, and free-form remediation fail closed. The gate
+publishes a sanitized summary; binary plans, credentials, and unrestricted logs
+remain in controlled protected artifacts only.
 
 ## Rollback
 

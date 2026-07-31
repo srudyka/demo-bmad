@@ -83,6 +83,25 @@ class DocumentationContractTest(unittest.TestCase):
             with self.subTest(relative_path=relative_path):
                 self.assertTrue((REPOSITORY_ROOT / "docs" / relative_path).is_file())
 
+    def test_readiness_gate_documentation_preserves_exact_apply_boundary(self) -> None:
+        contracts = (REPOSITORY_ROOT / "contracts" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        targets = (
+            REPOSITORY_ROOT / "docs" / "runbooks" / "deployment-targets.md"
+        ).read_text(encoding="utf-8")
+        contents = contracts + "\n" + targets
+        for requirement in (
+            "readiness evidence",
+            "exact-generation",
+            "Deployment Identity",
+            "disposable-fixture",
+            "recomputation",
+            "binary plans",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, contents)
+
     def test_root_readme_preserves_context_and_documents_foundation_operation(
         self,
     ) -> None:
