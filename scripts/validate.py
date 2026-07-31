@@ -224,7 +224,7 @@ def artifact_policy_check() -> None:
     )
     for workflow in metadata_files:
         contents = workflow.read_text(encoding="utf-8")
-        trusted_plan = workflow.name in {
+        trusted_workflow = workflow.name in {
             "trusted-plan.yml",
             "production-apply.yml",
             "production-approval-bundle.yml",
@@ -234,9 +234,10 @@ def artifact_policy_check() -> None:
             "migrate-platform-release.yml",
             "retire-platform-version.yml",
             "production-recovery.yml",
+            "schedule-qualification.yml",
         }
         violations = workflow_security_violations(contents)
-        if trusted_plan:
+        if trusted_workflow:
             violations = tuple(
                 violation
                 for violation in violations
@@ -260,7 +261,7 @@ def artifact_policy_check() -> None:
             raise ValidationFailure(
                 f"policy:artifact-safety prohibited trust-crossing output in {workflow.relative_to(REPOSITORY_ROOT)}"
             )
-        if not trusted_plan and re.search(r"(?m)^\s+environment:\s*", contents):
+        if not trusted_workflow and re.search(r"(?m)^\s+environment:\s*", contents):
             raise ValidationFailure(
                 f"policy:artifact-safety protected Environment in PR workflow {workflow.relative_to(REPOSITORY_ROOT)}"
             )

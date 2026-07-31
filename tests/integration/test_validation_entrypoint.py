@@ -13,6 +13,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ValidationEntrypointTest(unittest.TestCase):
+    def test_repository_workflows_satisfy_artifact_policy(self) -> None:
+        from scripts.validate import artifact_policy_check
+
+        artifact_policy_check()
+
     def test_shell_entrypoint_is_executable_and_delegates_to_typed_runner(self) -> None:
         entrypoint = REPOSITORY_ROOT / "scripts" / "validate.sh"
         self.assertTrue(entrypoint.is_file())
