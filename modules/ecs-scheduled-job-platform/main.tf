@@ -3748,9 +3748,6 @@ data "aws_iam_policy_document" "recovery_controller" {
       aws_lambda_function.occurrence_materializer.arn,
       aws_lambda_function.deadline_scanner.arn,
       aws_lambda_function.evidence_normalizer.arn,
-      aws_lambda_function.evidence_normalizer_ecs.arn,
-      aws_lambda_function.evidence_normalizer_deadline.arn,
-      aws_lambda_function.materializer_normalizer.arn,
     ]
   }
   statement {
@@ -4139,10 +4136,10 @@ resource "aws_lambda_function" "recovery_controller" {
       ])
       RECOVERY_REPLAY_FUNCTIONS = jsonencode([
         aws_lambda_function.evidence_normalizer.arn,
-        aws_lambda_function.evidence_normalizer_ecs.arn,
-        aws_lambda_function.evidence_normalizer_deadline.arn,
+        aws_lambda_function.evidence_normalizer.arn,
+        aws_lambda_function.evidence_normalizer.arn,
         aws_lambda_function.process_manager.arn,
-        aws_lambda_function.materializer_normalizer.arn,
+        aws_lambda_function.evidence_normalizer.arn,
         aws_lambda_function.alert_router.arn,
       ])
       RECOVERY_RECONCILIATION_FUNCTIONS = jsonencode([
