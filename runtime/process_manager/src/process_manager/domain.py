@@ -251,8 +251,6 @@ def reduce_deadline_state(
         if previous is not None and previous.get("digest") != item.get("digest"):
             return "AMBIGUOUS"
         deduplicated[key] = item
-    if current_state in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}:
-        return current_state
     facts = list(deduplicated.values())
     task_facts = [
         item for item in facts if item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"}
@@ -261,6 +259,20 @@ def reduce_deadline_state(
     completions = [item for item in facts if item.get("kind") == "COMPLETION"]
     if len(task_arns) > 1 or len(completions) > 1:
         return "AMBIGUOUS"
+    if current_state in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}:
+        # A late completion is non-authoritative once a deadline decision is
+        # committed, but contradictory terminal claims remain ambiguous.
+        if current_state == "SUCCEEDED" and any(
+            item.get("kind") == "COMPLETION" and item.get("marker_status") == "FAILURE"
+            for item in facts
+        ):
+            return "AMBIGUOUS"
+        if current_state == "FAILED" and any(
+            item.get("kind") == "COMPLETION" and item.get("marker_status") == "SUCCESS"
+            for item in facts
+        ):
+            return "AMBIGUOUS"
+        return current_state
     failure = any(
         item.get("kind") == "LAUNCH_FAILED"
         or (

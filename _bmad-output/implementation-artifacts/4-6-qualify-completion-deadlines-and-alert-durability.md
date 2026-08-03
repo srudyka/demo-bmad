@@ -2,13 +2,13 @@
 epic: 4
 story: 4.6
 title: Qualify Completion, Deadlines, and Alert Durability
-status: review
+status: done
 baseline_commit: 6cc79dd
 ---
 
 # Story 4.6: Qualify Completion, Deadlines, and Alert Durability
 
-Status: review
+Status: done
 
 ## Story
 
@@ -56,6 +56,20 @@ so that every production occurrence reaches a trustworthy result and actionable 
   - [x] Add executable fixtures for every completion, deadline, partial-batch, replay, outbox, notification, timing, healthy-window, and cleanup case; include mixed valid/poison/unauthorized batches and assert valid records progress while failed records are retried or quarantined.
   - [x] Project only the Story 4.6 readiness control IDs and retain unrelated launch/runtime, security, and recovery controls as blocked. Seal the final controls into the manifest digest.
   - [x] Update `docs/runbooks/canary-job-runbook.md` with reproducible qualification commands, completion/deadline investigation queries, alert-pipeline checks, replay/rerun boundaries, disable/rollback steps, ownership/escalation, and cleanup verification if behavior or operations change.
+
+### Review Findings
+
+- [x] [Review][Patch] Workflow inputs are not materialized or provenance-checked [`.github/workflows/completion-deadline-alert-qualification.yml:48-60`] — `workflow_dispatch` receives string paths, but the job neither downloads nor materializes the evidence, configuration, or bindings artifacts; the runner then requires files already inside `$GITHUB_WORKSPACE`, so the protected qualification cannot consume its required artifacts safely.
+- [x] [Review][Patch] Per-case completion expectations bypass trusted configuration [`scripts/completion_deadline_qualification.py:332-342`] — evidence can provide `case["expected"]` and redefine the job, occurrence, task, source, generation, or deployment binding; derive all expectations from authenticated configuration/bindings and reject caller overrides.
+- [x] [Review][Patch] Marker-without-zero-exit is accepted by the qualification runner [`scripts/completion_deadline_qualification.py:343-346`] — `classify_completion()` returns `AMBIGUOUS` when ECS zero-exit evidence is absent, but the validator discards that result and continues; assert the classification and require rejection/quarantine for this negative case.
+- [x] [Review][Patch] Completion qualification only accepts positive success-shaped cases [`scripts/completion_deadline_qualification.py:35-96,332-347`] — malformed, wrong-identity, failure-marker, marker-only, and replay/conflict cases cannot be represented as expected rejected/quarantined scenarios, so the required failure matrix is not actually exercised.
+- [x] [Review][Patch] Completion fact reduction can certify success without paired authoritative facts [`scripts/completion_deadline_qualification.py:133-156`] — any `SUCCESS` fact yields `SUCCEEDED`, unknown kinds silently become `STARTED`, and SUCCESS plus FAILURE is reduced to FAILED; require validated same-occurrence/task facts and make conflicting or unknown facts ambiguous/rejected.
+- [x] [Review][Patch] Terminal deadline states suppress conflicting evidence [`runtime/process_manager/src/process_manager/domain.py:247-263`] — `reduce_deadline_state()` returns the existing terminal state before evaluating conflicting task/completion/deadline facts, violating the requirement that conflicting claims become `AMBIGUOUS` while late valid evidence cannot erase the decision.
+- [x] [Review][Patch] Deadline scanner behavior is not qualified [`scripts/completion_deadline_qualification.py:159-182`] — the change only classifies supplied deadline cases; it does not exercise watermark, bounded lookback, deadline-bucket pagination, base-table verification, throttling, restart overlap, page boundaries, or sustained lag required by AC 5/6/9.
+- [x] [Review][Patch] Durable outbox and alert-pipeline health are asserted from caller result strings [`scripts/completion_deadline_qualification.py:296-324`] — `alert-pipeline: passed` is trusted without validating transactional outbox/notification-ledger behavior, retries, reconciliation, age/consecutive-failure thresholds, or the independent Cell alarm.
+- [x] [Review][Patch] Alert evidence is optional and does not validate the normative alert contract [`scripts/completion_deadline_qualification.py:210-251,367-370`] — an empty alert list passes, and required schema fields such as account, Region, environment, notification target, operator-safe reason, and state/failure-plane enums are not checked.
+- [x] [Review][Patch] Cleanup proof does not require explicit deleted inventories or forbidden-artifact checks [`scripts/completion_deadline_qualification.py:375`, `scripts/ecs_qualification.py:525-549`] — subset/count validation can pass without proving state files, plans, credentials, secrets, raw payloads, or production identifiers were absent, contrary to AC 11.
+- [x] [Review][Patch] Readiness projection collapses seven Story 4.6 controls into one category [`scripts/completion_deadline_qualification.py:308-324`] — the manifest verifies seven internal result keys but returns only `completion-alerts: passed`, so the required individual completion/deadline/alert/timing/healthy control IDs are not preserved in readiness evidence.
 
 ## Dev Notes
 
@@ -198,6 +212,7 @@ Codex (GPT-5)
 - Added the Story 4.6 qualification primitives, protected workflow, completion boundary checks, deadline classifications, partial-batch behavior, alert durability/timing checks, healthy-window checks, and readiness projection.
 - Preserved fail-closed cleanup and readiness blocking for launch-runtime, security, and recovery categories.
 - Validation: `./scripts/validate.sh`; `380 passed, 364 subtests passed`; Ruff and mypy passed.
+- Applied all 11 review patches: protected artifact downloads, trusted configuration bindings, negative completion matrix, strict fact/deadline/alert/scanner/pipeline/cleanup evidence, and per-control readiness projection.
 
 ### File List
 
@@ -216,3 +231,4 @@ Codex (GPT-5)
 
 - 2026-08-03: Created comprehensive implementation-ready context for Story 4.6.
 - 2026-08-03: Implemented completion, deadline, alert durability, cleanup, and readiness qualification coverage; moved story to review.
+- 2026-08-03: Applied adversarial code-review patches and moved the story to done.

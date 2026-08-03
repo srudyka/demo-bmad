@@ -83,7 +83,14 @@ def test_completion_needs_ecs_zero_exit_and_does_not_accept_late_success() -> No
 
 
 def test_completion_fact_reducer_is_idempotent_and_conflict_safe() -> None:
-    fact = {"fact_id": "f" * 64, "digest": "1" * 64, "kind": "SUCCESS"}
+    fact = {
+        "fact_id": "f" * 64,
+        "digest": "1" * 64,
+        "kind": "SUCCESS",
+        "occurrence_id": OCCURRENCE,
+        "task_arn": TASK,
+        "ecs_zero_exit": True,
+    }
     assert reduce_completion_facts([fact, fact])["state"] == "SUCCEEDED"
     conflict = {**fact, "digest": "2" * 64}
     assert reduce_completion_facts([fact, conflict])["state"] == "AMBIGUOUS"
@@ -139,6 +146,12 @@ def test_alert_delivery_requires_deduplication_and_five_minute_bound() -> None:
         "route": "sns",
         "runbook_uri": "https://example.invalid/runbook",
         "deployment_identity_id": DEPLOYMENT,
+        "schema_version": "1.0.0",
+        "account_id": "111111111111",
+        "region": "us-east-1",
+        "environment": "dev",
+        "notification_target_arn": "arn:aws:sns:us-east-1:111111111111:canary",
+        "operator_safe_reason": "deadline exceeded",
     }
     assert qualify_alert_delivery([alert])["passed"] is True
     with pytest.raises(QualificationError, match="ALERT_DEDUPLICATION"):
@@ -157,6 +170,11 @@ def test_healthy_completion_requires_twenty_exact_occurrence_windows() -> None:
             "failure_alerts": 0,
             "cell_health_alerts": 0,
             "window_index": index,
+            "accepted_task_arns": [TASK[:-32] + f"{index:032x}"],
+            "zero_exit_task_arns": [TASK[:-32] + f"{index:032x}"],
+            "success_marker_ids": [f"01933f4e-7b2d-7{index:02x}-8def-0123456789ab"],
+            "failure_alert_ids": [],
+            "cell_health_alert_ids": [],
         }
         for index in range(20)
     ]
@@ -179,3 +197,36 @@ def test_completion_projection_requires_sealed_manifest_and_exact_results() -> N
     }
     with pytest.raises(QualificationError, match="MANIFEST_DIGEST"):
         completion_deadline_projection(manifest, results, {"x": "y"})
+
+
+def test_alerts_and_scanner_require_structured_evidence() -> None:
+    with pytest.raises(QualificationError, match="ALERT_REQUIRED"):
+        qualify_alert_delivery([])
+
+
+def test_completion_facts_reject_unknown_or_unpaired_success() -> None:
+    with pytest.raises(QualificationError, match="COMPLETION_KIND"):
+        reduce_completion_facts(
+            [
+                {
+                    "fact_id": "f" * 64,
+                    "digest": "1" * 64,
+                    "kind": "BOGUS",
+                    "occurrence_id": OCCURRENCE,
+                    "task_arn": TASK,
+                }
+            ]
+        )
+    with pytest.raises(QualificationError, match="COMPLETION_RUNTIME_INPUT"):
+        reduce_completion_facts(
+            [
+                {
+                    "fact_id": "f" * 64,
+                    "digest": "1" * 64,
+                    "kind": "SUCCESS",
+                    "occurrence_id": OCCURRENCE,
+                    "task_arn": TASK,
+                    "ecs_zero_exit": False,
+                }
+            ]
+        )

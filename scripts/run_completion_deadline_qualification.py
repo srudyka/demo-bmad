@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from scripts.completion_deadline_qualification import (
+    QualificationError,
     completion_deadline_projection,
     validate_completion_qualification_evidence,
 )
@@ -33,6 +35,33 @@ def _object(path: Path, root: Path) -> dict[str, Any]:
     return value
 
 
+def _validate_configuration(configuration: dict[str, Any]) -> None:
+    required = {
+        "release_version",
+        "compatibility_package",
+        "account_id",
+        "region",
+        "cell_identity",
+        "task_definition_arn",
+        "deployment_identity_id",
+        "injected_fault",
+        "expected_result",
+        "test_configuration",
+        "policy_versions",
+        "expected_completion",
+        "source_commit",
+    }
+    if not required.issubset(configuration):
+        raise QualificationError("CONFIGURATION_INVALID")
+    if configuration["source_commit"] != os.environ.get(
+        "GITHUB_SHA", configuration["source_commit"]
+    ):
+        raise QualificationError("CONFIGURATION_SOURCE_COMMIT")
+    for key in ("test_configuration", "policy_versions", "expected_completion"):
+        if not isinstance(configuration[key], dict):
+            raise QualificationError("CONFIGURATION_INVALID")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--evidence", type=Path, required=True)
@@ -44,8 +73,9 @@ def main() -> int:
     evidence = _object(args.evidence, args.artifact_root)
     bindings = _object(args.bindings, args.artifact_root)
     configuration = _object(args.configuration, args.artifact_root)
+    _validate_configuration(configuration)
     validate_qualification_evidence(evidence, configuration)
-    validate_completion_qualification_evidence(evidence, configuration)
+    results = validate_completion_qualification_evidence(evidence, configuration)
     manifest = build_launch_runtime_manifest(
         release_version=str(configuration["release_version"]),
         compatibility_package=str(configuration["compatibility_package"]),
@@ -61,7 +91,9 @@ def main() -> int:
         evidence=evidence,
         bindings=bindings,
     )
-    controls = completion_deadline_projection(manifest, evidence["results"], bindings)
+    if evidence.get("results") != results:
+        raise QualificationError("QUALIFICATION_RESULTS_UNSEALED")
+    controls = completion_deadline_projection(manifest, results, bindings)
     sealed = seal_launch_runtime_manifest(manifest, controls)
     args.output.write_text(json.dumps(sealed, sort_keys=True) + "\n", encoding="utf-8")
     return 0

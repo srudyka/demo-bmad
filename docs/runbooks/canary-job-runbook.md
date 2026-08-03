@@ -82,8 +82,10 @@ qualification stories pass.
 
 Run `.github/workflows/completion-deadline-alert-qualification.yml` only after
 launch/runtime qualification, using the same immutable release candidate and a
-disposable non-production Cell. Supply sanitized evidence, pinned
-configuration, and trusted bindings. The credential-free projection is:
+disposable non-production Cell. Supply the completed protected workflow run ID
+and artifact names containing exactly `evidence.json`, `configuration.json`,
+and `bindings.json`; the workflow downloads those artifacts and verifies the
+signed evidence before projection. The credential-free projection is:
 
 ```text
 python scripts/run_completion_deadline_qualification.py \

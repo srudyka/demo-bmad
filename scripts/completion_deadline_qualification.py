@@ -134,6 +134,7 @@ def reduce_completion_facts(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any
     """Deduplicate immutable completion facts and reject same-ID conflicts."""
 
     unique: dict[str, Mapping[str, Any]] = {}
+    allowed_kinds = {"STARTED", "SUCCESS", "FAILURE", "CONFLICT"}
     for fact in facts:
         if not isinstance(fact, Mapping) or not SHA256.fullmatch(
             str(fact.get("fact_id", ""))
@@ -142,13 +143,23 @@ def reduce_completion_facts(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any
         digest = fact.get("digest")
         if not SHA256.fullmatch(str(digest or "")):
             raise QualificationError("COMPLETION_FACT")
+        if fact.get("kind") not in allowed_kinds:
+            raise QualificationError("COMPLETION_KIND")
+        if not SHA256.fullmatch(str(fact.get("occurrence_id", ""))):
+            raise QualificationError("COMPLETION_FACT")
+        if not isinstance(fact.get("task_arn"), str):
+            raise QualificationError("COMPLETION_FACT")
+        if fact.get("kind") == "SUCCESS" and fact.get("ecs_zero_exit") is not True:
+            raise QualificationError("COMPLETION_RUNTIME_INPUT")
         previous = unique.get(str(fact["fact_id"]))
         if previous is not None and previous.get("digest") != digest:
             return {"state": "AMBIGUOUS", "facts": len(unique)}
         unique[str(fact["fact_id"])] = fact
     kinds = {str(item.get("kind")) for item in unique.values()}
-    if "FAILURE" in kinds or "CONFLICT" in kinds:
-        state = "FAILED" if "CONFLICT" not in kinds else "AMBIGUOUS"
+    if "CONFLICT" in kinds or {"SUCCESS", "FAILURE"}.issubset(kinds):
+        state = "AMBIGUOUS"
+    elif "FAILURE" in kinds:
+        state = "FAILED"
     elif "SUCCESS" in kinds:
         state = "SUCCEEDED"
     else:
@@ -210,6 +221,8 @@ def qualify_partial_batch(records: Sequence[Mapping[str, Any]]) -> dict[str, Any
 def qualify_alert_delivery(alerts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Require unique, operator-actionable alert receipts within five minutes."""
 
+    if not alerts:
+        raise QualificationError("ALERT_REQUIRED")
     seen: set[str] = set()
     for alert in alerts:
         if not isinstance(alert, Mapping):
@@ -227,6 +240,12 @@ def qualify_alert_delivery(alerts: Sequence[Mapping[str, Any]]) -> dict[str, Any
             "route",
             "runbook_uri",
             "deployment_identity_id",
+            "schema_version",
+            "account_id",
+            "region",
+            "environment",
+            "notification_target_arn",
+            "operator_safe_reason",
         }
         if not required.issubset(alert):
             raise QualificationError("ALERT")
@@ -236,6 +255,34 @@ def qualify_alert_delivery(alerts: Sequence[Mapping[str, Any]]) -> dict[str, Any
         seen.add(dedup)
         if alert["alert_id"] != dedup or not SHA256.fullmatch(dedup):
             raise QualificationError("ALERT_IDENTITY")
+        if alert["schema_version"] != "1.0.0":
+            raise QualificationError("ALERT_SCHEMA")
+        if alert["state"] not in {"FAILED", "OVERDUE", "MISSED", "AMBIGUOUS"}:
+            raise QualificationError("ALERT_SCHEMA")
+        if alert["failure_plane"] not in {
+            "SCHEDULE",
+            "INGRESS",
+            "LAUNCH",
+            "TASK",
+            "COMPLETION",
+            "DEADLINE",
+            "ALERT_DELIVERY",
+            "CELL",
+        }:
+            raise QualificationError("ALERT_SCHEMA")
+        if not re.fullmatch(r"[0-9]{12}", str(alert["account_id"])):
+            raise QualificationError("ALERT_SCHEMA")
+        if not re.fullmatch(
+            r"[a-z]{2}(?:-gov|-iso)?-[a-z]+-[0-9]", str(alert["region"])
+        ):
+            raise QualificationError("ALERT_SCHEMA")
+        if not isinstance(alert["environment"], str) or not alert["environment"]:
+            raise QualificationError("ALERT_SCHEMA")
+        if not isinstance(alert["notification_target_arn"], str) or not alert[
+            "notification_target_arn"
+        ].startswith("arn:"):
+            raise QualificationError("ALERT_SCHEMA")
+        _require_string(alert["operator_safe_reason"], "ALERT_METADATA", maximum=2048)
         if not SHA256.fullmatch(str(alert["occurrence_id"])) or not SHA256.fullmatch(
             str(alert["deployment_identity_id"])
         ):
@@ -249,6 +296,65 @@ def qualify_alert_delivery(alerts: Sequence[Mapping[str, Any]]) -> dict[str, Any
         if not str(alert["runbook_uri"]).startswith("https://"):
             raise QualificationError("ALERT_METADATA")
     return {"alerts": len(alerts), "passed": True, "max_latency_seconds": 300}
+
+
+def qualify_deadline_scanner(scanner: Mapping[str, Any]) -> dict[str, Any]:
+    """Require bounded, restart-safe scanner observations."""
+
+    required = {
+        "watermark_before",
+        "watermark_after",
+        "bounded_lookback_seconds",
+        "deadline_bucket_pages",
+        "base_table_verified",
+        "throttle_retried",
+        "restart_replayed_overlap",
+        "sustained_lag_seconds",
+    }
+    if not isinstance(scanner, Mapping) or not required.issubset(scanner):
+        raise QualificationError("DEADLINE_SCANNER")
+    for key in ("watermark_before", "watermark_after"):
+        _parse(scanner[key], "DEADLINE_SCANNER_TIMESTAMP")
+    if (
+        type(scanner["bounded_lookback_seconds"]) is not int
+        or scanner["bounded_lookback_seconds"] <= 0
+        or type(scanner["deadline_bucket_pages"]) is not int
+        or scanner["deadline_bucket_pages"] < 1
+        or type(scanner["sustained_lag_seconds"]) is not int
+        or scanner["sustained_lag_seconds"] < 0
+        or scanner["sustained_lag_seconds"] > 300
+        or scanner["base_table_verified"] is not True
+        or scanner["throttle_retried"] is not True
+        or scanner["restart_replayed_overlap"] is not True
+    ):
+        raise QualificationError("DEADLINE_SCANNER")
+    return {"passed": True}
+
+
+def qualify_alert_pipeline(pipeline: Mapping[str, Any]) -> dict[str, Any]:
+    """Require durable outbox, notification, retry, and Cell-health observations."""
+
+    required_true = {
+        "state_outbox_atomic",
+        "duplicate_obligations_suppressed",
+        "router_retry_observed",
+        "notification_ledger_conflict_reconciled",
+        "replay_idempotent",
+        "cell_alarm_healthy",
+        "disposition_history_complete",
+    }
+    if not isinstance(pipeline, Mapping) or any(
+        pipeline.get(key) is not True for key in required_true
+    ):
+        raise QualificationError("ALERT_PIPELINE")
+    if (
+        type(pipeline.get("max_delivery_age_seconds")) is not int
+        or pipeline["max_delivery_age_seconds"] > 300
+        or type(pipeline.get("consecutive_failure_threshold")) is not int
+        or pipeline["consecutive_failure_threshold"] < 1
+    ):
+        raise QualificationError("ALERT_PIPELINE")
+    return {"passed": True}
 
 
 def qualify_healthy_completions(cases: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -282,6 +388,34 @@ def qualify_healthy_completions(cases: Sequence[Mapping[str, Any]]) -> dict[str,
         ):
             if type(case.get(key)) is not int:
                 raise QualificationError("HEALTHY_COMPLETIONS")
+        for key in (
+            "accepted_task_arns",
+            "zero_exit_task_arns",
+            "success_marker_ids",
+            "failure_alert_ids",
+            "cell_health_alert_ids",
+        ):
+            if not isinstance(case.get(key), list):
+                raise QualificationError("HEALTHY_COMPLETIONS")
+        if (
+            len(case["accepted_task_arns"]) != 1
+            or len(case["zero_exit_task_arns"]) != 1
+            or len(case["success_marker_ids"]) != 1
+            or len(case["failure_alert_ids"]) != 0
+            or len(case["cell_health_alert_ids"]) != 0
+            or case["accepted_task_arns"][0] != case["task_arn"]
+            or case["zero_exit_task_arns"][0] != case["task_arn"]
+        ):
+            raise QualificationError("HEALTHY_COMPLETIONS")
+        if not all(
+            isinstance(marker, str)
+            and re.fullmatch(
+                r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{2}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                marker,
+            )
+            for marker in case["success_marker_ids"]
+        ):
+            raise QualificationError("HEALTHY_COMPLETIONS")
         if (
             case["accepted_task_count"] != 1
             or case["zero_exit_count"] != 1
@@ -314,11 +448,19 @@ def completion_deadline_projection(
         "alert-timing",
         "healthy-completions",
     }
-    if any(results.get(key) != "passed" for key in required):
+    if set(results) != required or any(
+        results.get(key) != "passed" for key in required
+    ):
         raise QualificationError("QUALIFICATION_RESULTS")
     return {
         "launch-runtime": "blocked",
-        "completion-alerts": "passed",
+        "completion-correlation": "passed",
+        "deadline-processing": "passed",
+        "missed-overdue": "passed",
+        "durable-alerting": "passed",
+        "alert-pipeline": "passed",
+        "alert-timing": "passed",
+        "healthy-completions": "passed",
         "security": "blocked",
         "recovery": "blocked",
     }
@@ -326,25 +468,57 @@ def completion_deadline_projection(
 
 def validate_completion_qualification_evidence(
     evidence: Mapping[str, Any], configuration: Mapping[str, Any]
-) -> None:
+) -> dict[str, str]:
     """Validate every completion/deadline/alert evidence plane before projection."""
 
     completions = evidence.get("completion_cases")
     if not isinstance(completions, list) or not completions:
         raise QualificationError("COMPLETION_CASES")
+    required_case_ids = {
+        "success",
+        "marker-without-zero-exit",
+        "zero-exit-without-marker",
+        "wrong-occurrence",
+        "unknown-occurrence",
+        "cross-generation",
+        "malformed-timestamp",
+        "duplicate-replay",
+        "conflicting-completion",
+    }
+    case_ids = {
+        case.get("case_id") for case in completions if isinstance(case, Mapping)
+    }
+    if case_ids != required_case_ids:
+        raise QualificationError("COMPLETION_CASE_MATRIX")
     for case in completions:
         if not isinstance(case, Mapping):
             raise QualificationError("COMPLETION_CASES")
-        expected = case.get("expected", configuration.get("expected_completion"))
-        event = case.get("event")
-        if not isinstance(expected, Mapping) or not isinstance(event, Mapping):
-            raise QualificationError("COMPLETION_CASES")
-        valid = validate_completion_evidence(event, expected)
-        classify_completion(
-            valid,
-            ecs_zero_exit=case.get("ecs_zero_exit") is True,
-            deadline_at=case.get("deadline_at"),
-        )
+        case_id = case.get("case_id")
+        if case_id == "success":
+            event = case.get("event")
+            expected = configuration.get("expected_completion")
+            facts = case.get("facts")
+            if not isinstance(expected, Mapping) or not isinstance(event, Mapping):
+                raise QualificationError("COMPLETION_CASES")
+            valid = validate_completion_evidence(event, expected)
+            classified = classify_completion(
+                valid,
+                ecs_zero_exit=case.get("ecs_zero_exit") is True,
+                deadline_at=case.get("deadline_at"),
+            )
+            if classified["state"] != "SUCCEEDED":
+                raise QualificationError("COMPLETION_CASE_RESULT")
+            if (
+                not isinstance(facts, list)
+                or reduce_completion_facts(facts)["state"] != "SUCCEEDED"
+            ):
+                raise QualificationError("COMPLETION_FACTS")
+        else:
+            if case.get("disposition") not in {
+                "REJECTED",
+                "QUARANTINED",
+            } or not _require_string(case.get("error_code"), "COMPLETION_CASES"):
+                raise QualificationError("COMPLETION_CASES")
     deadlines = evidence.get("deadline_cases")
     if not isinstance(deadlines, list) or not deadlines:
         raise QualificationError("DEADLINE_CASES")
@@ -361,15 +535,45 @@ def validate_completion_qualification_evidence(
             deadline_at=deadline_at,
         )
     batch = evidence.get("partial_batch")
-    if not isinstance(batch, list):
+    if not isinstance(batch, list) or not batch:
         raise QualificationError("BATCH")
     qualify_partial_batch(batch)
     alerts = evidence.get("alerts")
     if not isinstance(alerts, list):
         raise QualificationError("ALERT")
     qualify_alert_delivery(alerts)
+    qualify_alert_pipeline(evidence.get("alert_pipeline", {}))
+    qualify_deadline_scanner(evidence.get("deadline_scanner", {}))
     healthy = evidence.get("healthy_cases")
     if not isinstance(healthy, list):
         raise QualificationError("HEALTHY_COMPLETIONS")
     qualify_healthy_completions(healthy)
-    validate_cleanup_evidence(evidence.get("cleanup", {}))
+    cleanup = evidence.get("cleanup", {})
+    validate_cleanup_evidence(cleanup)
+    if not isinstance(cleanup, Mapping):
+        raise QualificationError("CLEANUP")
+    deleted = cleanup.get("deleted_resources")
+    forbidden = cleanup.get("forbidden_artifacts")
+    resources = cleanup.get("resources")
+    retained = cleanup.get("retained_evidence")
+    if (
+        not isinstance(deleted, list)
+        or not isinstance(forbidden, list)
+        or forbidden
+        or not isinstance(resources, list)
+        or not isinstance(retained, list)
+        or set(deleted) != set(resources) - set(retained)
+    ):
+        raise QualificationError("CLEANUP_INVENTORY")
+    return {
+        key: "passed"
+        for key in (
+            "completion-correlation",
+            "deadline-processing",
+            "missed-overdue",
+            "durable-alerting",
+            "alert-pipeline",
+            "alert-timing",
+            "healthy-completions",
+        )
+    }

@@ -98,7 +98,7 @@ development_status:
   4-3-automate-the-production-readiness-gate: done
   4-4-qualify-schedule-delivery-and-expectations: done
   4-5-qualify-ecs-launch-and-runtime-failures: done
-  4-6-qualify-completion-deadlines-and-alert-durability: review
+  4-6-qualify-completion-deadlines-and-alert-durability: done
   4-7-prove-security-and-delivery-boundaries: backlog
   4-8-rehearse-job-and-cell-recovery: backlog
   4-9-automate-pilot-measurement-and-evidence-packaging: backlog
