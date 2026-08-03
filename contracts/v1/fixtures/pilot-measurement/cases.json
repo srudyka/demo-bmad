@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {"name": "complete-comparable", "expected_status": "MEASURED"},
+    {"name": "missing-baseline", "expected_status": "UNKNOWN"},
+    {"name": "incomplete-event-window", "expected_status": "INCOMPLETE"},
+    {"name": "contradictory-timestamps", "expected_error": "PILOT_EFFORT_OVERLAP"},
+    {"name": "duplicate-sample", "expected_error": "PILOT_DUPLICATE_SAMPLE"},
+    {"name": "stale-outside-window", "expected_error": "PILOT_SAMPLE_OUTSIDE_WINDOW"},
+    {"name": "complexity-mismatch", "expected_status": "NOT_COMPARABLE"},
+    {"name": "governed-exception", "expected_status": "MEASURED"},
+    {"name": "unresolved-control", "expected_error": "PILOT_CONTROL_NOT_PASSED"},
+    {"name": "sensitive-artifact", "expected_error": "PILOT_FORBIDDEN_ARTIFACT"},
+    {"name": "qualitative-only", "expected_status": "MEASURED"},
+    {"name": "deterministic-regeneration", "expected_status": "MEASURED"}
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-evidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pilot Measurement Evidence Package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["package_version", "samples"],
+  "properties": {
+    "package_version": {"const": "1.0.0"},
+    "samples": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/sample"}}
+  },
+  "$defs": {
+    "sample": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sample_id", "sample_kind", "repository", "source_revision", "job_id", "owner", "risk_class", "complexity_class", "environment", "account_id", "region", "module_version", "workflow_version", "window_start", "window_end", "approval_record_sha256", "events", "effort_intervals", "review_cycles", "failed_checks", "manual_interventions", "findings", "controls", "reliability", "qualitative", "source_refs"],
+      "properties": {
+        "sample_id": {"type": "string", "minLength": 1}, "sample_kind": {"enum": ["baseline", "pilot"]},
+        "repository": {"type": "string", "minLength": 1}, "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "job_id": {"type": "string", "minLength": 1}, "owner": {"type": "string", "minLength": 1},
+        "risk_class": {"type": "string", "minLength": 1}, "complexity_class": {"type": "string", "minLength": 1},
+        "environment": {"type": "string", "minLength": 1}, "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "region": {"type": "string", "minLength": 1}, "module_version": {"type": "string", "minLength": 1}, "workflow_version": {"type": "string", "minLength": 1},
+        "window_start": {"type": "string", "format": "date-time"}, "window_end": {"type": "string", "format": "date-time"},
+        "approval_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "events": {"type": "array", "items": {"$ref": "#/$defs/event"}}, "effort_intervals": {"type": "array", "items": {"$ref": "#/$defs/effort"}},
+        "review_cycles": {"type": "integer", "minimum": 0}, "failed_checks": {"type": "integer", "minimum": 0}, "manual_interventions": {"type": "integer", "minimum": 0},
+        "findings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["finding_id", "category", "disposition"], "properties": {"finding_id": {"type": "string"}, "category": {"type": "string"}, "disposition": {"enum": ["prevented", "review-found", "exception", "reopened", "unresolved"]}}}},
+        "controls": {"type": "array", "items": {"$ref": "#/$defs/control"}}, "reliability": {"type": "object"},
+        "qualitative": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["finding_code", "role", "collected_at"], "properties": {"finding_code": {"type": "string"}, "role": {"type": "string"}, "collected_at": {"type": "string", "format": "date-time"}}}},
+        "source_refs": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+        "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "target_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "schedule_generation": {"type": "integer", "minimum": 0}
+      }
+    },
+    "event": {"type": "object", "additionalProperties": false, "required": ["event_id", "kind", "at"], "properties": {"event_id": {"type": "string"}, "kind": {"type": "string"}, "at": {"type": "string", "format": "date-time"}}},
+    "effort": {"type": "object", "additionalProperties": false, "required": ["interval_id", "category", "start", "end"], "properties": {"interval_id": {"type": "string"}, "category": {"type": "string"}, "start": {"type": "string", "format": "date-time"}, "end": {"type": "string", "format": "date-time"}}},
+    "control": {"type": "object", "additionalProperties": false, "required": ["control_id", "generation", "result", "readiness_evidence_sha256", "source_ref_id"], "properties": {"control_id": {"type": "string"}, "generation": {"type": "string"}, "result": {"enum": ["passed"]}, "readiness_evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "source_ref_id": {"type": "string"}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["source_id", "kind", "locator", "sha256", "sensitivity", "redacted", "provenance"], "properties": {"source_id": {"type": "string"}, "kind": {"type": "string"}, "locator": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "sensitivity": {"type": "string"}, "redacted": {"const": true}, "provenance": {"type": "object", "additionalProperties": false, "required": ["repository", "source_revision", "owner", "job_id", "workflow_run_id", "account_id", "region", "environment", "window_start", "window_end", "deployment_identity_sha256", "target_manifest_sha256", "config_sha256", "schedule_generation"], "properties": {"repository": {"type": "string"}, "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "owner": {"type": "string"}, "job_id": {"type": "string"}, "workflow_run_id": {"type": "string"}, "account_id": {"type": "string", "pattern": "^[0-9]{12}$"}, "region": {"type": "string"}, "environment": {"type": "string"}, "window_start": {"type": "string", "format": "date-time"}, "window_end": {"type": "string", "format": "date-time"}, "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "target_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "schedule_generation": {"type": "integer", "minimum": 0}}}}
+    }
+  }
+}
