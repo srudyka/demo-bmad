@@ -45,6 +45,39 @@ deadline, and `OVERDUE` has no accepted completion by the completion deadline.
 CONFIG, stale CONFIG, or mismatched generations remain non-authoritative and
 must be reconciled without terminal overwrite.
 
+## ECS launch and runtime qualification
+
+Run ECS qualification only after schedule qualification passes, using the same
+release candidate and an isolated disposable non-production Cell. The protected
+workflow is `.github/workflows/ecs-launch-runtime-qualification.yml`; it accepts
+sanitized evidence, configuration, and trusted binding artifacts and publishes
+only a checksum-bound manifest. The credential-free contract runner is:
+
+```text
+python scripts/run_ecs_qualification.py \
+  --evidence <sanitized-evidence.json> \
+  --configuration <pinned-configuration.json> \
+  --bindings <trusted-bindings.json> \
+  --output <launch-runtime-manifest.json>
+```
+
+Qualify API failure or `RunTask` `failures[]`, response-loss reconciliation,
+task-start failures, non-zero or externally stopped tasks, over-runtime
+detection, duplicate/foreign evidence, alert timing, and twenty healthy
+launch/runtime cases. A zero exit records runtime evidence but does not satisfy
+completion without the separate occurrence-bound marker. Inspect task ARN,
+`stopCode`, sanitized reason/error code, timestamps, task tags, owner, failure
+plane, and Cell/job routing; never copy secrets or brittle free-form error text
+into evidence.
+
+On abort, disable launch first, remove injected faults and disposable resources,
+and retain only the sanitized immutable evidence explicitly listed in the
+manifest. An unresolved launch response or conflicting task identity is
+`AMBIGUOUS` and must not be retried blindly. The qualification manifest may mark
+only launch/runtime, reconciliation, timing, and healthy-run controls passed;
+completion, security, and recovery remain blocked until their dedicated
+qualification stories pass.
+
 ## Response
 
 For a failure, classify the eight alert planes using the mapping in the [job

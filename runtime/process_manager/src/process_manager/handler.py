@@ -23,7 +23,7 @@ from .domain import (
     prepare_launch,
     prepare_manual_rerun,
 )
-from .launch import LaunchUncertain, reconcile_task, run_task
+from .launch import LaunchUncertain, launch_retry_allowed, reconcile_task, run_task
 from .ledger import Ledger, plain_item
 
 LOGGER = logging.getLogger(__name__)
@@ -660,6 +660,22 @@ def _launch_attempt(
     _sts, ecs = _launch_clients(str(attempt["launch_role_arn"]))
     task_arn: str | None = None
     try:
+        retry_allowed = launch_retry_allowed(attempt, now)
+    except LaunchUncertain as error:
+        ledger.mark_ambiguous(attempt, str(error))
+        return
+    if not retry_allowed:
+        try:
+            task_arn = reconcile_task(ecs, attempt)
+        except LaunchUncertain as error:
+            ledger.mark_ambiguous(attempt, str(error))
+            return
+        if task_arn is None:
+            ledger.mark_ambiguous(attempt, "ECS_RETRY_DEADLINE_EXPIRED")
+            return
+        ledger.map_task(attempt, task_arn)
+        return
+    try:
         task_arn = run_task(ecs, attempt)
     except ValueError:
         ledger.finish_failed(attempt, "ECS_RUN_TASK_FAILED")
@@ -668,16 +684,16 @@ def _launch_attempt(
         try:
             task_arn = reconcile_task(ecs, attempt)
         except LaunchUncertain as reconcile_error:
-            ledger.mark_ambiguous(attempt, str(reconcile_error)[:64])
+            ledger.mark_ambiguous(attempt, str(reconcile_error))
             return
         if task_arn is None:
-            ledger.mark_ambiguous(attempt, str(error)[:64])
+            ledger.mark_ambiguous(attempt, str(error))
             return
     except Exception:  # noqa: BLE001 - API uncertainty requires reconciliation
         try:
             task_arn = reconcile_task(ecs, attempt)
         except LaunchUncertain as reconcile_error:
-            ledger.mark_ambiguous(attempt, str(reconcile_error)[:64])
+            ledger.mark_ambiguous(attempt, str(reconcile_error))
             return
         if task_arn is None:
             ledger.mark_ambiguous(attempt, "ECS_LAUNCH_OUTCOME_UNRESOLVED")

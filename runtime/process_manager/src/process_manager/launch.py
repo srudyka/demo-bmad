@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime, timezone
 import re
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 
 class LaunchUncertain(RuntimeError):
@@ -19,6 +20,30 @@ class EcsClient(Protocol):
     def run_task(self, **kwargs: Any) -> Mapping[str, Any]: ...
     def list_tasks(self, **kwargs: Any) -> Mapping[str, Any]: ...
     def describe_tasks(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+def launch_retry_allowed(attempt: Mapping[str, Any], now: str) -> bool:
+    """Prevent a blind RunTask retry after the reserved uncertainty deadline."""
+
+    deadline = attempt.get("safe_retry_deadline")
+    if deadline is None:
+        raise LaunchUncertain("ECS_RETRY_DEADLINE_MISSING")
+    timestamp = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"
+    if (
+        not isinstance(deadline, str)
+        or not isinstance(now, str)
+        or not re.fullmatch(timestamp, deadline)
+        or not re.fullmatch(timestamp, now)
+    ):
+        raise LaunchUncertain("ECS_RETRY_DEADLINE_INVALID")
+    try:
+        deadline_at = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+        now_at = datetime.fromisoformat(now.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise LaunchUncertain("ECS_RETRY_DEADLINE_INVALID") from error
+    if deadline_at.tzinfo != timezone.utc or now_at.tzinfo != timezone.utc:
+        raise LaunchUncertain("ECS_RETRY_DEADLINE_INVALID")
+    return now_at <= deadline_at
 
 
 def _valid_task_arn(value: Any) -> bool:
@@ -82,8 +107,12 @@ def run_task(ecs: EcsClient, attempt: Mapping[str, Any]) -> str:
             ]
         },
     )
+    if not isinstance(response, Mapping):
+        raise LaunchUncertain("ECS_RUN_TASK_RESPONSE_INVALID")
     failures = response.get("failures", [])
     tasks = response.get("tasks", [])
+    if not isinstance(failures, list) or not isinstance(tasks, list):
+        raise LaunchUncertain("ECS_RUN_TASK_RESPONSE_INVALID")
     if isinstance(failures, list) and failures and not tasks:
         raise ValueError("ECS_RUN_TASK_FAILED")
     if isinstance(failures, list) and failures and tasks:
@@ -91,9 +120,9 @@ def run_task(ecs: EcsClient, attempt: Mapping[str, Any]) -> str:
     if not isinstance(tasks, list) or len(tasks) != 1:
         raise LaunchUncertain("ECS_RUN_TASK_NO_SINGLE_TASK")
     task_arn = tasks[0].get("taskArn") if isinstance(tasks[0], Mapping) else None
-    if not isinstance(task_arn, str) or not task_arn:
-        raise LaunchUncertain("ECS_RUN_TASK_TASK_ARN_MISSING")
-    return task_arn
+    if not _valid_task_arn(task_arn):
+        raise LaunchUncertain("ECS_RUN_TASK_TASK_ARN_INVALID")
+    return cast(str, task_arn)
 
 
 def reconcile_task(ecs: EcsClient, attempt: Mapping[str, Any]) -> str | None:
@@ -101,7 +130,7 @@ def reconcile_task(ecs: EcsClient, attempt: Mapping[str, Any]) -> str | None:
 
     cluster = attempt["correlation"]["cluster_arn"]
     arns: list[str] = []
-    for desired_status in ("RUNNING", "STOPPED"):
+    for desired_status in ("PENDING", "RUNNING", "STOPPED"):
         listed = ecs.list_tasks(
             cluster=cluster,
             startedBy=attempt["occurrence_id"],

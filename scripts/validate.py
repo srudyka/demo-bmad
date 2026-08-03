@@ -235,6 +235,7 @@ def artifact_policy_check() -> None:
             "retire-platform-version.yml",
             "production-recovery.yml",
             "schedule-qualification.yml",
+            "ecs-launch-runtime-qualification.yml",
         }
         violations = workflow_security_violations(contents)
         if trusted_workflow:

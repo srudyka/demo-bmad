@@ -4,7 +4,12 @@ from typing import Any
 
 import pytest
 
-from process_manager.launch import LaunchUncertain, reconcile_task, run_task
+from process_manager.launch import (
+    LaunchUncertain,
+    launch_retry_allowed,
+    reconcile_task,
+    run_task,
+)
 
 
 def attempt() -> dict[str, Any]:
@@ -57,8 +62,8 @@ class FakeEcs:
 
 
 def test_run_task_is_count_one_private_and_platform_tagged() -> None:
-    ecs = FakeEcs({"failures": [], "tasks": [{"taskArn": "task-arn"}]})
-    assert run_task(ecs, attempt()) == "task-arn"
+    ecs = FakeEcs({"failures": [], "tasks": [{"taskArn": TASK_ARN}]})
+    assert run_task(ecs, attempt()) == TASK_ARN
     assert ecs.run_kwargs["count"] == 1
     assert (
         ecs.run_kwargs["networkConfiguration"]["awsvpcConfiguration"]["assignPublicIp"]
@@ -100,3 +105,32 @@ def test_reconciliation_requires_one_exact_task() -> None:
 
     with pytest.raises(LaunchUncertain, match="MULTIPLE_TASKS"):
         reconcile_task(Multiple({}), attempt())
+
+
+def test_retry_deadline_blocks_blind_run_task_after_uncertainty_window() -> None:
+    value = {
+        **attempt(),
+        "safe_retry_deadline": "2027-01-01T01:00:00.000Z",
+    }
+    assert launch_retry_allowed(value, "2027-01-01T00:59:59.000Z") is True
+    assert launch_retry_allowed(value, "2027-01-01T01:00:00.001Z") is False
+    with pytest.raises(LaunchUncertain, match="RETRY_DEADLINE_INVALID"):
+        launch_retry_allowed(value, "2027-01-01T01:00:00Z")
+    with pytest.raises(LaunchUncertain, match="RETRY_DEADLINE_MISSING"):
+        launch_retry_allowed(attempt(), "2027-01-01T00:00:00.000Z")
+
+
+def test_run_task_rejects_malformed_task_identity() -> None:
+    ecs = FakeEcs({"failures": [], "tasks": [{"taskArn": "task-arn"}]})
+    with pytest.raises(LaunchUncertain, match="TASK_ARN_INVALID"):
+        run_task(ecs, attempt())
+
+
+def test_reconciliation_includes_pending_tasks() -> None:
+    class Pending(FakeEcs):
+        def list_tasks(self, **kwargs: Any) -> dict[str, Any]:
+            if kwargs["desiredStatus"] == "PENDING":
+                return {"taskArns": [TASK_ARN]}
+            return {"taskArns": []}
+
+    assert reconcile_task(Pending({}), attempt()) == TASK_ARN
