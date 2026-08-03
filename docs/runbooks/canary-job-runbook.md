@@ -78,6 +78,36 @@ only launch/runtime, reconciliation, timing, and healthy-run controls passed;
 completion, security, and recovery remain blocked until their dedicated
 qualification stories pass.
 
+## Completion, deadline, and alert qualification
+
+Run `.github/workflows/completion-deadline-alert-qualification.yml` only after
+launch/runtime qualification, using the same immutable release candidate and a
+disposable non-production Cell. Supply sanitized evidence, pinned
+configuration, and trusted bindings. The credential-free projection is:
+
+```text
+python scripts/run_completion_deadline_qualification.py \
+  --evidence <sanitized-evidence.json> \
+  --configuration <pinned-configuration.json> \
+  --bindings <trusted-bindings.json> \
+  --output <completion-deadline-manifest.json>
+```
+
+Verify that accepted completion evidence has the authenticated source context,
+registered occurrence/task/configuration identity, success marker, and zero
+essential-container exit. Verify `MISSED` versus `OVERDUE`, duplicate/replay
+idempotency, late-evidence terminal-state preservation, partial-batch retry or
+quarantine, transactional alert outbox obligations, notification-ledger
+deduplication, and the independent alert-pipeline health check. Keep metric
+dimensions bounded and retain only sanitized evidence.
+
+On completion or abort, disable the qualification path first, remove injected
+faults, delete disposable schedules/tasks/roles/logs/expectations/resources,
+and verify the cleanup inventory. Cleanup failure is fail-closed and must not
+publish readiness evidence. Rollback is the disable-first path followed by the
+approved Cell recovery procedure; security and recovery readiness remain
+blocked until their dedicated qualifications pass.
+
 ## Response
 
 For a failure, classify the eight alert planes using the mapping in the [job

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
@@ -250,6 +251,8 @@ def reduce_deadline_state(
         if previous is not None and previous.get("digest") != item.get("digest"):
             return "AMBIGUOUS"
         deduplicated[key] = item
+    if current_state in {"SUCCEEDED", "FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"}:
+        return current_state
     facts = list(deduplicated.values())
     task_facts = [
         item for item in facts if item.get("kind") in {"TASK_RUNNING", "TASK_STOPPED"}
@@ -1023,6 +1026,46 @@ def prepare_correlation(
         != envelope["payload_hash"]
     ):
         raise ContractRejection("CORRELATION_PAYLOAD_HASH_MISMATCH")
+    if event_type == "completion.observed.v1":
+        completion = payload.get("completion")
+        if set(payload) != {"completion", "log_group", "log_stream"} or not isinstance(
+            completion, dict
+        ):
+            raise ContractRejection("COMPLETION_PAYLOAD_INVALID")
+        required_completion = {
+            "schema_version",
+            "marker_id",
+            "asserted_job_id",
+            "asserted_occurrence_id",
+            "asserted_config_version",
+            "asserted_attempt_no",
+            "asserted_task_arn",
+            "completed_at",
+            "marker_status",
+            "exit_code_assertion",
+            "error_code",
+        }
+        if set(completion) != required_completion:
+            raise ContractRejection("COMPLETION_PAYLOAD_INVALID")
+        if (
+            completion.get("schema_version") != "1.0.0"
+            or completion.get("asserted_job_id") != envelope["job_id"]
+            or completion.get("asserted_occurrence_id") != envelope["occurrence_id"]
+            or completion.get("asserted_config_version") != envelope["config_version"]
+            or completion.get("asserted_attempt_no") != 0
+            or completion.get("marker_status") not in {"SUCCESS", "FAILURE"}
+            or not isinstance(completion.get("asserted_task_arn"), str)
+            or not completion["asserted_task_arn"].startswith("arn:")
+            or not isinstance(payload.get("log_group"), str)
+            or not isinstance(payload.get("log_stream"), str)
+        ):
+            raise ContractRejection("COMPLETION_PAYLOAD_INVALID")
+        if not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{2}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            str(completion.get("marker_id")),
+        ):
+            raise ContractRejection("COMPLETION_PAYLOAD_INVALID")
+        _timestamp(completion.get("completed_at"), "COMPLETION_TIME_INVALID")
     scheduled_at = _timestamp(envelope["scheduled_time"], "CORRELATION_TIME_INVALID")
     _timestamp(envelope["emitted_at"], "CORRELATION_TIME_INVALID")
     expected_id = occurrence_id(

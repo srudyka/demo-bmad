@@ -17,6 +17,7 @@ from process_manager.contracts import (
     occurrence_id,
     scheduler_event_id,
 )
+from process_manager.domain import prepare_correlation
 
 
 JOB = "dev/demo/job"
@@ -360,6 +361,114 @@ def test_deadline_evidence_is_validated_and_reduced_order_independently() -> Non
             "producer_event_id": "e" * 64,
             "digest": "2" * 64,
         },
+        {
+            "kind": "TASK_STOPPED",
+            "task_arn": "task-1",
+            "exit_code": 0,
+            "producer_id": "ecs",
+            "producer_event_id": "g" * 64,
+            "digest": "4" * 64,
+        },
+        {
+            "kind": "TASK_STOPPED",
+            "task_arn": "task-1",
+            "exit_code": 0,
+            "producer_id": "ecs",
+            "producer_event_id": "g" * 64,
+            "digest": "4" * 64,
+        },
     ]
     assert reduce_deadline_state("EXPECTED", evidence) == "OVERDUE"
     assert reduce_deadline_state("EXPECTED", list(reversed(evidence))) == "OVERDUE"
+
+
+def test_deadline_terminal_decision_is_not_erased_by_late_completion() -> None:
+    evidence: list[Mapping[str, Any]] = [
+        {
+            "kind": "DEADLINE",
+            "deadline_at": "2027-01-01T01:00:00.000Z",
+            "producer_id": "deadline-scanner",
+            "producer_event_id": "d" * 64,
+            "digest": "1" * 64,
+            "accepted_at": "2027-01-01T01:00:01.000Z",
+        },
+        {
+            "kind": "TASK_RUNNING",
+            "task_arn": "task-1",
+            "producer_id": "ecs",
+            "producer_event_id": "e" * 64,
+            "digest": "2" * 64,
+        },
+        {
+            "kind": "TASK_STOPPED",
+            "task_arn": "task-1",
+            "exit_code": 0,
+            "producer_id": "ecs",
+            "producer_event_id": "h" * 64,
+            "digest": "5" * 64,
+        },
+        {
+            "kind": "COMPLETION",
+            "marker_status": "SUCCESS",
+            "fact_time": "2027-01-01T00:59:00.000Z",
+            "accepted_at": "2027-01-01T01:05:00.000Z",
+            "producer_id": "log-ingestor",
+            "producer_event_id": "f" * 64,
+            "digest": "3" * 64,
+        },
+    ]
+    assert reduce_deadline_state("OVERDUE", evidence) == "OVERDUE"
+
+
+def test_completion_payload_contract_rejects_unknown_marker_status() -> None:
+    occurrence = occurrence_id(JOB, GENERATION, "29979360")
+    completion = {
+        "schema_version": "1.0.0",
+        "marker_id": "01933f4e-7b2d-7abc-8def-0123456789ab",
+        "asserted_job_id": JOB,
+        "asserted_occurrence_id": occurrence,
+        "asserted_config_version": CONFIG_VERSION,
+        "asserted_attempt_no": 0,
+        "asserted_task_arn": "arn"
+        + ":aws:ecs:us-"
+        + "east-1:"
+        + "111" * 4
+        + ":task/platform/"
+        + "a" * 32,
+        "completed_at": "2027-01-01T00:01:00.000Z",
+        "marker_status": "UNKNOWN",
+        "exit_code_assertion": 0,
+        "error_code": None,
+    }
+    payload = {
+        "completion": completion,
+        "log_group": "/platform/canary",
+        "log_stream": "ecs/canary/stream",
+    }
+    envelope_value = {
+        "schema_version": "1.0.0",
+        "event_type": "completion.observed.v1",
+        "producer_id": "log-ingestor",
+        "producer_event_id": "f" * 64,
+        "job_id": JOB,
+        "config_version": CONFIG_VERSION,
+        "schedule_generation": GENERATION,
+        "occurrence_id": occurrence,
+        "scheduled_time": "2027-01-01T00:00:00.000Z",
+        "emitted_at": "2027-01-01T00:01:01.000Z",
+        "payload": payload,
+        "payload_hash": __import__("hashlib")
+        .sha256(canonical_json_bytes(payload))
+        .hexdigest(),
+    }
+    try:
+        prepare_correlation(
+            envelope_value,
+            snapshot(),
+            processor_identity="release-1",
+            expected_owner_generation=1,
+        )
+    except ContractRejection as error:
+        assert error.code == "COMPLETION_PAYLOAD_INVALID"
+    else:
+        raise AssertionError("unknown completion marker status was accepted")
