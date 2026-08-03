@@ -35,6 +35,13 @@ should quarantine the failed queue record and investigate the sanitized
 rejection code before retrying; no rejected request creates evidence or a task
 side effect.
 
+For a job-generation rollback, inventory every in-flight task, unresolved
+occurrence, alert obligation, and possible application side effect before
+changing infrastructure. Each record must have a drain, quarantine, preserve,
+or compensate disposition; compensation records name the Job Owner. A
+Terraform rollback restores infrastructure only and must not be described as
+reversing application data.
+
 Rollback is to disable the operator role and command-handler Lambda function,
 leaving the encrypted queue and DLQ retained for investigation. Restore access
 only after approval and validation of the runbook steps.

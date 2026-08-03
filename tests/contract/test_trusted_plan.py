@@ -826,6 +826,9 @@ def test_recovery_and_verification_fail_closed_until_safe_to_resume() -> None:
         "application_compensation_owner": "job-owner",
         "recovery_objective_seconds": 900,
         "verification": ["schedule", "occurrences", "alarms"],
+        "image_references": [
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/job@sha256:" + "a" * 64
+        ],
     }
     validate_recovery_plan(recovery)
     bad = dict(recovery, instructions="revert the commit")
@@ -923,6 +926,9 @@ def test_identity_index_is_authoritative_and_recovery_order_is_protected() -> No
         "application_compensation_owner": "job-owner",
         "recovery_objective_seconds": 900,
         "verification": ["schedule", "occurrences", "alarms"],
+        "image_references": [
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/job@sha256:" + "a" * 64
+        ],
     }
     known = deployment_identity()
     current = deployment_identity()
@@ -980,6 +986,9 @@ def test_recovery_execution_requires_all_pre_apply_gates() -> None:
         "application_compensation_owner": "job-owner",
         "recovery_objective_seconds": 900,
         "verification": ["schedule", "occurrences", "alarms"],
+        "image_references": [
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/job@sha256:" + "a" * 64
+        ],
     }
     execution = {
         "launch_disabled": True,

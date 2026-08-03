@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "8cfb9f0456fc86f930b65c4562b46b4fe4641b799f719050664cbf1d92e8460c"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "db65789dd8d2cc186d59085c4b845de3c8442ed6e69e99bc71de6ec4ec54361d"},
+    {"path": "releases/1.0.0.json", "sha256": "78adb11a4fa3b8f3a604ea772d7f49c84bd4a96344628a78966d80fb94a2e175"},
     {"path": "releases/1.0.0-notes.md", "sha256": "9219cc041fe44139df23d83762cfbd144934c06e6e54196618688737023c71e7"},
     {"path": "releases/affected-releases.json", "sha256": "7fb23e4b131a335f41761aeaf187bd2f1b2f785314180b5d88408f64fd7edf6d"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
@@ -33,6 +33,8 @@
     {"path": "v1/catalogs/migration.json", "sha256": "6f46fcb4ae0154834834b05e41f9c9dd9986ba436925ebd07a2cb8e24d8fe2ea"},
     {"path": "v1/catalogs/deprecation.json", "sha256": "3458d354cd4d08fc09e37c29a2d6318a5f13732e6417e7815143ab14ec99db1d"},
     {"path": "v1/fixtures/production-policy/cases.json", "sha256": "5b72b973eafbca3262a935239026e1767c7aade0071d6aa11ed606ca0946126e"},
+    {"path": "v1/fixtures/security/cases.json", "sha256": "0e6c08545c01020371c9dd1254a123b42969c2458ea9f8016fedc94b48c7eb05"},
+    {"path": "v1/fixtures/recovery/cases.json", "sha256": "8a0a16aba09a035e699a16da74f419517c901b46be523879b844e611d42a944e"},
     {"path": "v1/schemas/production-policy.schema.json", "sha256": "13eff3a5c85a0da04e7f99563772f35b35b683acd5ab39f7c970ad6c168bd48d"},
     {"path": "v1/schemas/production-exception.schema.json", "sha256": "1d25681b3cf1a6a8a3058577388231e4438efd1056488994effffe1cb377b607"},
     {"path": "v1/schemas/production-approval.schema.json", "sha256": "7afb6aceb343f74a0b200fac266035549276afcf2608ac12da917b460ac9b336"},
@@ -48,6 +50,7 @@
     {"path": "v1/schemas/migration-manifest.schema.json", "sha256": "1f05316076c3deb6b2ea5a93c40977d802f02437bd33229dddd60d6025277aba"},
     {"path": "v1/schemas/migration-acknowledgement.schema.json", "sha256": "1a07f0edc4d2b8fc553cbea6c0730dd20b866be48e05e087fdf7fbfbdaf8dce4"},
     {"path": "v1/schemas/deprecation-record.schema.json", "sha256": "9d62bb57daa9380dadcad82b71edcd8dc99419f56887cb20f5f39cb5f0fbde02"},
+    {"path": "v1/schemas/recovery-evidence.schema.json", "sha256": "732c11ba0d75ad555602587b36026cd53f9cb3c594657323509d5e643abdf429"},
     {"path": "v1/fixtures/canonical-json/invalid.json", "sha256": "be46ec0e6e8e0b2a121aeda9e17e29ebde6c678cf27d255987ec3493963285fd"},
     {"path": "v1/fixtures/canonical-json/vectors.json", "sha256": "579a19b231afdce63744046a4e14772bbf8d2d6fbba3df08fe7100118718072c"},
     {"path": "v1/fixtures/compatibility/cases.json", "sha256": "a049e4945eb0cf4be165f33c56f4a128b31ff49231e06fc512ccf49a6a2818a1"},
@@ -77,7 +80,7 @@
     {"path": "v1/fixtures/schemas/valid-instances.json", "sha256": "db8afcb5bed72a73848eca9cdf28fdfad512ce41054a60a498492d183c3e45be"},
     {"path": "v1/schemas/alert.schema.json", "sha256": "b13a0bfff31ec7b10c608dbe76d36d8e246d148264427db37184b7abc1544052"},
     {"path": "v1/schemas/cell-contract.schema.json", "sha256": "939662d5228c4f51421694ca6ba3a0e2c9ff128bc1b31dd675d77d71225864c2"},
-    {"path": "v1/schemas/command.schema.json", "sha256": "3f3b7a849d6cd7c530eb3fb32ac8bf4fd965dfe01373c1baa5f5c4700d9b83ac"},
+    {"path": "v1/schemas/command.schema.json", "sha256": "6cf7b1528b8f729a0c0bd0358172520711711bf977226e4c4d6fdce239a4ea34"},
     {"path": "v1/schemas/common.schema.json", "sha256": "490da40ffffc771cba762c7099404906bf79d4bf5e9b5e54161c5d86ee03567b"},
     {"path": "v1/schemas/config-publisher-request.schema.json", "sha256": "a8e2ed2bdc08a4fe3da146991f2b63350bf82f731b25233964c86fb00309755c"},
     {"path": "v1/schemas/config-publisher-response.schema.json", "sha256": "60ada3ef19d242e0249cbbc3e3611fa102b4bae6d9a2528692090887a4b87896"},
@@ -163,6 +166,8 @@
     "v1/fixtures/schedules",
     "v1/fixtures/schemas",
     "v1/fixtures/production-policy",
+    "v1/fixtures/security",
+    "v1/fixtures/recovery",
     "v1/fixtures/deprecation"
   ],
   "initial_release": true,
@@ -211,6 +216,7 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:release-manifest",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-manifest",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-acknowledgement",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deprecation-record"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deprecation-record",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:recovery-evidence"
   ]
 }

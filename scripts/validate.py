@@ -237,6 +237,7 @@ def artifact_policy_check() -> None:
             "schedule-qualification.yml",
             "ecs-launch-runtime-qualification.yml",
             "completion-deadline-alert-qualification.yml",
+            "security-boundary-qualification.yml",
         }
         violations = workflow_security_violations(contents)
         if trusted_workflow:

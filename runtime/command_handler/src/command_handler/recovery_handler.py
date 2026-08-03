@@ -6,9 +6,10 @@ import hashlib
 import json
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import Any, Mapping, cast
+from typing import Any, Iterator, Mapping, cast
 
 from .recovery import (
     RecoveryManifest,
@@ -137,6 +138,28 @@ class AwsRecoveryOperations(RecoveryOperations):
         self.lambda_client = clients["lambda"]
         self.ssm = clients["ssm"]
 
+    @contextmanager
+    def _pointer_lock(self, recovery_id: str) -> Iterator[None]:
+        table = _required("RECOVERY_MANIFEST_TABLE_NAME")
+        key = {"pk": {"S": "RECOVERY#POINTER"}, "sk": {"S": "LOCK"}}
+        try:
+            self.dynamodb.put_item(
+                TableName=table,
+                Item={
+                    **key,
+                    "record_type": {"S": "RECOVERY_POINTER_LOCK"},
+                    "recovery_id": {"S": recovery_id},
+                    "expires_at": {"N": str(int(time.time()) + 300)},
+                },
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+        except Exception as error:  # noqa: BLE001 - lock acquisition is fail-closed
+            raise RuntimeError("RECOVERY_POINTER_LOCK_UNAVAILABLE") from error
+        try:
+            yield
+        finally:
+            self.dynamodb.delete_item(TableName=table, Key=key)
+
     def contain(self, manifest: RecoveryManifest) -> None:
         for schedule in _json_list_env("RECOVERY_SCHEDULES"):
             if not isinstance(schedule, Mapping):
@@ -211,6 +234,9 @@ class AwsRecoveryOperations(RecoveryOperations):
         for source, target in zip(manifest.source_tables, target_tables, strict=True):
             source_table = self.dynamodb.describe_table(TableName=source)["Table"]
             target_table = self.dynamodb.describe_table(TableName=target)["Table"]
+            source_policy = self.dynamodb.get_resource_policy(
+                ResourceArn=source_table["TableArn"]
+            ).get("Policy")
             for field in (
                 "KeySchema",
                 "AttributeDefinitions",
@@ -253,6 +279,13 @@ class AwsRecoveryOperations(RecoveryOperations):
             ):
                 if not tag_map.get(key):
                     raise RuntimeError(f"RECOVERY_TAG_MISSING_{key.upper()}")
+            policy = self.dynamodb.get_resource_policy(
+                ResourceArn=target_table["TableArn"]
+            ).get("Policy")
+            if not policy or policy != source_policy:
+                raise RuntimeError("RECOVERY_RESOURCE_POLICY_MISSING")
+            if os.environ.get("RECOVERY_COMPATIBILITY_PACKAGE_SHA256") is None:
+                raise RuntimeError("RECOVERY_COMPATIBILITY_PACKAGE_MISSING")
             snapshots.append(
                 {"source": source, "target": target, "schema": target_table}
             )
@@ -265,41 +298,71 @@ class AwsRecoveryOperations(RecoveryOperations):
     def cutover(
         self, manifest: RecoveryManifest, target_tables: tuple[str, ...]
     ) -> None:
-        current = self.ssm.get_parameter(
-            Name=_required("RECOVERY_POINTER_PARAMETER_NAME")
-        )
-        try:
-            prior = json.loads(current["Parameter"]["Value"])
-        except (KeyError, TypeError, json.JSONDecodeError) as error:
-            raise RuntimeError("RECOVERY_PRIOR_POINTER_INVALID") from error
-        if not isinstance(prior, Mapping) or not prior.get("recovery_generation"):
-            raise RuntimeError("RECOVERY_PRIOR_POINTER_INVALID")
-        self.prior_pointer = dict(prior)
-        pointer = {
-            "recovery_generation": manifest.recovery_generation,
-            "deployment_identity": manifest.source_deployment_identity,
-            "tables": list(target_tables),
-            "prior": self.prior_pointer,
-        }
-        self.ssm.put_parameter(
-            Name=_required("RECOVERY_POINTER_PARAMETER_NAME"),
-            Type="SecureString",
-            Value=json.dumps(pointer, sort_keys=True, separators=(",", ":")),
-            Overwrite=True,
-        )
+        with self._pointer_lock(manifest.recovery_id):
+            current = self.ssm.get_parameter(
+                Name=_required("RECOVERY_POINTER_PARAMETER_NAME")
+            )
+            try:
+                prior = json.loads(current["Parameter"]["Value"])
+            except (KeyError, TypeError, json.JSONDecodeError) as error:
+                raise RuntimeError("RECOVERY_PRIOR_POINTER_INVALID") from error
+            if not isinstance(prior, Mapping) or not prior.get("recovery_generation"):
+                raise RuntimeError("RECOVERY_PRIOR_POINTER_INVALID")
+            expected_prior = os.environ.get("RECOVERY_EXPECTED_POINTER_GENERATION")
+            if expected_prior and prior.get("recovery_generation") != expected_prior:
+                raise RuntimeError("RECOVERY_POINTER_GENERATION_MISMATCH")
+            self.prior_pointer = dict(prior)
+            pointer = {
+                "recovery_generation": manifest.recovery_generation,
+                "deployment_identity": manifest.source_deployment_identity,
+                "tables": list(target_tables),
+                "prior": self.prior_pointer,
+            }
+            self.ssm.put_parameter(
+                Name=_required("RECOVERY_POINTER_PARAMETER_NAME"),
+                Type="SecureString",
+                Value=json.dumps(pointer, sort_keys=True, separators=(",", ":")),
+                Overwrite=True,
+            )
 
     def replay(self, manifest: RecoveryManifest) -> None:
+        payload = json.dumps(
+            {
+                "mode": "replay",
+                "recovery_id": manifest.recovery_id,
+                "recovery_generation": manifest.recovery_generation,
+                "restore_point": manifest.restore_point,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        for function_arn in _json_list_env("RECOVERY_REPLAY_FUNCTIONS"):
+            self.lambda_client.invoke(
+                FunctionName=str(function_arn),
+                InvocationType="Event",
+                Payload=payload,
+            )
         for mapping_uuid in _json_list_env("RECOVERY_REPLAY_MAPPINGS"):
             self.lambda_client.update_event_source_mapping(
                 UUID=str(mapping_uuid), Enabled=True
             )
 
     def reconcile(self, manifest: RecoveryManifest) -> None:
+        payload = json.dumps(
+            {
+                "mode": "reconciliation",
+                "recovery_id": manifest.recovery_id,
+                "recovery_generation": manifest.recovery_generation,
+                "deployment_identity": manifest.source_deployment_identity,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
         for function_arn in _json_list_env("RECOVERY_RECONCILIATION_FUNCTIONS"):
             self.lambda_client.invoke(
                 FunctionName=str(function_arn),
                 InvocationType="Event",
-                Payload=b'{"mode":"reconciliation"}',
+                Payload=payload,
             )
 
     def verify(self, manifest: RecoveryManifest) -> None:
@@ -329,20 +392,27 @@ class AwsRecoveryOperations(RecoveryOperations):
         self.contain(manifest)
         prior = getattr(self, "prior_pointer", None)
         if not isinstance(prior, Mapping):
-            prior = {
-                "recovery_generation": "INITIAL",
-                "tables": list(manifest.source_tables),
-            }
-        self.ssm.put_parameter(
-            Name=_required("RECOVERY_POINTER_PARAMETER_NAME"),
-            Type="SecureString",
-            Value=json.dumps(
-                dict(prior),
-                sort_keys=True,
-                separators=(",", ":"),
-            ),
-            Overwrite=True,
-        )
+            raise RuntimeError("RECOVERY_PRIOR_POINTER_INVALID")
+        with self._pointer_lock(getattr(manifest, "recovery_id", "unknown")):
+            current = self.ssm.get_parameter(
+                Name=_required("RECOVERY_POINTER_PARAMETER_NAME")
+            )
+            try:
+                current_value = json.loads(current["Parameter"]["Value"])
+            except (KeyError, TypeError, json.JSONDecodeError) as error:
+                raise RuntimeError("RECOVERY_POINTER_GENERATION_MISMATCH") from error
+            if (
+                not isinstance(current_value, Mapping)
+                or current_value.get("recovery_generation")
+                != manifest.recovery_generation
+            ):
+                raise RuntimeError("RECOVERY_POINTER_GENERATION_MISMATCH")
+            self.ssm.put_parameter(
+                Name=_required("RECOVERY_POINTER_PARAMETER_NAME"),
+                Type="SecureString",
+                Value=json.dumps(dict(prior), sort_keys=True, separators=(",", ":")),
+                Overwrite=True,
+            )
 
     def resume(self, manifest: RecoveryManifest) -> None:
         for schedule in _json_list_env("RECOVERY_SCHEDULES"):
@@ -359,10 +429,39 @@ class AwsRecoveryOperations(RecoveryOperations):
             )
 
     def checkpoint(self, manifest: RecoveryManifest) -> None:
-        self.dynamodb.put_item(
-            TableName=_required("RECOVERY_MANIFEST_TABLE_NAME"),
-            Item=_manifest_item(manifest),
-        )
+        table = _required("RECOVERY_MANIFEST_TABLE_NAME")
+        key = {
+            "pk": {"S": f"RECOVERY#{manifest.recovery_id}"},
+            "sk": {"S": "CURRENT"},
+        }
+        existing = self.dynamodb.get_item(
+            TableName=table, Key=key, ConsistentRead=True
+        ).get("Item")
+        if (
+            existing
+            and existing.get("recovery_generation")
+            == {"S": manifest.recovery_generation}
+            and existing.get("phase") == {"S": manifest.phase.value}
+        ):
+            if existing.get("phase_started_at") == {"S": manifest.phase_started_at}:
+                return
+            raise RuntimeError("RECOVERY_CHECKPOINT_CONFLICT")
+        try:
+            self.dynamodb.put_item(
+                TableName=table,
+                Item=_manifest_item(manifest),
+                ConditionExpression=(
+                    "attribute_not_exists(pk) OR "
+                    "recovery_generation <> :recovery_generation OR "
+                    "phase <> :phase"
+                ),
+                ExpressionAttributeValues={
+                    ":recovery_generation": {"S": manifest.recovery_generation},
+                    ":phase": {"S": manifest.phase.value},
+                },
+            )
+        except Exception as error:  # noqa: BLE001 - checkpoint conflicts block recovery
+            raise RuntimeError("RECOVERY_CHECKPOINT_CONFLICT") from error
 
 
 def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, object]:
@@ -390,6 +489,9 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
             if not isinstance(command, Mapping):
                 raise RuntimeError("RECOVERY_COMMAND_INVALID")
             restore_point, rpo, rto, deployment = recovery_command_fields(command)
+            recovery_watermark = command.get("recovery_watermark")
+            if not isinstance(recovery_watermark, str):
+                raise RuntimeError("RECOVERY_WATERMARK_REQUIRED")
             source_table_values = _json_list_env("RECOVERY_SOURCE_TABLES")
             if not all(isinstance(item, str) and item for item in source_table_values):
                 raise RuntimeError("RECOVERY_SOURCE_TABLES_INVALID")
@@ -446,12 +548,14 @@ def lambda_handler(event: Mapping[str, object], _context: object) -> dict[str, o
                 Item=_manifest_item(manifest),
                 ConditionExpression="attribute_not_exists(pk)",
             )
+            execution_started_at = _now()
+            result = execute_recovery(manifest, operations, now=execution_started_at)
             finished_at = _now()
-            result = execute_recovery(manifest, operations, now=finished_at)
             result = replace(
                 result,
                 actual_rpo_seconds=_elapsed_seconds(
-                    manifest.restore_point, finished_at
+                    manifest.restore_point,
+                    recovery_watermark,
                 ),
                 actual_rto_seconds=_elapsed_seconds(started_at, finished_at),
             )

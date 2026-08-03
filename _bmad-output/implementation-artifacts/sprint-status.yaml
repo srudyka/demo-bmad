@@ -1,5 +1,5 @@
 # generated: 2026-07-14T17:04:01-0500
-# last_updated: 2026-07-31T10:15:00-0500
+# last_updated: 2026-08-03T00:00:00-0500
 # project: demo-bmad
 # project_key: NOKEY
 # tracking_system: file-system
@@ -99,8 +99,8 @@ development_status:
   4-4-qualify-schedule-delivery-and-expectations: done
   4-5-qualify-ecs-launch-and-runtime-failures: done
   4-6-qualify-completion-deadlines-and-alert-durability: done
-  4-7-prove-security-and-delivery-boundaries: backlog
-  4-8-rehearse-job-and-cell-recovery: backlog
+  4-7-prove-security-and-delivery-boundaries: done
+  4-8-rehearse-job-and-cell-recovery: done
   4-9-automate-pilot-measurement-and-evidence-packaging: backlog
   4-10-publish-pilot-launch-checklist-and-decision-record: backlog
   epic-4-retrospective: optional

@@ -281,6 +281,18 @@ locals {
       dimensions = { QueueName = aws_sqs_queue.process_manager_ingress.name }
       statistic  = "Maximum"
     }
+    recovery_queue_age = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateAgeOfOldestMessage"
+      dimensions = { QueueName = aws_sqs_queue.recovery_queue.name }
+      statistic  = "Maximum"
+    }
+    recovery_dlq_depth = {
+      namespace  = "AWS/SQS"
+      name       = "ApproximateNumberOfMessagesVisible"
+      dimensions = { QueueName = aws_sqs_queue.recovery_dlq.name }
+      statistic  = "Maximum"
+    }
     every_dlq_depth = {
       namespace  = "AWS/SQS"
       name       = "ApproximateNumberOfMessagesVisible"
@@ -3694,13 +3706,13 @@ data "aws_iam_policy_document" "recovery_controller" {
   statement {
     sid       = "ConfigureOnlyRecoveryTables"
     effect    = "Allow"
-    actions   = ["dynamodb:DescribeTable", "dynamodb:TagResource", "dynamodb:UpdateContinuousBackups", "dynamodb:UpdateTable"]
+    actions   = ["dynamodb:DescribeTable", "dynamodb:GetResourcePolicy", "dynamodb:TagResource", "dynamodb:UpdateContinuousBackups", "dynamodb:UpdateTable"]
     resources = ["arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${local.name_prefix}-*-recovery-*"]
   }
   statement {
     sid       = "WriteOnlyRecoveryManifest"
     effect    = "Allow"
-    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
+    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:DeleteItem"]
     resources = [aws_dynamodb_table.recovery_manifests.arn]
   }
   statement {
@@ -3735,6 +3747,10 @@ data "aws_iam_policy_document" "recovery_controller" {
       aws_lambda_function.process_manager.arn,
       aws_lambda_function.occurrence_materializer.arn,
       aws_lambda_function.deadline_scanner.arn,
+      aws_lambda_function.evidence_normalizer.arn,
+      aws_lambda_function.evidence_normalizer_ecs.arn,
+      aws_lambda_function.evidence_normalizer_deadline.arn,
+      aws_lambda_function.materializer_normalizer.arn,
     ]
   }
   statement {
@@ -4091,17 +4107,18 @@ resource "aws_lambda_function" "recovery_controller" {
   kms_key_arn                    = var.kms_key_arn
   environment {
     variables = {
-      RECOVERY_CELL_ID                = var.cell_id
-      RECOVERY_ACCOUNT_ID             = data.aws_caller_identity.current.account_id
-      RECOVERY_REGION                 = data.aws_region.current.region
-      RECOVERY_ENVIRONMENT            = var.environment
-      RECOVERY_OWNER                  = var.owner
-      RECOVERY_KMS_KEY_ARN            = var.kms_key_arn
-      RECOVERY_METRIC_NAMESPACE       = var.metric_namespace
-      RECOVERY_MANIFEST_TABLE_NAME    = aws_dynamodb_table.recovery_manifests.name
-      RECOVERY_POINTER_PARAMETER_NAME = aws_ssm_parameter.recovery_generation.name
-      RECOVERY_SOURCE_TABLES          = jsonencode([aws_dynamodb_table.namespace_registry.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.deadline_checkpoint.name, aws_dynamodb_table.notification_ledger.name])
-      RECOVERY_SCHEDULES              = jsonencode([{ name = "${local.name_prefix}-canary", group_name = aws_scheduler_schedule_group.cell.name }])
+      RECOVERY_CELL_ID                      = var.cell_id
+      RECOVERY_ACCOUNT_ID                   = data.aws_caller_identity.current.account_id
+      RECOVERY_REGION                       = data.aws_region.current.region
+      RECOVERY_ENVIRONMENT                  = var.environment
+      RECOVERY_OWNER                        = var.owner
+      RECOVERY_KMS_KEY_ARN                  = var.kms_key_arn
+      RECOVERY_METRIC_NAMESPACE             = var.metric_namespace
+      RECOVERY_MANIFEST_TABLE_NAME          = aws_dynamodb_table.recovery_manifests.name
+      RECOVERY_COMPATIBILITY_PACKAGE_SHA256 = sha256(file("${path.module}/../../contracts/v1/catalogs/compatibility.json"))
+      RECOVERY_POINTER_PARAMETER_NAME       = aws_ssm_parameter.recovery_generation.name
+      RECOVERY_SOURCE_TABLES                = jsonencode([aws_dynamodb_table.namespace_registry.name, aws_dynamodb_table.configuration_registry.name, aws_dynamodb_table.occurrence_ledger.name, aws_dynamodb_table.deadline_checkpoint.name, aws_dynamodb_table.notification_ledger.name])
+      RECOVERY_SCHEDULES                    = jsonencode([{ name = "${local.name_prefix}-canary", group_name = aws_scheduler_schedule_group.cell.name }])
       RECOVERY_EVENT_SOURCE_MAPPINGS = jsonencode([
         aws_lambda_event_source_mapping.alert_router.uuid,
         aws_lambda_event_source_mapping.process_manager.uuid,
@@ -4119,6 +4136,14 @@ resource "aws_lambda_function" "recovery_controller" {
         aws_lambda_event_source_mapping.process_manager.uuid,
         aws_lambda_event_source_mapping.materializer_normalizer.uuid,
         aws_lambda_event_source_mapping.alert_router.uuid,
+      ])
+      RECOVERY_REPLAY_FUNCTIONS = jsonencode([
+        aws_lambda_function.evidence_normalizer.arn,
+        aws_lambda_function.evidence_normalizer_ecs.arn,
+        aws_lambda_function.evidence_normalizer_deadline.arn,
+        aws_lambda_function.process_manager.arn,
+        aws_lambda_function.materializer_normalizer.arn,
+        aws_lambda_function.alert_router.arn,
       ])
       RECOVERY_RECONCILIATION_FUNCTIONS = jsonencode([
         aws_lambda_function.occurrence_materializer.arn,

@@ -124,3 +124,41 @@ caller occurrence IDs, schedule edits, workload roles, or edit Cell state.
 The canary remains disabled and non-production. A tabletop record must include
 Runbook version, source revision, fixture generation, exercise date, pass/fail,
 and evidence link before any proposal to enable it.
+
+## Security and delivery-boundary qualification
+
+Run `.github/workflows/security-boundary-qualification.yml` only from the
+immutable release candidate after the protected qualification workflow has
+published `evidence.json` and `bindings.json`. The workflow requires the exact
+source commit and run ID, downloads artifacts into an isolated temporary root,
+and projects only sanitized Story 4.7 security controls:
+
+```text
+python scripts/run_security_qualification.py \
+  --evidence <sanitized-evidence.json> \
+  --bindings <trusted-bindings.json> \
+  --artifact-root <isolated-artifact-root> \
+  --output <security-manifest.json>
+```
+
+Interpret every fixture as a preventive authorization result. Forged producers,
+cross-job or stale-generation evidence, namespace squatting, broad IAM actions,
+alternate `RunTask`/`PassRole` paths, unapproved OIDC claims, state/plan
+substitution, public networking, plaintext secrets, and under-scoped operator
+commands must be denied before mutation. Each paired compliant fixture must use
+the exact registered identity and scope. Offline IAM analysis is supporting
+evidence only; an inconclusive simulation or detective alarm does not pass a
+boundary.
+
+Investigate failures using the fixture ID, stable denial code, preventive
+boundary, policy/catalog version, source/workflow/run binding, and checksum.
+Do not copy raw payloads, state, plans, logs, credentials, tokens, secret
+values, or production identifiers into tickets or retained artifacts. Escalate
+ownership, OIDC, state, and operator failures to the Platform and Security
+reviewers; keep recovery blocked until the separate recovery story passes.
+
+Rollback is disable-first: stop qualification launch, remove injected faults,
+delete synthetic jobs, identities, policies, queues, state/plan artifacts,
+logs, and disposable Cell resources, then verify deleted and retained
+inventories plus forbidden-artifact checks. Retain only the checksum-bound
+sanitized manifest. Any cleanup or sanitization failure blocks publication.

@@ -1,0 +1,43 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:recovery-evidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sanitized Recovery Rehearsal Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "scenario_id", "mode", "incident_id", "bindings",
+    "source_generation", "known_good_generation", "restore_point", "evaluated_at",
+    "expected_rpo_seconds", "expected_rto_seconds", "launch_enabled",
+    "phase_order", "observations", "controls", "cleanup", "evidence_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["credential-free-fixture", "protected-disposable-cell"]},
+    "incident_id": {"type": "string", "minLength": 1},
+    "bindings": {"type": "object", "minProperties": 12},
+    "source_generation": {"type": "string", "minLength": 1},
+    "known_good_generation": {"type": "string", "minLength": 1},
+    "restore_point": {"type": "string", "format": "date-time"},
+    "expected_rpo_seconds": {"type": "integer", "minimum": 1},
+    "expected_rto_seconds": {"type": "integer", "minimum": 1},
+    "launch_enabled": {"const": false},
+    "phase_order": {"type": "array", "minItems": 8, "items": {"type": "string"}},
+    "observations": {"type": "object"},
+    "controls": {
+      "type": "array", "minItems": 13, "maxItems": 13,
+      "items": {
+        "type": "object",
+        "required": ["control_id", "result", "evidence", "evidence_sha256"],
+        "properties": {
+          "control_id": {"type": "string"},
+          "result": {"const": "passed"},
+          "evidence": {"type": "object"},
+          "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "cleanup": {"type": "object"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

@@ -37,6 +37,9 @@
         "restore_point": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
+        "recovery_watermark": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
         "expected_rpo_seconds": {
           "maximum": 2592000,
           "minimum": 1,
@@ -141,6 +144,9 @@
         "restore_point": {
           "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
         },
+        "recovery_watermark": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+        },
         "expected_rpo_seconds": {
           "maximum": 2592000,
           "minimum": 1,
@@ -198,7 +204,7 @@
       "allOf": [
         {
           "if": {"properties": {"command_type": {"const": "RECOVER"}}},
-          "then": {"required": ["restore_point", "expected_rpo_seconds", "expected_rto_seconds"]}
+          "then": {"required": ["restore_point", "recovery_watermark", "expected_rpo_seconds", "expected_rto_seconds"]}
         },
         {
           "if": {"properties": {"command_type": {"const": "RERUN"}}},

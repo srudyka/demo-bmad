@@ -38,6 +38,36 @@ queue identity changes. Automatic cross-Region failover is not supported.
    notifications, then run the canary and pre-resume verification. Keep launch
    disabled until every blocking check and approval succeeds.
 
+## Rehearsal evidence
+
+Run the credential-free evaluator against a controlled artifact root containing
+only sanitized evidence and binding files:
+
+```bash
+python scripts/run_recovery_qualification.py \
+  --evidence /path/to/recovery-evidence.json \
+  --bindings /path/to/recovery-bindings.json \
+  --artifact-root /path/to/controlled-artifacts \
+  --output /path/to/controlled-artifacts/recovery-readiness.json \
+  --expected-source-commit "$GITHUB_SHA" \
+  --expected-workflow-run-id "$GITHUB_RUN_ID"
+```
+
+The evaluator derives results from unique task, occurrence, alert, resource,
+phase, and cleanup records. It rejects caller-provided result flags, aggregate
+counts, mutable image references, mixed-generation cutovers, unknown tasks that
+are not `AMBIGUOUS`, forbidden artifacts, and mismatched release/target
+bindings. Credential-free evidence does not authorize live recovery; protected
+disposable-Cell evidence requires the approved live qualification and
+access-controlled attestation path.
+
+Record restore, replay, reconciliation, alert-verification, and total recovery
+durations separately. RPO is recovered event/data watermark loss, not handler
+duration. RTO runs from containment start through successful canary
+verification. Compare both with job and Cell objectives; an exceeded objective,
+lost alert, duplicate launch, unreconciled occurrence, broken audit chain, or
+untested application compensation blocks readiness.
+
 ## Rollback and escalation
 
 If containment, restore, integrity, cutover, replay, reconciliation, or
@@ -45,6 +75,10 @@ verification fails, the controller records a stable failure code, leaves launch
 disabled, restores the prior known-good pointer, and retains source/recovery
 tables and all evidence. Do not delete restored tables until the incident
 review and Job Owner side-effect compensation decision are complete.
+
+If the prior pointer cannot be proven, backout fails closed and does not invent
+an `INITIAL` pointer. Escalate for the next authorized restore point or forward
+fix while retaining both isolated resource sets and the recovery manifest.
 
 Record actual data loss, restore/replay/reconciliation/alert-verification
 durations, and total RPO/RTO in the incident evidence. Escalate mixed-generation,

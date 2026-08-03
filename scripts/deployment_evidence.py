@@ -16,6 +16,7 @@ from scripts.deployment_targets import TargetViolation
 
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+IMAGE_DIGEST = re.compile(r"^.+@sha256:[0-9a-f]{64}$")
 OUTCOMES = {
     "succeeded",
     "failed",
@@ -562,6 +563,7 @@ def validate_recovery_plan(recovery: Mapping[str, Any]) -> None:
         "current_identity_sha256",
         "current_generation",
         "changed_addresses",
+        "image_references",
     }
     if set(recovery) - required - optional or any(
         recovery.get(key) in (None, "") for key in required
@@ -589,6 +591,18 @@ def validate_recovery_plan(recovery: Mapping[str, Any]) -> None:
         for item in recovery["changed_addresses"]
     ):
         raise TargetViolation("RECOVERY_SCOPE")
+    if any("schedule" in item.lower() for item in recovery["changed_addresses"]):
+        raise TargetViolation("RECOVERY_SCHEDULE_EDIT")
+    image_references = recovery.get("image_references")
+    if (
+        not isinstance(image_references, list)
+        or not image_references
+        or any(
+            not isinstance(item, str) or not IMAGE_DIGEST.fullmatch(item)
+            for item in image_references
+        )
+    ):
+        raise TargetViolation("RECOVERY_MUTABLE_IMAGE")
     if (
         recovery["disable_launch_first"] is not True
         or recovery["fresh_plan_required"] is not True
@@ -624,6 +638,74 @@ def validate_recovery_plan(recovery: Mapping[str, Any]) -> None:
         or any(item not in allowed_checks for item in recovery["verification"])
     ):
         raise TargetViolation("RECOVERY_VERIFICATION")
+
+
+def validate_recovery_inventory(inventory: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate disable-first rollback inventory from authoritative records."""
+    required = {
+        "incident_id",
+        "generation",
+        "in_flight_tasks",
+        "unresolved_occurrences",
+        "alert_obligations",
+        "side_effects",
+    }
+    if set(inventory) != required:
+        raise TargetViolation("RECOVERY_INVENTORY_SHAPE")
+    for key in ("incident_id", "generation"):
+        if not isinstance(inventory[key], str) or not inventory[key]:
+            raise TargetViolation("RECOVERY_INVENTORY_ID")
+    definitions = {
+        "in_flight_tasks": (
+            "task_arn",
+            {"drain", "quarantine", "preserve", "compensate"},
+        ),
+        "unresolved_occurrences": (
+            "occurrence_id",
+            {"drain", "quarantine", "preserve", "compensate"},
+        ),
+        "alert_obligations": (
+            "alert_id",
+            {"drain", "quarantine", "preserve", "compensate"},
+        ),
+        "side_effects": (
+            "effect_id",
+            {"drain", "quarantine", "preserve", "compensate"},
+        ),
+    }
+    seen: set[str] = set()
+    counts: dict[str, int] = {}
+    for collection, (identity_key, dispositions) in definitions.items():
+        records = inventory[collection]
+        if not isinstance(records, list):
+            raise TargetViolation("RECOVERY_INVENTORY_COLLECTION")
+        counts[collection] = len(records)
+        for record in records:
+            if not isinstance(record, Mapping) or set(record) - {
+                identity_key,
+                "occurrence_id",
+                "disposition",
+                "owner",
+            }:
+                raise TargetViolation("RECOVERY_INVENTORY_RECORD")
+            identity = record.get(identity_key)
+            if not isinstance(identity, str) or not identity or identity in seen:
+                raise TargetViolation("RECOVERY_INVENTORY_DUPLICATE")
+            seen.add(identity)
+            if record.get("disposition") not in dispositions:
+                raise TargetViolation("RECOVERY_INVENTORY_DISPOSITION")
+            if record["disposition"] == "compensate" and not isinstance(
+                record.get("owner"), str
+            ):
+                raise TargetViolation("RECOVERY_INVENTORY_OWNER")
+            if record["disposition"] == "compensate" and not record["owner"]:
+                raise TargetViolation("RECOVERY_INVENTORY_OWNER")
+            if collection != "unresolved_occurrences" and not isinstance(
+                record.get("occurrence_id"), str
+            ):
+                raise TargetViolation("RECOVERY_INVENTORY_OCCURRENCE")
+    _screen(inventory)
+    return {"status": "inventory-valid", "counts": counts}
 
 
 def plan_recovery_execution(
