@@ -72,7 +72,6 @@ development_status:
   2-3-enforce-private-task-networking: done
   2-4-provision-the-fargate-task-and-structured-logs: done
   2-5-publish-phase-one-job-resources-and-config: done
-  2-5a-cell-owned-conditional-config-publisher: done
   2-6-validate-and-acknowledge-job-configuration: done
   2-7-activate-the-non-production-schedule-safely: done
   2-8-connect-completion-evidence-and-alert-metadata: done
@@ -109,32 +108,32 @@ action_items:
   - epic: 1
     action: "Add an authority-and-boundary checklist to every Epic 2 story, covering authoritative state, writer, IAM, metrics, rollback, and negative scenarios."
     owner: "Amelia (Developer)"
-    status: open
+    status: done
   - epic: 1
     action: "Run adversarial review, edge-case review, acceptance audit, and full validation before closing each Epic 2 story."
     owner: "Amelia (Developer)"
-    status: open
+    status: done
   - epic: 1
     action: "Keep credential-free validation evidence separate from live AWS qualification in every story record."
     owner: "Dana (QA Engineer)"
-    status: open
+    status: done
   - epic: 1
     action: "Add executable IAM-negative, retry, pagination, duplicate-request, and partial-failure fixtures starting with Story 2.1."
     owner: "Winston (Architect)"
-    status: open
+    status: done
   - epic: 2
     action: "Extend credential-free validation to identify and validate every affected Epic 3 target."
     owner: "Amelia (Developer)"
-    status: open
+    status: done
   - epic: 2
     action: "Add executable negative fixtures for OIDC trust, target binding, exact-plan approval, and untrusted pull-request outputs."
     owner: "Winston (Architect)"
-    status: open
+    status: done
   - epic: 2
     action: "Preserve acceptance, adversarial, edge-case, and full validation review evidence for every Epic 3 story."
     owner: "Amelia (Developer)"
-    status: open
+    status: done
   - epic: 2
     action: "Track migration from deprecated Terraform AWS provider arguments to region and key_schema."
     owner: "Paige (Technical Writer)"
-    status: open
+    status: done
