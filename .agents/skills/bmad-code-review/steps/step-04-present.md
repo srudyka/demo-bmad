@@ -31,6 +31,8 @@ If `{spec_file}` exists and contains a Tasks/Subtasks section, append a `### Rev
 
 Also append each `defer` finding to `{deferred_work_file}` under a heading `## Deferred from: code review ({date})`. If `{spec_file}` is set, include its basename in the heading (e.g., `code review of story-3.3 (2026-03-18)`). One bullet per finding with description.
 
+If `{spec_file}` exists, ensure it also contains exactly one `### Review Evidence Register` subsection in the Dev Agent Record. Populate or update it with the review baseline, acceptance-audit result, adversarial/blind-hunter result, edge-case result, focused/full validation commands and outcomes, findings/dispositions reference, deferred-work reference, and final review status. Keep references precise enough for another agent to reproduce the review evidence.
+
 ### 3. Present summary
 
 Announce what was written:

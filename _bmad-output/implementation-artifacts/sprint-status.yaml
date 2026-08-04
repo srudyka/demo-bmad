@@ -102,7 +102,7 @@ development_status:
   4-8-rehearse-job-and-cell-recovery: done
   4-9-automate-pilot-measurement-and-evidence-packaging: done
   4-10-publish-pilot-launch-checklist-and-decision-record: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
 action_items:
   - epic: 1
@@ -137,3 +137,23 @@ action_items:
     action: "Track migration from deprecated Terraform AWS provider arguments to region and key_schema."
     owner: "Paige (Technical Writer)"
     status: done
+  - epic: 4
+    action: "Add a standard authority/provenance/adversarial preflight checklist to the story template before implementation begins."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 4
+    action: "Run acceptance, adversarial, and edge-case review as part of story completion and retain one indexed evidence record per story."
+    owner: "Amelia (Developer), Dana (QA Engineer), Winston (Architect)"
+    status: done
+  - epic: 4
+    action: "Create a separately reviewed Terraform provider modernization change preserving resource addresses and documenting rollback."
+    owner: "Winston (Architect), Paige (Technical Writer)"
+    status: open
+  - epic: 4
+    action: "Add sprint/story metadata consistency validation so frontmatter, story records, and sprint-status cannot diverge silently."
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 4
+    action: "Define the next epic and its success criteria before creating additional stories."
+    owner: "Srudyka (Project Lead), John (Product Manager)"
+    status: open
