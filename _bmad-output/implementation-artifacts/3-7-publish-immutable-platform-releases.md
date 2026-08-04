@@ -8,6 +8,8 @@ baseline_commit: ab8b9c60972420792689e82d3d4541ced0194dea
 
 # Story 3.7: Publish Immutable Platform Releases
 
+Status: done
+
 ## Story
 
 As a Platform Owner,  

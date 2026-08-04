@@ -8,6 +8,8 @@ baseline_commit: ce39fad
 
 # Story 4.4: Qualify Schedule Delivery and Expectations
 
+Status: done
+
 ## Story
 
 As a Platform Engineer,

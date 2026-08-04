@@ -8,6 +8,8 @@ baseline_commit: d4b5096a6dddf61f6b9f1bdf53732af7a9f5416b
 
 # Story 4.1: Publish the Scheduled Job Adoption Guide
 
+Status: done
+
 ## Story
 
 As an Application Engineer,

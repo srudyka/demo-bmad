@@ -8,6 +8,8 @@ baseline_commit: d9b286cdd339036d1253e989dfbaa511500176e5
 
 # Story 3.9: Deprecate and Retire Platform Versions
 
+Status: done
+
 ## Story
 
 As a Platform Owner,

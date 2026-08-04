@@ -8,6 +8,8 @@ baseline_commit: 2ef3c7e
 
 # Story 4.3: Automate the Production Readiness Gate
 
+Status: done
+
 ## Story
 
 As a Production Approver,

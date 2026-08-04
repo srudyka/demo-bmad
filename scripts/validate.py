@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import cast
 
 from scripts.deployment_targets import TargetViolation, validate_target_manifest
+from scripts.story_metadata import StoryMetadataError, validate_story_metadata
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -594,6 +595,19 @@ def validate_trusted_plan_contract() -> None:
         raise ValidationFailure(f"trusted-plan-contract: {error}") from error
 
 
+def validate_story_records() -> None:
+    """Keep story documents and sprint status synchronized."""
+    story_root = REPOSITORY_ROOT / "_bmad-output" / "implementation-artifacts"
+    try:
+        records = validate_story_metadata(
+            story_root,
+            story_root / "sprint-status.yaml",
+        )
+    except (OSError, StoryMetadataError) as error:
+        raise ValidationFailure(f"story-metadata: {error}") from error
+    print(f"story-metadata: validated {len(records)} story records", flush=True)
+
+
 def main() -> int:
     print("AWS credentials are not passed to validation subprocesses.")
     artifacts_before = checkout_artifacts()
@@ -636,6 +650,7 @@ def main() -> int:
         artifact_policy_check()
         validate_trusted_target_contract()
         validate_trusted_plan_contract()
+        validate_story_records()
         roots = terraform_roots()
         print_toolchain(roots)
         for label, command in stages[:1]:

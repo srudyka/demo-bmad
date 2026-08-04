@@ -8,6 +8,8 @@ baseline_commit: b3fb5a65d27a8367cb06d419f0438675b6cba1d8
 
 # Story 4.2: Complete an Actionable Job Runbook
 
+Status: done
+
 ## Story
 
 As an On-call Engineer, I want a job-specific Runbook tied to platform alerts and controls, so that I can diagnose, rerun, escalate, and recover without guessing.

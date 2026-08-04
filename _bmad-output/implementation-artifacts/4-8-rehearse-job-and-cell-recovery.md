@@ -2,7 +2,7 @@
 epic: 4
 story: 4.8
 title: Rehearse Job and Cell Recovery
-status: ready-for-dev
+status: done
 baseline_commit: b9dbb9d
 ---
 

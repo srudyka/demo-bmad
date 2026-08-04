@@ -8,6 +8,8 @@ baseline_commit: 36389c2182560e0e0f3c16312f0aa87366303fe4
 
 # Story 3.8: Migrate Compatible Platform Versions
 
+Status: done
+
 ## Story
 
 As a Platform Owner,

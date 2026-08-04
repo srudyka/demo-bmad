@@ -1,0 +1,15 @@
+{
+  "passing": ["legacy", "frontmatter"],
+  "failing": [
+    "heading_identity",
+    "frontmatter_status",
+    "sprint_status",
+    "missing_sprint_entry",
+    "orphan_sprint_entry",
+    "malformed_status",
+    "invalid_filename",
+    "malformed_sprint_key",
+    "duplicate_yaml_key",
+    "invalid_utf8"
+  ]
+}
