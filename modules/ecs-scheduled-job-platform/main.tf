@@ -532,7 +532,7 @@ locals {
       schema_range     = local.compatibility_catalog.component_ranges["occurrence-materializer"]
       protocol_version = "config-validator/1.0.0"
       auth_mode        = "CELL_INTERNAL"
-      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/validate"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/validate"
     }
     job_registrar = {
       arn              = aws_lambda_function.job_registrar.arn
@@ -540,7 +540,7 @@ locals {
       schema_range     = local.compatibility_catalog.component_ranges.cell
       protocol_version = "job-registrar/1.0.0"
       auth_mode        = "CELL_INTERNAL"
-      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/register"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/register"
     }
     materializer_tick = {
       arn          = aws_cloudwatch_event_rule.materializer_tick.arn
@@ -563,7 +563,7 @@ locals {
       schema_range     = local.compatibility_catalog.component_ranges.config
       protocol_version = "config-publisher/1.0.0"
       auth_mode        = "AWS_IAM_PRIVATE_API"
-      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/publish"
+      endpoint_url     = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/publish"
     }
     normalizer_ingress = {
       arn          = aws_sqs_queue.normalizer_ingress.arn
@@ -867,15 +867,27 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
 
   global_secondary_index {
     name            = "task-arn"
-    hash_key        = "task_arn"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "task_arn"
+      key_type       = "HASH"
+    }
   }
 
   global_secondary_index {
     name            = "alert-outbox"
-    hash_key        = "record_type"
-    range_key       = "alert_sort"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "record_type"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "alert_sort"
+      key_type       = "RANGE"
+    }
   }
 
   stream_enabled   = true
@@ -883,16 +895,32 @@ resource "aws_dynamodb_table" "occurrence_ledger" {
 
   global_secondary_index {
     name            = "deadlines"
-    hash_key        = "deadline_key"
-    range_key       = "deadline_sort"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "deadline_key"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "deadline_sort"
+      key_type       = "RANGE"
+    }
   }
 
   global_secondary_index {
     name            = "job-scheduled-time"
-    hash_key        = "job_id"
-    range_key       = "scheduled_time"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "job_id"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "scheduled_time"
+      key_type       = "RANGE"
+    }
   }
 
   point_in_time_recovery {
@@ -1128,7 +1156,7 @@ data "aws_iam_policy_document" "config_publisher" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["s3.${data.aws_region.current.name}.amazonaws.com"]
+      values   = ["s3.${data.aws_region.current.region}.amazonaws.com"]
     }
   }
   statement {

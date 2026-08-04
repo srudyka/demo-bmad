@@ -23,7 +23,7 @@ output "config_publisher" {
   description = "Cell-owned IAM-authenticated conditional CONFIG publisher endpoint and alarms."
   value = {
     function_arn = aws_lambda_function.config_publisher.arn
-    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/publish"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/publish"
     role_arn     = aws_iam_role.config_publisher.arn
     alarm_arns = [
       aws_cloudwatch_metric_alarm.config_publisher_errors.arn,
@@ -168,7 +168,7 @@ output "config_validator" {
     role_arn     = aws_iam_role.config_validator.arn
     log_group    = aws_cloudwatch_log_group.config_validator.name
     protocol     = "config-validator/1.0.0"
-    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/validate"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/validate"
     alarm_arns   = [aws_cloudwatch_metric_alarm.config_validator_errors.arn, aws_cloudwatch_metric_alarm.config_validator_throttles.arn, aws_cloudwatch_metric_alarm.config_validator_rejections.arn, aws_cloudwatch_metric_alarm.config_validator_conflicts.arn]
   }
 }
@@ -180,7 +180,7 @@ output "job_registrar" {
     role_arn     = aws_iam_role.job_registrar.arn
     log_group    = aws_cloudwatch_log_group.job_registrar.name
     protocol     = "job-registrar/1.0.0"
-    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/v1/register"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/register"
     alarm_arns   = [aws_cloudwatch_metric_alarm.job_registrar_errors.arn, aws_cloudwatch_metric_alarm.job_registrar_throttles.arn]
   }
 }

@@ -367,13 +367,12 @@ every module and example, Python tests, Checkov, and repository hygiene. The
 Cell Contract tests prove schema, checksum, SSM path, ownership-catalog shape,
 and the absence of premature runtime resources.
 
-Terraform currently emits non-failing deprecation warnings during this gate for
-the AWS provider's `data.aws_region.current.name` attribute and legacy
-DynamoDB `hash_key`/`range_key` arguments. They are retained for compatibility
-with the current module/provider surface and must be migrated to
-`data.aws_region.current.region` and `key_schema` in a separately reviewed
-Terraform-provider modernization change. Warnings must not be suppressed or
-treated as validation success for a production apply.
+The module uses the current AWS provider interface for region access
+(`data.aws_region.current.region`) and uses `key_schema` for DynamoDB secondary
+indexes. Top-level table primary keys continue to use the provider's supported
+`hash_key`/`range_key` arguments; table-item key arguments are a separate
+interface. Warnings must not be suppressed or treated as validation success for
+a production apply.
 
 ## Rollback And Recovery
 
@@ -426,6 +425,14 @@ The validator's AWS `Describe*` calls require `Resource = "*"` because those
 APIs do not support resource-level IAM scoping. The platform Checkov exception
 for `CKV_AWS_356` is centralized in CI and applies only to this platform scan;
 the role remains limited to read-only describe actions plus exact Cell writes.
+
+### Terraform provider modernization
+
+The region and secondary-index schema migrations preserve all resource
+addresses and table key semantics; no `moved` blocks or state migration are
+expected. Before applying, review the plan for unexpected index replacement or
+key changes and stop if the plan is not replacement-free. Roll back by restoring
+the prior provider/module revision before retrying.
 
 ## IAM residual-risk decision: dynamic authority resolution
 

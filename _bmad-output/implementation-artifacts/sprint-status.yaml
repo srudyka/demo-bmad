@@ -148,7 +148,7 @@ action_items:
   - epic: 4
     action: "Create a separately reviewed Terraform provider modernization change preserving resource addresses and documenting rollback."
     owner: "Winston (Architect), Paige (Technical Writer)"
-    status: open
+    status: done
   - epic: 4
     action: "Add sprint/story metadata consistency validation so frontmatter, story records, and sprint-status cannot diverge silently."
     owner: "Amelia (Developer)"

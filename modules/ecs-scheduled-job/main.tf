@@ -321,7 +321,7 @@ resource "terraform_data" "declaration_validation" {
     }
 
     precondition {
-      condition     = var.account_id == data.aws_caller_identity.current.account_id && var.region == data.aws_region.current.name
+      condition     = var.account_id == data.aws_caller_identity.current.account_id && var.region == data.aws_region.current.region
       error_message = "JOB_DECLARATION_CELL_MISMATCH: account_id and region must match provider identity."
     }
 
