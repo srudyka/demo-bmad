@@ -36,9 +36,10 @@
       "production-policy",
       "migration",
       "deprecation",
-      "pilot-measurement"
+      "pilot-measurement",
+      "pilot-launch"
     ],
-      "schema_count": 44
+      "schema_count": 47
   },
   "classification": "initial",
   "manifest_surface": {
@@ -74,5 +75,5 @@
   "migration": "migrations/v1.0.0.md",
   "package_version": "1.0.0",
   "predecessor_release": null,
-  "semantic_surface_sha256": "708bc110a284fe735a88e7d8cf1432fb5f87b95e26b83278c464fcfe347f14b6"
+  "semantic_surface_sha256": "64871242b48564f6da7ab2693a370bf0fc8b04ac4de0a0d2ed9095586d325335"
 }

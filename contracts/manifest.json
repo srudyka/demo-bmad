@@ -9,7 +9,7 @@
   "artifacts": [
     {"path": "README.md", "sha256": "8cfb9f0456fc86f930b65c4562b46b4fe4641b799f719050664cbf1d92e8460c"},
     {"path": "migrations/v1.0.0.md", "sha256": "2797e20fc1bd20f0b75e38d1ed74d40728ab65b9208216a5d5317fa38d90a488"},
-    {"path": "releases/1.0.0.json", "sha256": "228e4540b1ab047eda9856936a084739941da2d9e0b813d990ccb0a8f8816751"},
+    {"path": "releases/1.0.0.json", "sha256": "310670b205388d61c29ec2988611831cf787848a777c8ae6d8e65168bb9e60f8"},
     {"path": "releases/1.0.0-notes.md", "sha256": "9219cc041fe44139df23d83762cfbd144934c06e6e54196618688737023c71e7"},
     {"path": "releases/affected-releases.json", "sha256": "7fb23e4b131a335f41761aeaf187bd2f1b2f785314180b5d88408f64fd7edf6d"},
     {"path": "v1/catalogs/commands.json", "sha256": "840f40758cb12586db2615ddc08be75127d6e0f5091b895530ed0daed288fee0"},
@@ -106,7 +106,11 @@
     {"path": "v1/schemas/pilot-measurement-definition.schema.json", "sha256": "4f5adce37a40d7cfe41bc67bfd20c6ed5fe023fc5ea0179fb9e72d24f7c6c75a"},
     {"path": "v1/schemas/pilot-measurement-evidence.schema.json", "sha256": "3f78411a4fa6a2c83d45a8b7885e0d807e630ad07bb0aface14f1b0826f99f11"},
     {"path": "v1/schemas/pilot-measurement-result.schema.json", "sha256": "27b5bfef6e4a01b778d274df4eb46bbbeeef3e519a8fd0882b18db6aaa4b7e16"},
-    {"path": "v1/fixtures/pilot-measurement/cases.json", "sha256": "33fcad3bb93e344e881a82882415d89eb2b3e301fbeafa90bb4be8b355e29194"}
+    {"path": "v1/fixtures/pilot-measurement/cases.json", "sha256": "33fcad3bb93e344e881a82882415d89eb2b3e301fbeafa90bb4be8b355e29194"},
+    {"path": "v1/schemas/pilot-launch-checklist.schema.json", "sha256": "6df78821cc74535d0320d65a3fe83c80f04f0ea6317f22e68d06db6647dd7ad2"},
+    {"path": "v1/schemas/pilot-launch-authorization.schema.json", "sha256": "f204109c890def4197ef2fc82a95ab828722df555475ab1ceb51ed56a118feb4"},
+    {"path": "v1/schemas/pilot-decision-record.schema.json", "sha256": "00bf5a8f5e06671c9580961b0b38c2abaefe7b29d6036c031a1a3f603ee1b3ad"},
+    {"path": "v1/fixtures/pilot-launch/cases.json", "sha256": "11bb52ef8a93ff9ce0f1c8ba432cb9714ecf620954d8e1249be35477dfafab51"}
   ],
   "canonicalization": {
     "artifact_integrity": "sha256-raw-utf8-lf-final-newline",
@@ -173,7 +177,8 @@
     "v1/fixtures/security",
     "v1/fixtures/recovery",
     "v1/fixtures/deprecation",
-    "v1/fixtures/pilot-measurement"
+    "v1/fixtures/pilot-measurement",
+    "v1/fixtures/pilot-launch"
   ],
   "initial_release": true,
   "minimum_support_horizon_days": 14,
@@ -225,6 +230,9 @@
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:recovery-evidence",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-definition",
     "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-evidence",
-    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-result"
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-result",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-launch-checklist",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-launch-authorization",
+    "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-decision-record"
   ]
 }
