@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {
+      "name": "empty production plan",
+      "expected": "blocking",
+      "plan": {"resource_changes": []},
+      "finding": "MISSING_PRODUCTION_CONTROLS"
+    },
+    {
+      "name": "public ip",
+      "expected": "blocking",
+      "plan": {"resource_changes": [{"address": "aws_ecs_task_definition.job", "change": {"actions": ["update"], "after": {"assign_public_ip": true}}}]},
+      "finding": "PUBLIC_NETWORK"
+    },
+    {
+      "name": "wildcard iam",
+      "expected": "blocking",
+      "plan": {"resource_changes": [{"address": "aws_iam_policy.job", "change": {"actions": ["update"], "after": {"policy": {"Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}}}}]},
+      "finding": "IAM_WILDCARD"
+    },
+    {
+      "name": "immutable image",
+      "expected": "passed",
+      "plan": {"resource_changes": [{"address": "aws_ecs_task_definition.job", "change": {"actions": ["update"], "after": {"image": "repo@sha256:abc", "tags": {"Environment": "production", "Application": "demo", "Service": "job", "Owner": "platform", "ManagedBy": "Terraform"}, "logs": "enabled", "retention": 30, "alarms": "alarm", "notifications": "sns", "acknowledgement": true, "cell_contract": "cell-contract-v1", "role_id": "role-v1", "generation": "generation-v1", "registered_job": true, "expectation_horizon": 86400, "overlap_policy": "APPLICATION_IDEMPOTENT", "occurrence_tracking": true}}}]}
+    }
+  ]
+}

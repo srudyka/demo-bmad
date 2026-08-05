@@ -1,0 +1,64 @@
+{
+  "invalid": [
+    {
+      "epoch_minute": "29735160",
+      "error_code": "IDENTITY_JOB_ID_NONCANONICAL",
+      "job_id": "Prod/reporting/daily-summary",
+      "name": "uppercase job segment",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "epoch_minute": "029735160",
+      "error_code": "IDENTITY_EPOCH_NONCANONICAL",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "leading zero epoch minute",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "epoch_minute": "29735160\n",
+      "error_code": "IDENTITY_EPOCH_NONCANONICAL",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "trailing newline changes exact bytes",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "epoch_minute": "29735160\r\n",
+      "error_code": "IDENTITY_EPOCH_NONCANONICAL",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "crlf changes exact bytes",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "epoch_minute": "29735160",
+      "error_code": "IDENTITY_GENERATION_NONCANONICAL",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "uppercase generation hash",
+      "schedule_generation": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+    }
+  ],
+  "mismatched_assertion": {
+    "asserted_occurrence_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "epoch_minute": "29735160",
+    "job_id": "prod/reporting/daily-summary",
+    "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "schema_version": "1.0.0",
+  "valid": [
+    {
+      "epoch_minute": "29735160",
+      "expected_sha256": "09a9c8e20252ae005965f353b6ea02ae72ac7626ca14497ff3fe191117973ca1",
+      "expected_utf8_hex": "6f6363757272656e63652f76310a70726f642f7265706f7274696e672f6461696c792d73756d6d6172790a636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363630a3239373335313630",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "dst-season occurrence",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "epoch_minute": "29735161",
+      "expected_sha256": "d8294c02a7bf51c1dc9256783c711d957905152e9b16726a93fb89a3386c88b3",
+      "expected_utf8_hex": "6f6363757272656e63652f76310a70726f642f7265706f7274696e672f6461696c792d73756d6d6172790a636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363630a3239373335313631",
+      "job_id": "prod/reporting/daily-summary",
+      "name": "adjacent occurrence",
+      "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-manifest",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Expand-migrate-contract manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "migration_id", "source_release", "target_release", "source_release_sha256", "target_release_sha256", "phase", "horizons", "compatibility_horizon", "consumers", "inventory", "component_ranges", "required_components", "launch_disabled", "owner", "actor", "created_at", "manifest_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "migration_id": {"type": "string", "minLength": 1},
+    "source_release": {"type": "string", "minLength": 1},
+    "target_release": {"type": "string", "minLength": 1},
+    "source_release_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_release_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "phase": {"enum": ["expand", "migrate", "cutover", "rollback"]},
+    "horizons": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}, "required": ["queue", "replay", "runtime", "retention", "investigation", "recovery", "rollback"]},
+    "compatibility_horizon": {"type": "integer", "minimum": 1},
+    "consumers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/consumer"}},
+    "inventory": {"type": "object", "additionalProperties": false, "required": ["consumers", "active_generations", "retired_generations", "config_versions", "occurrences", "task_attempts", "queues_dlqs", "state_addresses", "policies", "operator_procedures", "rollback_horizons"], "properties": {"consumers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "active_generations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "retired_generations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "config_versions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "occurrences": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "task_attempts": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "queues_dlqs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "state_addresses": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "policies": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "operator_procedures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "rollback_horizons": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}},
+    "component_ranges": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
+    "required_components": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
+    "launch_disabled": {"const": true},
+    "owner": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consumer_id", "current_identity", "target_version", "validation", "required_change", "owner", "due_at", "rollback_identity"],
+      "properties": {
+        "consumer_id": {"type": "string", "minLength": 1},
+        "current_identity": {"type": "string", "minLength": 1},
+        "target_version": {"type": "string", "minLength": 1},
+        "validation": {"enum": ["pending", "ready", "blocked"]},
+        "required_change": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "due_at": {"type": "string", "format": "date-time"},
+        "rollback_identity": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

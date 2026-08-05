@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "max_widgets": 8,
+  "max_metrics": 40,
+  "max_queries": 0,
+  "widgets": [
+    {"id":"scheduler_delivery","title":"Scheduler delivery","namespace":"AWS/SQS","metric":"ApproximateNumberOfMessagesVisible","stat":"Maximum","dimensions":["QueueName"],"dimension_values":{"QueueName":"scheduler_dlq"}},
+    {"id":"ecs_launch_runtime","title":"ECS launch and runtime","namespace":"${cell_metric_namespace}","metric":"CanaryTaskLaunchAccepted","stat":"Sum","dimensions":["environment","job_id"],"dimension_values":{}},
+    {"id":"occurrence_terminal_states","title":"Occurrence terminal states","namespace":"${cell_metric_namespace}","metric":"OccurrenceMaterializerResult","stat":"Sum","dimensions":["environment","failure_plane","job_id","state"],"dimension_values":{"failure_plane":"materialization"}},
+    {"id":"deadline_failures","title":"Deadline failures","namespace":"${cell_metric_namespace}","metric":"DeadlineScannerWatermarkAge","stat":"Maximum","dimensions":["component","cell_id","environment"],"dimension_values":{"component":"deadline-scanner"}},
+    {"id":"log_delivery_health","title":"Log-delivery health","namespace":"AWS/Logs","metric":"DeliveryErrors","stat":"Sum","dimensions":["LogGroupName"],"dimension_values":{"LogGroupName":"job_log_group"}},
+    {"id":"alert_delivery","title":"Alert delivery","namespace":"${cell_metric_namespace}","metric":"NotificationDelivered","stat":"Sum","dimensions":["component","cell_id","environment"],"dimension_values":{"component":"alert-router"}},
+    {"id":"cell_health","title":"Cell health","namespace":"${cell_metric_namespace}","metric":"CanaryProcessedHeartbeat","stat":"Sum","dimensions":["component","cell_id","environment","state"],"dimension_values":{"component":"canary","state":"SUCCEEDED"}}
+  ]
+}

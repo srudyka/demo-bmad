@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-failure-evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "run_id", "plan_sha256", "state_key", "lock_state", "error_code", "recovery_guidance", "recorded_at"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"}, "status": {"enum": ["failed", "runner-lost", "lock-conflict", "partial"]}, "run_id": {"type": "string", "minLength": 1}, "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "state_key": {"type": "string", "minLength": 1}, "lock_state": {"type": "string", "minLength": 1}, "error_code": {"type": "string", "minLength": 1}, "recovery_guidance": {"type": "string", "minLength": 1, "maxLength": 240}, "recorded_at": {"type": "string", "format": "date-time"}
+  }
+}

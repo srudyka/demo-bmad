@@ -1,0 +1,141 @@
+{
+  "producers": {
+    "authorized-command": {
+      "authority": [
+        "authorized_command_record",
+        "handler_role_id"
+      ],
+      "authority_metadata": [
+        "authorized_command_record",
+        "handler_role_id"
+      ],
+      "event_types": [
+        "command.authorized.v1"
+      ],
+      "payload_coordinates": "assertions-only"
+    },
+    "deadline-scanner": {
+      "authority": [
+        "registered_deadline_key",
+        "scanner_role_id"
+      ],
+      "authority_metadata": [
+        "registered_deadline_key",
+        "scanner_role_id"
+      ],
+      "event_types": [
+        "occurrence.deadline-reached.v1"
+      ],
+      "payload_coordinates": "assertions-only"
+    },
+    "ecs": {
+      "authority": [
+        "event_source",
+        "event_resource_task_arn",
+        "detail_cluster_arn",
+        "detail_task_arn"
+      ],
+      "authority_metadata": [
+        "source",
+        "resource_task_arn",
+        "cluster_arn",
+        "task_arn"
+      ],
+      "event_types": [
+        "task.state.v1"
+      ],
+      "payload_coordinates": "assertions-only",
+      "raw_shape": {
+        "additive_aws_fields": true,
+        "required": [
+          "source",
+          "resources",
+          "detail.clusterArn",
+          "detail.taskArn",
+          "detail.lastStatus"
+        ],
+        "source": "aws.ecs"
+      }
+    },
+    "log-ingestor": {
+      "authority": [
+        "registered_log_group",
+        "registered_log_stream",
+        "ledger_task_arn_index"
+      ],
+      "authority_metadata": [
+        "registered_log_group",
+        "registered_log_stream",
+        "ledger_task_arn_index"
+      ],
+      "event_types": [
+        "completion.observed.v1"
+      ],
+      "payload_coordinates": "assertions-only"
+    },
+    "occurrence-materializer": {
+      "authority": [
+        "registered_config_version",
+        "schedule_generation",
+        "materializer_role_id",
+        "source_queue_arn"
+      ],
+      "authority_metadata": [
+        "registered_config_version",
+        "schedule_generation",
+        "materializer_role_id",
+        "source_queue_arn"
+      ],
+      "event_types": [
+        "occurrence.expected.v1"
+      ],
+      "payload_coordinates": "assertions-only",
+      "raw_shape": {
+        "body": "RFC8785 evidence-envelope",
+        "required_system_attributes": [
+          "SenderId"
+        ],
+        "source": "aws:sqs"
+      }
+    },
+    "process-manager": {
+      "authority": [
+        "registered_launch_role_id",
+        "ledger_occurrence_binding"
+      ],
+      "authority_metadata": [
+        "registered_launch_role_id",
+        "ledger_occurrence_binding"
+      ],
+      "event_types": [
+        "task.launch-result.v1"
+      ],
+      "payload_coordinates": "assertions-only"
+    },
+    "scheduler": {
+      "authority": [
+        "sqs_sender_role_id_prefix",
+        "queue_arn",
+        "schedule_group_arn",
+        "schedule_arn"
+      ],
+      "authority_metadata": [
+        "queue_arn",
+        "schedule_group_arn",
+        "schedule_arn"
+      ],
+      "event_types": [
+        "occurrence.launch.v1"
+      ],
+      "payload_coordinates": "assertions-only",
+      "raw_shape": {
+        "occurrence_time_source": "<aws.scheduler.scheduled-time>",
+        "required_system_attributes": [
+          "SenderId"
+        ]
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "unknown_producer_disposition": "REJECT"
+}

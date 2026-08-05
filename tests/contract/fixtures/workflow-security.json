@@ -1,0 +1,13 @@
+{
+  "baseline": {"passes_without_credentials": true},
+  "untrusted_cases": [
+    {"name": "fork-change", "workflow": "on: pull_request_target", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "modified-workflow", "workflow": "permissions:\n  contents: write", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "malicious-output", "workflow": "run: echo ${{ secrets.TOKEN }}", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "cache-poisoning", "workflow": "uses: actions/cache@abc", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "generated-injection", "workflow": "run: printenv", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "changed-lock", "workflow": "run: terraform show plan.tfplan", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "committed-tfvars", "workflow": "run: cat terraform.tfvars", "privileged_execution": false, "satisfies_required_status": false},
+    {"name": "failing-check", "workflow": "on: workflow_run", "privileged_execution": false, "satisfies_required_status": false}
+  ]
+}

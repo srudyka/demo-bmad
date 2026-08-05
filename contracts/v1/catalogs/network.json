@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0.0",
+  "policy_version": "1.0.0",
+  "unknown_policy_disposition": "BLOCK",
+  "supported_az_pattern": "^[a-z]{2,}-[a-z0-9-]+-[0-9]+[a-z]$",
+  "private_subnet_evidence": {
+    "required": true,
+    "classification": "private",
+    "required_fields": [
+      "account_id",
+      "availability_zone",
+      "evidence_id",
+      "region",
+      "vpc_id"
+    ],
+    "accepted_methods": [
+      "approved-route-table",
+      "approved-subnet-catalog"
+    ]
+  },
+  "security_group": {
+    "ingress": "deny",
+    "allowed_egress_sources": [
+      "security-group",
+      "prefix-list",
+      "bounded-cidr"
+    ],
+    "forbidden": [
+      "0.0.0.0/0",
+      "::/0",
+      "all-protocols",
+      "implicit-default-egress",
+      "stale-reference",
+      "cross-vpc-reference"
+    ],
+    "production_exception_required_for": [
+      "public-ingress",
+      "unrestricted-egress",
+      "unreviewed-expansion"
+    ]
+  },
+  "dependency_paths": [
+    "nat",
+    "vpc-endpoint",
+    "privatelink",
+    "proxy",
+    "stable-egress",
+    "internal"
+  ],
+  "required_dependency_evidence": [
+    "ecr",
+    "s3",
+    "cloudwatch-logs"
+  ],
+  "secret_dependency_by_provider": {
+    "secretsmanager": "secrets-manager",
+    "ssm": "ssm",
+    "kms": "kms"
+  },
+  "enforcement_stages": [
+    "non-production",
+    "production"
+  ],
+  "exception_required_fields": [
+    "approver",
+    "compensating_control",
+    "expires_at",
+    "justification",
+    "owner",
+    "scope"
+  ],
+  "exception_policy": {
+    "owner": "platform-security",
+    "enforcement_stage": "production",
+    "required": true
+  },
+  "finding_severity": {
+    "NETWORK_POLICY_UNKNOWN": "blocking",
+    "NETWORK_SUBNET_NOT_PRIVATE": "blocking",
+    "NETWORK_SUBNET_VPC_MISMATCH": "blocking",
+    "NETWORK_SECURITY_GROUP_PUBLIC_INGRESS": "blocking",
+    "NETWORK_EGRESS_UNRESTRICTED": "blocking",
+    "NETWORK_DEPENDENCY_REACHABILITY_MISSING": "blocking",
+    "NETWORK_SECRET_PATH_MISMATCH": "blocking"
+  },
+  "finding_codes": [
+    "NETWORK_POLICY_UNKNOWN",
+    "NETWORK_SUBNET_EMPTY",
+    "NETWORK_SUBNET_NOT_PRIVATE",
+    "NETWORK_SUBNET_VPC_MISMATCH",
+    "NETWORK_SUBNET_IDENTITY_MISMATCH",
+    "NETWORK_SUBNET_STALE",
+    "NETWORK_SUBNET_AZ_UNSUPPORTED",
+    "NETWORK_SECURITY_GROUP_VPC_MISMATCH",
+    "NETWORK_SECURITY_GROUP_PUBLIC_INGRESS",
+    "NETWORK_EGRESS_UNRESTRICTED",
+    "NETWORK_EGRESS_ALL_PROTOCOLS",
+    "NETWORK_SECURITY_GROUP_STALE_REFERENCE",
+    "NETWORK_SECURITY_GROUP_CROSS_VPC",
+    "NETWORK_DEPENDENCY_REACHABILITY_MISSING",
+    "NETWORK_SECRET_PATH_MISMATCH",
+    "NETWORK_PUBLIC_IP_FORBIDDEN"
+  ]
+}

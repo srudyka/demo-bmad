@@ -1,0 +1,12 @@
+{
+  "cases": [
+    {"accepted": true, "name": "unreferenced-expired-horizon", "active_references": [], "horizon_expired": true, "current": false, "previous_supported_major": false},
+    {"accepted": false, "error_code": "LIFECYCLE_REFERENCED", "name": "active-occurrence-reference", "active_references": ["occurrence/aaaaaaaa"], "horizon_expired": true, "current": false, "previous_supported_major": false},
+    {"accepted": false, "error_code": "LIFECYCLE_REFERENCE_UNKNOWN", "name": "unknown-dlq-reference", "active_references": [], "unknown_references": ["dlq/unknown"], "horizon_expired": true, "current": false, "previous_supported_major": false},
+    {"accepted": false, "error_code": "LIFECYCLE_CURRENT_VERSION", "name": "current-pointer", "active_references": [], "horizon_expired": true, "current": true, "previous_supported_major": false},
+    {"accepted": false, "error_code": "LIFECYCLE_SUPPORTED_VERSION", "name": "previous-major-support", "active_references": [], "horizon_expired": true, "current": false, "previous_supported_major": true}
+    ,{"accepted": false, "error_code": "LIFECYCLE_HORIZON_ACTIVE", "name": "unexpired-horizon", "active_references": [], "horizon_active": true, "current": false, "previous_supported_major": false}
+    ,{"accepted": false, "error_code": "LIFECYCLE_INVENTORY_INCOMPLETE", "name": "stale-inventory", "active_references": [], "horizon_expired": true, "inventory_complete": false, "current": false, "previous_supported_major": false}
+  ],
+  "schema_version": "1.0.0"
+}

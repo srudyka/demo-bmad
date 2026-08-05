@@ -1,0 +1,27 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:deadline-reached",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "deadline_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "deadline_kind": {
+      "enum": [
+        "START",
+        "COMPLETION"
+      ],
+      "type": "string"
+    },
+    "scanner_watermark": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "deadline_kind",
+    "deadline_at",
+    "scanner_watermark"
+  ],
+  "title": "Deadline Reached Evidence Payload",
+  "type": "object"
+}

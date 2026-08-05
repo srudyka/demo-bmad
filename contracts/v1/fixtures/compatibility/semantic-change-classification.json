@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "after": {
+        "properties": {
+          "job_id": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "before": {
+        "properties": {
+          "job_id": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "expected": "patch",
+      "name": "documentation-only change"
+    },
+    {
+      "after": {
+        "properties": {
+          "job_id": "string",
+          "owner": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "before": {
+        "properties": {
+          "job_id": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "expected": "minor",
+      "name": "optional field added"
+    },
+    {
+      "after": {
+        "properties": {
+          "job_id": "string",
+          "owner": "string"
+        },
+        "required": [
+          "job_id",
+          "owner"
+        ]
+      },
+      "before": {
+        "properties": {
+          "job_id": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "expected": "major",
+      "name": "required field added"
+    },
+    {
+      "after": {
+        "properties": {},
+        "required": []
+      },
+      "before": {
+        "properties": {
+          "job_id": "string"
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "expected": "major",
+      "name": "field removed"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

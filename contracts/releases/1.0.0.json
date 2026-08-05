@@ -1,0 +1,79 @@
+{
+  "artifacts": {
+    "catalogs": [
+      "compatibility",
+      "deprecation",
+      "migration",
+      "commands",
+      "dashboard",
+      "event-types",
+      "iam",
+      "keys-and-correlation",
+      "lifecycle",
+      "metrics-alerts",
+      "network",
+      "oidc",
+      "ownership",
+      "producers",
+      "queue-lambda-constraints",
+      "reducer",
+      "schedules",
+      "secret-safety",
+      "trusted-plan",
+      "production-policy"
+    ],
+    "fixture_suites": [
+      "canonical-json",
+      "compatibility",
+      "iam",
+      "identity",
+      "lifecycle",
+      "oidc",
+      "queue-lambda",
+      "reducer",
+      "schedules",
+      "schemas",
+      "production-policy",
+      "migration",
+      "deprecation",
+      "pilot-measurement",
+      "pilot-launch"
+    ],
+      "schema_count": 47
+  },
+  "classification": "initial",
+  "manifest_surface": {
+    "canonicalization": {
+      "artifact_integrity": "sha256-raw-utf8-lf-final-newline",
+      "semantic_json": "RFC8785",
+      "string_normalization": "NFC-required"
+    },
+    "component_ranges": {
+      "aws_provider": ">=6.0.0,<7.0.0",
+      "alert_router": ">=1.0.0,<2.0.0",
+      "cell": ">=1.0.0,<2.0.0",
+      "command_handler": ">=1.0.0,<2.0.0",
+      "config": ">=1.0.0,<2.0.0",
+      "deadline_scanner": ">=1.0.0,<2.0.0",
+      "ecs_scheduled_job_module": ">=1.0.0,<2.0.0",
+      "ecs_scheduled_job_platform_module": ">=1.0.0,<2.0.0",
+      "evidence": ">=1.0.0,<2.0.0",
+      "evidence_normalizer": ">=1.0.0,<2.0.0",
+      "log_ingestor": ">=1.0.0,<2.0.0",
+      "occurrence_materializer": ">=1.0.0,<2.0.0",
+      "process_manager": ">=1.0.0,<2.0.0",
+      "python": ">=3.14.0,<3.15.0",
+      "terraform": ">=1.10.0,<2.0.0",
+      "workflow": ">=1.0.0,<2.0.0"
+    },
+    "current_major": 1,
+    "minimum_support_horizon_days": 14,
+    "previous_major": null,
+    "range_semantics": "semantic-version SimpleSpec",
+    "schema_dialect": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "migration": "migrations/v1.0.0.md",
+  "package_version": "1.0.0",
+  "predecessor_release": null,
+  "semantic_surface_sha256": "64871242b48564f6da7ab2693a370bf0fc8b04ac4de0a0d2ed9095586d325335"
+}

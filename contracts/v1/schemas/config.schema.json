@@ -1,0 +1,265 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
+        "completion_window_seconds": {
+          "maximum": 86400,
+          "minimum": 60,
+          "type": "integer"
+        },
+        "deployment_identity_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "deployment_identity": {
+          "additionalProperties": false,
+          "properties": {
+            "account_id": { "pattern": "^[0-9]{12}$", "type": "string" },
+            "environment": { "pattern": "^[a-z0-9-]+$", "type": "string" },
+            "image": { "pattern": "^.+@sha256:[0-9a-f]{64}$", "type": "string" },
+            "job_id": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id" },
+            "module_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+            "platform_version": { "type": "string" },
+            "region": { "pattern": "^[a-z0-9-]+$", "type": "string" },
+            "source_revision": { "minLength": 1, "type": "string" },
+            "workflow_identity": { "type": "string" },
+            "deployment_run_reference": { "type": "string" },
+            "schedule_generation": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "cell_contract_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+            "cell_contract_checksum": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" }
+          },
+          "required": ["source_revision", "module_version", "image", "account_id", "region", "environment", "job_id", "platform_version"],
+          "type": "object"
+        },
+        "job_id": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+        },
+        "logs": {
+          "additionalProperties": false,
+          "properties": {
+            "log_group_arn": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+            },
+            "retention_days": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "log_group_arn",
+            "retention_days"
+          ],
+          "type": "object"
+        },
+        "operational_metadata": {
+          "additionalProperties": false,
+          "properties": {
+            "owner": { "minLength": 1, "type": "string" },
+            "runbook_uri": { "pattern": "^https://.+$", "type": "string" },
+            "completion_deadline_seconds": { "minimum": 60, "maximum": 86400, "type": "integer" },
+            "log_retention_days": { "minimum": 1, "type": "integer" },
+            "detection_mode": { "enum": ["occurrence-aware", "best-effort"], "type": "string" },
+            "notification_target_arn": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn" },
+            "escalation_classification": { "enum": ["standard", "high", "critical"], "type": "string" },
+            "alarms_enabled": { "type": "boolean" },
+            "routing_enabled": { "type": "boolean" },
+            "coverage_label": { "enum": ["OCCURRENCE_AWARE", "REDUCED_NON_PRODUCTION"], "type": "string" }
+          },
+          "required": ["owner", "runbook_uri", "completion_deadline_seconds", "log_retention_days", "detection_mode", "notification_target_arn", "escalation_classification", "alarms_enabled", "routing_enabled", "coverage_label"],
+          "type": "object"
+        },
+        "completion": {
+          "additionalProperties": false,
+          "properties": {
+            "detection_mode": { "enum": ["occurrence-aware", "best-effort"], "type": "string" },
+            "filter_pattern": { "minLength": 1, "type": "string" },
+            "destination_arn": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn" }
+          },
+          "required": ["detection_mode", "filter_pattern", "destination_arn"],
+          "type": "object"
+        },
+        "network": {
+          "additionalProperties": false,
+          "properties": {
+            "assign_public_ip": {
+              "const": "DISABLED"
+            },
+            "security_group_ids": {
+              "items": {
+                "pattern": "^sg-[0-9a-f]+$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "subnet_ids": {
+              "items": {
+                "pattern": "^subnet-[0-9a-f]+$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "subnet_ids",
+            "security_group_ids",
+            "assign_public_ip"
+          ],
+          "type": "object"
+        },
+        "notification_target_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
+        "notification_runbook_uri": { "pattern": "^https://.+$", "type": "string" },
+        "contract_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+        "network_policy_version": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+        "policy_versions": {
+          "additionalProperties": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "type": "string" },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "overlap_policy": {
+          "enum": [
+            "APPLICATION_IDEMPOTENT",
+            "APPLICATION_LOCKED"
+          ],
+          "type": "string"
+        },
+        "owner_generation": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "role_arns": {
+          "additionalProperties": false,
+          "properties": {
+            "execution": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+            },
+            "launch": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+            },
+            "task": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+            }
+          },
+          "required": [
+            "execution",
+            "task",
+            "launch"
+          ],
+          "type": "object"
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "properties": {
+            "activation_end": {
+              "oneOf": [
+                {
+                  "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "activation_start": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+            },
+            "expression": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "flexible_time_window": {
+              "const": "OFF"
+            },
+            "evaluator_version": {
+              "const": "schedule-evaluator/1.0.0"
+            },
+            "start_anchor": {
+              "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+            },
+            "time_zone": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "tzdb_version": {
+              "const": "2026b"
+            }
+          },
+          "required": [
+            "expression",
+            "time_zone",
+            "start_anchor",
+            "activation_start",
+            "activation_end",
+            "flexible_time_window",
+            "evaluator_version",
+            "tzdb_version"
+          ],
+          "type": "object"
+        },
+        "schedule_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        },
+        "schedule_generation": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+        },
+        "scheduler_delivery_role_id": {
+          "pattern": "^AROA[A-Z0-9]+$",
+          "type": "string"
+        },
+        "secret_references": {
+          "items": {
+            "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/secret_reference"
+          },
+          "type": "array"
+        },
+        "task_definition_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        }
+      },
+      "required": [
+        "job_id",
+        "owner_generation",
+        "schedule",
+        "schedule_arn",
+        "schedule_generation",
+        "scheduler_delivery_role_id",
+        "task_definition_arn",
+        "cluster_arn",
+        "network",
+        "role_arns",
+        "completion_window_seconds",
+        "overlap_policy",
+        "logs",
+        "notification_target_arn",
+        "secret_references",
+        "deployment_identity_id"
+      ],
+      "type": "object"
+    },
+    "config_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "config_version",
+    "config"
+  ],
+  "title": "Job CONFIG",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_id": "migration",
+  "phase_order": ["expand", "migrate", "cutover", "rollback"],
+  "ownership": {
+    "process_manager": "catalog:ownership/process-manager",
+    "cell_root": "catalog:ownership/cell-root",
+    "job_root": "catalog:ownership/job-root",
+    "stable_within_major": true
+  },
+  "required_observations": [
+    "source_target_counts",
+    "source_target_checksums",
+    "schema_compatibility",
+    "access_patterns",
+    "reducer_invariants",
+    "launch_disabled",
+    "checkpoint",
+    "rollback_compatibility"
+  ]
+}

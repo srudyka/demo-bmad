@@ -1,0 +1,259 @@
+name: Protected production apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit: {required: true, type: string}
+      target_manifest: {required: true, type: string}
+      manifest_sha256: {required: true, type: string}
+      plan_sha256: {required: true, type: string}
+      approval_id: {required: true, type: string}
+      plan_run_id: {required: true, type: string}
+      bundle_run_id: {required: true, type: string}
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  pull-requests: none
+  deployments: none
+
+concurrency:
+  group: production-apply-${{ inputs.source_commit }}-${{ inputs.target_manifest }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event.inputs.source_commit == github.sha
+    runs-on: ubuntu-24.04
+    environment: production-apply
+    timeout-minutes: 30
+    env:
+      TARGET_MANIFEST: ${{ inputs.target_manifest }}
+    steps:
+      - name: Check out exact deployment commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+      - name: Download same-run approved artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: production-approved-bundle-${{ inputs.source_commit }}
+          run-id: ${{ inputs.bundle_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}
+      - name: Validate exact apply inputs
+        env:
+          GITHUB_RUN_ID: ${{ inputs.plan_run_id }}
+          BUNDLE_RUN_ID: ${{ inputs.bundle_run_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          EXPECTED_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test -f "$TARGET_MANIFEST"
+          test "$(sha256sum "$TARGET_MANIFEST" | cut -d' ' -f1)" = "$EXPECTED_MANIFEST_SHA256"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          manifest_region="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["region"])')"
+          manifest_root="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["root"])')"
+          manifest_role="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
+          printf 'AWS_REGION=%s\nTARGET_ROOT=%s\nAWS_ROLE_ARN=%s\n' "$manifest_region" "$manifest_root" "$manifest_role" >> "$GITHUB_ENV"
+          export AWS_REGION="$manifest_region" TARGET_ROOT="$manifest_root"
+          for required in approval.json readiness.json readiness-evidence.json apply-authorization.json caller.json authority.json github-claims.json cell-contract.json lock.json deployment-evidence.json approved.tfplan trusted-plan.json trusted-policy.json trusted-artifact-manifest.json bundle-manifest.json; do test -f "$RUNNER_TEMP/$required"; done
+          python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$TARGET_MANIFEST" "$SOURCE_COMMIT" "$GITHUB_RUN_ID" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          artifact = json.loads(Path(sys.argv[1]).read_text())
+          if artifact.get("audience") != "trusted-reviewer": raise SystemExit("ARTIFACT_AUDIENCE")
+          if artifact.get("source_commit") != sys.argv[3] or str(artifact.get("workflow_run_id")) != sys.argv[4]: raise SystemExit("ARTIFACT_RUN")
+          if artifact.get("target_manifest_path") != sys.argv[2] or artifact.get("target_manifest_sha256") != hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest(): raise SystemExit("ARTIFACT_TARGET")
+          if artifact.get("plan_sha256") != hashlib.sha256(Path(sys.argv[1]).parent.joinpath("approved.tfplan").read_bytes()).hexdigest(): raise SystemExit("ARTIFACT_PLAN")
+          PY
+          [[ "${{ inputs.plan_sha256 }}" =~ ^[0-9a-f]{64}$ ]]
+          PLAN_SHA256="${{ inputs.plan_sha256 }}"
+          printf 'PLAN_SHA256=%s\n' "$PLAN_SHA256" >> "$GITHUB_ENV"
+          test "$(sha256sum "$RUNNER_TEMP/approved.tfplan" | cut -d' ' -f1)" = "$PLAN_SHA256"
+          eval "$(python - \"$RUNNER_TEMP\" <<'PY'
+          import json, os, shlex, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          approval = json.loads((root / "approval.json").read_text())
+          readiness = json.loads((root / "readiness.json").read_text())
+          readiness_evidence = json.loads((root / "readiness-evidence.json").read_text())
+          auth = json.loads((root / "apply-authorization.json").read_text())
+          if approval.get("approval_id") != "${{ inputs.approval_id }}": raise SystemExit("APPROVAL_ID")
+          values = {
+              "READINESS_SHA256": __import__("hashlib").sha256((root / "readiness.json").read_bytes()).hexdigest(),
+              "READINESS_EVIDENCE_SHA256": readiness_evidence["evidence_sha256"],
+              "READINESS_EVIDENCE_FILE_SHA256": __import__("hashlib").sha256((root / "readiness-evidence.json").read_bytes()).hexdigest(),
+              "APPROVAL_ID": approval["approval_id"], "PHASE": approval["phase"],
+              "GENERATION": approval["generation"], "JOB_ID": readiness["job_id"],
+              "CONFIG_SHA256": readiness["config_sha256"], "SCHEDULE_GENERATION": readiness["schedule_generation"],
+              "DEPLOYMENT_IDENTITY_SHA256": readiness["deployment_identity_sha256"],
+              "LOCK_ID": auth["lock_id"], "CALLER_ROLE_ID": auth["caller_role_id"],
+          }
+          for key, value in values.items(): print(f"export {key}={shlex.quote(str(value))}")
+          PY
+          )"
+          python scripts/production_apply.py \
+            --manifest "$TARGET_MANIFEST" \
+            --approval "$RUNNER_TEMP/approval.json" \
+            --readiness "$RUNNER_TEMP/readiness.json" \
+            --readiness-evidence "$RUNNER_TEMP/readiness-evidence.json" \
+            --authorization "$RUNNER_TEMP/apply-authorization.json" \
+            --plan "$RUNNER_TEMP/approved.tfplan" \
+            --caller "$RUNNER_TEMP/caller.json" \
+            --authority "$RUNNER_TEMP/authority.json" \
+            --github-claims "$RUNNER_TEMP/github-claims.json" \
+            --cell-contract "$RUNNER_TEMP/cell-contract.json" \
+            --lock "$RUNNER_TEMP/lock.json" \
+            --plan-json "$RUNNER_TEMP/trusted-plan.json" \
+            --policy "$RUNNER_TEMP/trusted-policy.json" \
+            --bundle-manifest "$RUNNER_TEMP/bundle-manifest.json"
+      - name: Assume exact apply role
+        id: assume
+        env:
+          AWS_ROLE_SESSION_NAME: production-apply-${{ github.run_id }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+        run: |
+          AWS_ROLE_ARN="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
+          AWS_REGION="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["region"])')"
+          export AWS_ROLE_ARN AWS_REGION
+          test -n "$AWS_ROLE_ARN"
+          test "$AWS_ROLE_ARN" = "$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
+          token="$(curl --fail --silent --show-error -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          read -r access_key secret_key session_token <<< "$(aws sts assume-role-with-web-identity --role-arn "$AWS_ROLE_ARN" --role-session-name "$AWS_ROLE_SESSION_NAME" --web-identity-token "$token" --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)"
+          printf 'access_key_id=%s\nsecret_access_key=%s\nsession_token=%s\n' "$access_key" "$secret_key" "$session_token" >> "$GITHUB_OUTPUT"
+      - name: Verify assumed caller identity
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+        run: |
+          expected_account="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["account_id"])')"
+          actual_account="$(aws sts get-caller-identity --query Account --output text)"
+          test "$actual_account" = "$expected_account"
+          actual_arn="$(aws sts get-caller-identity --query Arn --output text)"
+          printf 'APPLY_ACTOR=%s\n' "$actual_arn" >> "$GITHUB_ENV"
+          expected_role="$(python -c 'import json,os; print(json.load(open(os.environ["TARGET_MANIFEST"]))["apply_role_arn"])')"
+          authorized_role="$(python -c 'import json,os; print(json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "apply-authorization.json")))['"'"'caller_role_arn'"'"'])')"
+          test "${actual_arn#arn:aws:sts::}" != "$actual_arn"
+          actual_role="${actual_arn#arn:aws:sts::${expected_account}:assumed-role/}"
+          actual_role="${actual_role%%/*}"
+          expected_role_name="${expected_role##*/}"
+          authorized_role_name="${authorized_role##*/}"
+          test "$actual_role" = "$expected_role_name"
+          test "$authorized_role_name" = "$expected_role_name"
+      - name: Apply exact approved binary plan
+        id: apply
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+        run: |
+          apply_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf 'APPLY_STARTED_AT=%s\n' "$apply_started_at" >> "$GITHUB_ENV"
+          export AWS_DEFAULT_REGION="$AWS_REGION"
+          test -f "$RUNNER_TEMP/approved.tfplan"
+          test "$(sha256sum "$RUNNER_TEMP/approved.tfplan" | cut -d' ' -f1)" = "$PLAN_SHA256"
+          terraform -chdir="$TARGET_ROOT" init -lockfile=readonly
+          terraform -chdir="$TARGET_ROOT" apply -input=false "$RUNNER_TEMP/approved.tfplan"
+      - name: Collect post-apply identity and verification evidence
+        if: ${{ always() }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+        run: |
+          if terraform -chdir="$TARGET_ROOT" show -json > "$RUNNER_TEMP/post-apply-state.json"; then
+            python - "$RUNNER_TEMP" "$TARGET_MANIFEST" <<'PY'
+            import json, sys
+            from pathlib import Path
+            from scripts.apply_evidence import build_verification, collect_resource_identities
+            root = Path(sys.argv[1])
+            manifest = json.loads(Path(sys.argv[2]).read_text())
+            state = json.loads((root / "post-apply-state.json").read_text())
+            identities = collect_resource_identities(state)
+            (root / "resource-identities.json").write_text(json.dumps(identities, sort_keys=True) + "\n")
+            verification = build_verification(manifest=manifest, state=state, resource_identities=identities)
+            (root / "verification.json").write_text(json.dumps(verification, sort_keys=True) + "\n")
+            PY
+          else
+            printf '{}\n' > "$RUNNER_TEMP/resource-identities.json"
+            printf '%s\n' '{"status":"blocked","launch_enabled":false,"missing":["post_apply_state"],"decision":"blocked"}' > "$RUNNER_TEMP/verification.json"
+          fi
+      - name: Finalize deployment evidence
+        if: ${{ always() }}
+        env:
+          DEPLOYMENT_OUTCOME: ${{ steps.apply.outcome == 'success' && 'succeeded' || 'failed' }}
+        run: |
+          python - "$RUNNER_TEMP" "$DEPLOYMENT_OUTCOME" <<'PY'
+          import json, sys
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from scripts.deployment_evidence import finalize_deployment_evidence, validate_deployment_evidence
+          root, outcome = Path(sys.argv[1]), sys.argv[2]
+          pre = json.loads((root / "deployment-evidence.json").read_text())
+          approval = json.loads((root / "approval.json").read_text())
+          policy = json.loads((root / "trusted-policy.json").read_text())
+          plan = json.loads((root / "trusted-plan.json").read_text())
+          ended = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+          started = os.environ.get("APPLY_STARTED_AT", ended)
+          verification_path = root / "verification.json"
+          identities_path = root / "resource-identities.json"
+          verification = json.loads(verification_path.read_text()) if verification_path.is_file() else {"status": "blocked", "launch_enabled": False}
+          identities = json.loads(identities_path.read_text()) if identities_path.is_file() else {}
+          errors = [] if outcome == "succeeded" else ["apply workflow did not complete successfully"]
+          if outcome == "succeeded" and (not identities or verification.get("status") != "passed"):
+              outcome = "failed"
+              errors = ["apply completed without independent resource and verification evidence"]
+          state_result = "succeeded" if outcome == "succeeded" else "failed"
+          approvers = approval.get("approvals", [])
+          final = finalize_deployment_evidence(pre, outcome=outcome, apply_actor=os.environ.get("APPLY_ACTOR", "unknown"), started_at=started, ended_at=ended, state_result=state_result, lock_condition="clear" if outcome == "succeeded" else "inspect-required", lifecycle_state=plan.get("lifecycle_state", "UNKNOWN"), errors=errors, output_checksums={}, resource_identities=identities, verification=verification, approvals=approvers, policy_result=policy)
+          validate_deployment_evidence(final)
+          (root / "deployment-evidence-final.json").write_text(json.dumps(final, sort_keys=True) + "\n")
+          PY
+      - name: Publish deployment evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deployment-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/deployment-evidence-final.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Record bounded failure evidence
+        if: ${{ always() && failure() }}
+        run: |
+          python - "$TARGET_MANIFEST" <<'PY'
+          import json, os
+          import sys
+          from datetime import datetime, timezone
+          from scripts.production_apply import bounded_failure_evidence
+          manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+          record = bounded_failure_evidence({"schema_version":"1.0.0","status":"failed","run_id":os.environ["GITHUB_RUN_ID"],"plan_sha256":os.environ["PLAN_SHA256"],"state_key":manifest["state_key"],"lock_state":"inspect-required","error_code":"APPLY_FAILED","recovery_guidance":"Inspect state and lock; create a fresh plan; do not retry mutation.","recorded_at":datetime.now(timezone.utc).isoformat().replace("+00:00","Z")})
+          json.dump(record, open(os.path.join(os.environ["RUNNER_TEMP"], "failure-evidence.json"), "w"), sort_keys=True)
+          PY
+      - name: Publish bounded failure evidence
+        if: ${{ always() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-apply-failure-${{ github.run_id }}
+          path: ${{ runner.temp }}/failure-evidence.json
+          if-no-files-found: error
+          retention-days: 7

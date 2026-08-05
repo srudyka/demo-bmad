@@ -1,0 +1,79 @@
+name: Publish production approval evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit: {required: true, type: string}
+      approval_json: {required: true, type: string}
+      readiness_json: {required: true, type: string}
+      apply_authorization_json: {required: true, type: string}
+      caller_json: {required: true, type: string}
+      authority_json: {required: true, type: string}
+      github_claims_json: {required: true, type: string}
+      cell_contract_json: {required: true, type: string}
+      lock_json: {required: true, type: string}
+      deployment_evidence_json: {required: true, type: string}
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: production-approval-evidence-${{ inputs.source_commit }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && inputs.source_commit == github.sha
+    runs-on: ubuntu-24.04
+    environment: production-approval-evidence
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+      - name: Write submitted evidence
+        env:
+          APPROVAL_JSON: ${{ inputs.approval_json }}
+          READINESS_JSON: ${{ inputs.readiness_json }}
+          APPLY_AUTHORIZATION_JSON: ${{ inputs.apply_authorization_json }}
+          CALLER_JSON: ${{ inputs.caller_json }}
+          AUTHORITY_JSON: ${{ inputs.authority_json }}
+          GITHUB_CLAIMS_JSON: ${{ inputs.github_claims_json }}
+          CELL_CONTRACT_JSON: ${{ inputs.cell_contract_json }}
+          LOCK_JSON: ${{ inputs.lock_json }}
+          DEPLOYMENT_EVIDENCE_JSON: ${{ inputs.deployment_evidence_json }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.deployment_evidence import validate_deployment_evidence
+          root = Path(os.environ["RUNNER_TEMP"]) / "evidence"
+          root.mkdir()
+          values = {
+              "approval.json": os.environ["APPROVAL_JSON"],
+              "readiness.json": os.environ["READINESS_JSON"],
+              "apply-authorization.json": os.environ["APPLY_AUTHORIZATION_JSON"],
+              "caller.json": os.environ["CALLER_JSON"],
+              "authority.json": os.environ["AUTHORITY_JSON"],
+              "github-claims.json": os.environ["GITHUB_CLAIMS_JSON"],
+              "cell-contract.json": os.environ["CELL_CONTRACT_JSON"],
+              "lock.json": os.environ["LOCK_JSON"],
+              "deployment-evidence.json": os.environ["DEPLOYMENT_EVIDENCE_JSON"],
+          }
+          for name, raw in values.items():
+              parsed = json.loads(raw)
+              if name == "deployment-evidence.json":
+                  validate_deployment_evidence(parsed, expected_status="awaiting-approval")
+              (root / name).write_text(json.dumps(parsed, sort_keys=True) + "\n")
+          PY
+      - name: Publish evidence artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-approval-evidence-${{ inputs.source_commit }}
+          path: ${{ runner.temp }}/evidence
+          retention-days: 1
+          if-no-files-found: error

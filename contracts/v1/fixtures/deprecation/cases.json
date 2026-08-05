@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {"name": "active consumer", "mutation": {"active_references": ["cell:dev"]}, "expected_error": "LIFECYCLE_REFERENCED"},
+    {"name": "unknown owner", "mutation": {"source_owner": "unknown"}, "expected_error": "RETIREMENT_INVENTORY_OWNER"},
+    {"name": "delayed dlq", "mutation": {"active_references": ["dlq:delayed"]}, "expected_error": "LIFECYCLE_REFERENCED"},
+    {"name": "unexpired horizon", "mutation": {"horizon_at": "2026-07-30T12:05:00Z"}, "expected_error": "LIFECYCLE_HORIZON_ACTIVE"},
+    {"name": "stale manifest", "mutation": {"policy_expires_at": "2026-07-30T11:59:00Z"}, "expected_error": "RETIREMENT_POLICY_FRESHNESS"},
+    {"name": "changed alias", "mutation": {"withdrawal_surfaces": ["cell_contract_ranges", "workflow_manifests", "documentation", "support_metadata"]}, "expected_error": "RETIREMENT_WITHDRAWAL_SURFACES"},
+    {"name": "emergency deprecation", "mutation": {"emergency": true}, "expected_error": null},
+    {"name": "safe retirement", "mutation": {}, "expected_error": null},
+    {"name": "late reference before deletion", "mutation": {"execution": "late_reference"}, "expected_error": "LIFECYCLE_LATE_REFERENCE"},
+    {"name": "post-cleanup incomplete", "mutation": {"execution": "post_cleanup_incomplete"}, "expected_error": "LIFECYCLE_POST_CLEANUP_INCOMPLETE"},
+    {"name": "post-cleanup verifier failure", "mutation": {"execution": "post_cleanup_failure"}, "expected_error": "LIFECYCLE_POST_CLEANUP_FAILED"}
+  ]
+}

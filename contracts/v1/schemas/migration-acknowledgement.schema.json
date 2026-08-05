@@ -1,0 +1,19 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:migration-acknowledgement",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Migration cutover acknowledgement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["migration_id", "target_release", "target_release_sha256", "horizon_watermark", "acknowledged_at", "issued_at", "expires_at", "actor", "plan_sha256"],
+  "properties": {
+    "migration_id": {"type": "string", "minLength": 1},
+    "target_release": {"type": "string", "minLength": 1},
+    "target_release_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "horizon_watermark": {"type": "integer", "minimum": 1},
+    "acknowledged_at": {"type": "string", "format": "date-time"}
+    ,"issued_at": {"type": "string", "format": "date-time"}
+    ,"expires_at": {"type": "string", "format": "date-time"}
+    ,"actor": {"type": "string", "minLength": 1}
+    ,"plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

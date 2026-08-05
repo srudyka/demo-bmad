@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {
+      "name": "atomic-create-request",
+      "request": {
+        "protocol_version": "config-publisher/1.0.0",
+        "job_id": "dev/sample/daily",
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "object_key": "jobs/dev/sample/daily/config/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+        "config_document": {"schema_version": "1.0.0", "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "config": {}},
+        "contract_version": "1.0.0",
+        "ownership_generation": 1
+      },
+      "expected_header": "*",
+      "expected_result": "PUBLISHED"
+    },
+    {
+      "name": "identical-retry",
+      "expected_result": "ALREADY_PUBLISHED"
+    },
+    {
+      "name": "conflicting-retry",
+      "expected_error": "CONFIG_VERSION_CONFLICT"
+    },
+    {
+      "name": "cross-job-identity",
+      "expected_error": "JOB_ID_AUTHORIZATION_FAILED"
+    },
+    {
+      "name": "secret-bearing-request",
+      "expected_error": "CONFIG_SECRET_VALUE_FORBIDDEN"
+    }
+  ]
+}

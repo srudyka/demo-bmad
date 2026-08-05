@@ -1,0 +1,31 @@
+{
+  "deadline_clock": "fact_time",
+  "deduplication": {
+    "conflicting_digest": "AMBIGUOUS",
+    "identical_digest": "ignore",
+    "key": [
+      "producer_id",
+      "producer_event_id"
+    ]
+  },
+  "maximum_fixture_events": 6,
+  "rules": [
+    "SUCCEEDED requires one accepted success marker and zero essential-container exit for the same task",
+    "a completion fact at or before deadline remains timely even when delivered later",
+    "a success fact after deadline conflicts with the established overdue terminal truth",
+    "nonzero exit or launch failure yields FAILED",
+    "deadline without task yields MISSED",
+    "deadline after task start without valid completion yields OVERDUE",
+    "conflicting deduplication body, task ARN, completion, or terminal truth yields AMBIGUOUS"
+  ],
+  "schema_version": "1.0.0",
+  "states": [
+    "EXPECTED",
+    "STARTED",
+    "SUCCEEDED",
+    "FAILED",
+    "OVERDUE",
+    "MISSED",
+    "AMBIGUOUS"
+  ]
+}

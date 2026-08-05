@@ -1,0 +1,225 @@
+output "cell_id" {
+  description = "Stable Cell identifier published in the discovery contract."
+  value       = var.cell_id
+}
+
+output "namespace_registry" {
+  description = "Name and ARN of the Cell-owned namespace reservation registry."
+  value = {
+    arn  = aws_dynamodb_table.namespace_registry.arn
+    name = aws_dynamodb_table.namespace_registry.name
+  }
+}
+
+output "config_inbox" {
+  description = "Name and ARN of the Cell-owned CONFIG candidate inbox."
+  value = {
+    arn  = aws_s3_bucket.config_inbox.arn
+    name = aws_s3_bucket.config_inbox.bucket
+  }
+}
+
+output "config_publisher" {
+  description = "Cell-owned IAM-authenticated conditional CONFIG publisher endpoint and alarms."
+  value = {
+    function_arn = aws_lambda_function.config_publisher.arn
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/publish"
+    role_arn     = aws_iam_role.config_publisher.arn
+    alarm_arns = [
+      aws_cloudwatch_metric_alarm.config_publisher_errors.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_throttles.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_conflicts.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_authorization.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_validation.arn,
+      aws_cloudwatch_metric_alarm.config_publisher_latency.arn,
+    ]
+    protocol_version = "config-publisher/1.0.0"
+  }
+}
+
+output "configuration_registry" {
+  description = "Name and ARN of the Cell-owned immutable CONFIG registry."
+  value = {
+    arn  = aws_dynamodb_table.configuration_registry.arn
+    name = aws_dynamodb_table.configuration_registry.name
+  }
+}
+
+output "cell_contract" {
+  description = "SSM discovery contract identifiers, version, and semantic checksum for consumers."
+  value = {
+    checksum       = local.cell_contract_checksum
+    parameter_arn  = aws_ssm_parameter.cell_contract.arn
+    parameter_name = aws_ssm_parameter.cell_contract.name
+    version        = var.contract_version
+  }
+}
+
+output "metric_namespace" {
+  description = "Reserved bounded CloudWatch metric namespace for future Cell integrations."
+  value       = var.metric_namespace
+}
+
+output "process_manager" {
+  description = "Cell-owned deterministic occurrence Process Manager identifiers."
+  value = {
+    arn                  = aws_iam_role.process_manager.arn
+    function_arn         = aws_lambda_function.process_manager.arn
+    id                   = aws_iam_role.process_manager.unique_id
+    log_group_name       = aws_cloudwatch_log_group.process_manager.name
+    occurrence_table_arn = aws_dynamodb_table.occurrence_ledger.arn
+    task_arn_index_name  = "task-arn"
+    launch_role_arn      = var.canary_normalizer_registration.canary_launch_role_arn
+    mapping_uuid         = aws_lambda_event_source_mapping.process_manager.uuid
+  }
+}
+
+output "occurrence_ledger" {
+  description = "Encrypted occurrence ledger table identifiers."
+  value = {
+    arn  = aws_dynamodb_table.occurrence_ledger.arn
+    name = aws_dynamodb_table.occurrence_ledger.name
+  }
+}
+
+output "deadline_scanner" {
+  description = "Cell-owned deadline scanner, source queue, DLQ, checkpoint, and deadline-index identifiers."
+  value = {
+    function_arn        = aws_lambda_function.deadline_scanner.arn
+    role_arn            = aws_iam_role.deadline_scanner.arn
+    source_queue_arn    = aws_sqs_queue.deadline_source.arn
+    source_dlq_arn      = aws_sqs_queue.deadline_source_dlq.arn
+    checkpoint_table    = aws_dynamodb_table.deadline_checkpoint.name
+    deadline_index_name = "deadlines"
+    tick_rule_arn       = aws_cloudwatch_event_rule.deadline_scanner_tick.arn
+  }
+}
+
+output "alert_router" {
+  description = "Cell-owned occurrence Alert Router, outbox, notification ledger, and reconciliation identifiers."
+  value = {
+    function_arn             = aws_lambda_function.alert_router.arn
+    role_arn                 = aws_iam_role.alert_router.arn
+    occurrence_stream_arn    = aws_dynamodb_table.occurrence_ledger.stream_arn
+    outbox_index_name        = "alert-outbox"
+    notification_ledger_arn  = aws_dynamodb_table.notification_ledger.arn
+    notification_ledger_name = aws_dynamodb_table.notification_ledger.name
+    reconciliation_rule_arn  = aws_cloudwatch_event_rule.alert_router_reconciliation.arn
+    dead_letter_queue_arn    = aws_sqs_queue.alert_router_dlq.arn
+  }
+}
+
+output "log_ingestor" {
+  description = "Cell-owned completion log-ingestor destination and exact subscription contract values."
+  value = {
+    function_arn     = aws_lambda_function.log_ingestor.arn
+    filter_pattern   = "{ $.schema_version = \"1.0.0\" && $.marker_status = * }"
+    protocol_version = "log-ingestor/1.0.0"
+  }
+}
+
+output "cell_health" {
+  description = "Bounded Cell-health alarm identifiers and the processed-canary heartbeat metric."
+  value = {
+    alarm_arns       = { for key, alarm in aws_cloudwatch_metric_alarm.cell_health : key => alarm.arn }
+    heartbeat_alarm  = aws_cloudwatch_metric_alarm.canary_processed_freshness.arn
+    retry_alarm      = aws_cloudwatch_metric_alarm.alert_router_retries.arn
+    metric_namespace = var.metric_namespace
+  }
+}
+
+output "scheduler_ingress" {
+  description = "Cell-owned EventBridge Scheduler ingress queue, DLQ, and schedule-group identifiers."
+  value = {
+    dlq_arn            = aws_sqs_queue.scheduler_dlq.arn
+    queue_arn          = aws_sqs_queue.scheduler_ingress.arn
+    schedule_group_arn = aws_scheduler_schedule_group.cell.arn
+  }
+}
+
+output "evidence_normalizer" {
+  description = "Cell-owned canonical evidence ingress, quarantine, and normalizer runtime identifiers."
+  value = {
+    function_arn         = aws_lambda_function.evidence_normalizer.arn
+    ingress_dlq_arn      = aws_sqs_queue.normalizer_ingress_dlq.arn
+    ingress_queue_arn    = aws_sqs_queue.normalizer_ingress.arn
+    log_group_name       = aws_cloudwatch_log_group.evidence_normalizer.name
+    quarantine_dlq_arn   = aws_sqs_queue.normalizer_quarantine_dlq.arn
+    quarantine_queue_arn = aws_sqs_queue.normalizer_quarantine.arn
+    role_arn             = aws_iam_role.evidence_normalizer.arn
+  }
+}
+
+output "occurrence_materializer" {
+  description = "Independent expected-occurrence materializer identifiers and authenticated source queue."
+  value = {
+    function_arn = aws_lambda_function.occurrence_materializer.arn
+    queue_arn    = aws_sqs_queue.materializer_ingress.arn
+    dlq_arn      = aws_sqs_queue.materializer_dlq.arn
+    role_arn     = aws_iam_role.occurrence_materializer.arn
+    rule_arn     = aws_cloudwatch_event_rule.materializer_tick.arn
+  }
+}
+
+output "config_validator" {
+  description = "Cell-owned validation-only CONFIG acknowledgement function; it never emits expected occurrences or enables schedules."
+  value = {
+    function_arn = aws_lambda_function.config_validator.arn
+    role_arn     = aws_iam_role.config_validator.arn
+    log_group    = aws_cloudwatch_log_group.config_validator.name
+    protocol     = "config-validator/1.0.0"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/validate"
+    alarm_arns   = [aws_cloudwatch_metric_alarm.config_validator_errors.arn, aws_cloudwatch_metric_alarm.config_validator_throttles.arn, aws_cloudwatch_metric_alarm.config_validator_rejections.arn, aws_cloudwatch_metric_alarm.config_validator_conflicts.arn]
+  }
+}
+
+output "job_registrar" {
+  description = "Cell-owned Registrar Lambda that resolves authoritative AWS identities and conditionally binds reservations."
+  value = {
+    function_arn = aws_lambda_function.job_registrar.arn
+    role_arn     = aws_iam_role.job_registrar.arn
+    log_group    = aws_cloudwatch_log_group.job_registrar.name
+    protocol     = "job-registrar/1.0.0"
+    endpoint_url = "https://${aws_api_gateway_rest_api.config_publisher.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/v1/register"
+    alarm_arns   = [aws_cloudwatch_metric_alarm.job_registrar_errors.arn, aws_cloudwatch_metric_alarm.job_registrar_throttles.arn]
+  }
+}
+
+output "canary_registration" {
+  description = "Immutable platform-owned bootstrap canary reservation and its narrowly scoped CONFIG publisher role."
+  value = {
+    config_publisher_role_arn = aws_iam_role.canary_config_publisher.arn
+    job_id                    = var.canary_reservation.job_id
+    owner_generation          = var.canary_reservation.owner_generation
+  }
+}
+
+output "operator_commands" {
+  description = "Short-lived operator role and encrypted command-handler queue identifiers."
+  value = {
+    handler_function_arn = aws_lambda_function.command_handler.arn
+    handler_role_arn     = aws_iam_role.command_handler.arn
+    queue_arn            = aws_sqs_queue.command_handler_queue.arn
+    dlq_arn              = aws_sqs_queue.command_handler_dlq.arn
+    operator_role_arn    = aws_iam_role.operator.arn
+  }
+}
+
+output "cell_recovery" {
+  description = "Cell recovery controller, encrypted queue/DLQ, manifest table, and generation pointer identifiers."
+  value = {
+    controller_function_arn = aws_lambda_function.recovery_controller.arn
+    controller_role_arn     = aws_iam_role.recovery_controller.arn
+    queue_arn               = aws_sqs_queue.recovery_queue.arn
+    dlq_arn                 = aws_sqs_queue.recovery_dlq.arn
+    manifest_table_arn      = aws_dynamodb_table.recovery_manifests.arn
+    pointer_parameter_arn   = aws_ssm_parameter.recovery_generation.arn
+    lifecycle_role_arn      = aws_iam_role.lifecycle_gc.arn
+    lifecycle_log_group     = aws_cloudwatch_log_group.lifecycle_gc.name
+    lifecycle_schedule_arn  = aws_cloudwatch_event_rule.lifecycle_gc_schedule.arn
+    lifecycle_alarm_arns = {
+      blocked = aws_cloudwatch_metric_alarm.lifecycle_gc_blocked.arn
+      failure = aws_cloudwatch_metric_alarm.lifecycle_gc_failure.arn
+    }
+  }
+}

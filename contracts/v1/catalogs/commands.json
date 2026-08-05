@@ -1,0 +1,50 @@
+{
+  "canonical_command": {
+    "command_id": "handler-generated lowercase RFC 9562 UUIDv7",
+    "manual_identity_bytes": "occurrence/manual/v1\\n<job_id>\\n<original_occurrence_id>\\n<config_version>\\n<command_id>",
+    "required_bindings": [
+      "actor",
+      "approval_reference",
+      "reason",
+      "original_occurrence_id",
+      "config_version",
+      "deployment_identity_id",
+      "verification_reference",
+      "expected_duplicate_effects",
+      "verification_plan",
+      "schedule_generation",
+      "replay_of_occurrence_id",
+      "compensation_acknowledged"
+    ],
+    "recovery_bindings": [
+      "restore_point",
+      "expected_rpo_seconds",
+      "expected_rto_seconds",
+      "recovery_generation"
+    ],
+    "trailing_newline": false
+  },
+  "operator_request": {
+    "allowed_lookup_selectors": ["scheduled_time"],
+    "allowed_command_types": ["RERUN", "REPLAY", "DISABLE", "RECOVER"],
+    "forbidden_caller_fields": [
+      "occurrence_id",
+      "original_occurrence_id",
+      "synthetic_occurrence_id",
+      "command_id",
+      "producer_id",
+      "evidence"
+    ],
+    "idempotency_key": "request_id",
+    "trusted_handler_resolves": [
+      "original_occurrence_id",
+      "config_version",
+      "deployment_identity_id",
+      "command_id",
+      "schedule_generation",
+      "replay_of_occurrence_id",
+      "synthetic_occurrence_id"
+    ]
+  },
+  "schema_version": "1.0.0"
+}

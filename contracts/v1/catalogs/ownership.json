@@ -1,0 +1,95 @@
+{
+  "edges": [
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "job-module",
+      "evidence_type": "cell-contract",
+      "integration": "cell-contract-publication",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "platform-cell-module",
+      "resource_arn_shape": "arn:aws:ssm:<region>:<account>:parameter/platform/ecs-scheduled-jobs/<environment>/<region>/contract",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "occurrence-materializer",
+      "evidence_type": "config",
+      "integration": "job-config-publication",
+      "lifecycle_owner": "application-owner",
+      "producer": "job-module",
+      "resource_arn_shape": "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/config/<config-version>.json",
+      "terraform_owner": "ecs-scheduled-job"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "evidence-normalizer",
+      "evidence_type": "occurrence.launch.v1",
+      "integration": "scheduler-ingress-queue",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "scheduler",
+      "resource_arn_shape": "arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "evidence-normalizer",
+      "evidence_type": "occurrence.expected.v1",
+      "integration": "materializer-ingress-queue",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "occurrence-materializer",
+      "resource_arn_shape": "arn:aws:sqs:<region>:<account>:<cell>-materializer-ingress",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "ecs",
+      "evidence_type": "task.launch-result.v1",
+      "integration": "job-launch-role",
+      "lifecycle_owner": "application-owner",
+      "producer": "process-manager",
+      "resource_arn_shape": "arn:aws:iam::<account>:role/<job-id>-launch",
+      "terraform_owner": "ecs-scheduled-job"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "process-manager",
+      "evidence_type": "task.state.v1",
+      "integration": "ecs-state-ingress",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "ecs",
+      "resource_arn_shape": "arn:aws:events:<region>:<account>:rule/<cell>-ecs-state",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "log-ingestor",
+      "evidence_type": "completion.observed.v1",
+      "integration": "job-log-group",
+      "lifecycle_owner": "application-owner",
+      "producer": "ecs-task",
+      "resource_arn_shape": "arn:aws:logs:<region>:<account>:log-group:/platform/jobs/<job-id>:*",
+      "terraform_owner": "ecs-scheduled-job"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "alert-router",
+      "evidence_type": "alert",
+      "integration": "alert-outbox",
+      "lifecycle_owner": "platform-engineering",
+      "producer": "process-manager",
+      "resource_arn_shape": "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger",
+      "terraform_owner": "ecs-scheduled-job-platform"
+    },
+    {
+      "compatibility_version": "1.0.0",
+      "consumer": "notification-target",
+      "evidence_type": "alert",
+      "integration": "production-alert-topic",
+      "lifecycle_owner": "cloud-infrastructure-owner",
+      "producer": "alert-router",
+      "resource_arn_shape": "arn:aws:sns:<region>:<account>:<approved-topic>",
+      "terraform_owner": "existing-input"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

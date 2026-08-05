@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "plan_contract": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan",
+  "artifact_integrity": "sha256-raw-utf8-lf-final-newline",
+  "terraform_version": "1.15.8",
+  "provider_version": "6.54.0",
+  "lockfile_mode": "readonly",
+  "artifact": {
+    "audience": "trusted-reviewer",
+    "prefix": "github-actions://trusted-plan/",
+    "max_retention_seconds": 86400,
+    "binary_never_logged": true
+  },
+  "plan_role_forbidden_actions": [
+    "iam:PassRole",
+    "sts:AssumeRole",
+    "terraform:Apply"
+  ]
+}

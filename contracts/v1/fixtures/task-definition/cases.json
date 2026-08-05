@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {
+      "name": "valid-fargate",
+      "input": {
+        "requires_compatibilities": ["FARGATE"],
+        "network_mode": "awsvpc",
+        "cpu": 256,
+        "memory": 512,
+        "ephemeral_storage_gib": 21,
+        "image": "example.invalid/job@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "log_driver": "awslogs"
+      },
+      "expected_findings": []
+    },
+    {
+      "name": "invalid-ephemeral-storage",
+      "input": {"ephemeral_storage_gib": 20},
+      "expected_findings": ["TASK_EPHEMERAL_STORAGE_INVALID"]
+    },
+    {
+      "name": "reserved-environment",
+      "input": {"environment_name": "OCCURRENCE_ID"},
+      "expected_findings": ["TASK_RESERVED_ENVIRONMENT_FIELD"]
+    },
+    {
+      "name": "mutable-image",
+      "input": {"image": "example.invalid/job:latest"},
+      "expected_findings": ["TASK_IMAGE_MUTABLE"]
+    },
+    {
+      "name": "missing-log-driver",
+      "input": {"log_driver": "json-file"},
+      "expected_findings": ["TASK_LOG_CONFIGURATION_INVALID"]
+    },
+    {
+      "name": "missing-secret-environment-name",
+      "input": {
+        "secret_references": ["arn:aws:secretsmanager:us-east-1:123456789012:secret:job"],
+        "secret_environment_names": []
+      },
+      "expected_findings": ["TASK_SECRET_ENVIRONMENT_MAPPING_INVALID"]
+    },
+    {
+      "name": "fractional-fargate-number",
+      "input": {"cpu": 256.5, "memory": 512},
+      "expected_findings": ["TASK_FARGATE_NUMBER_NOT_WHOLE"]
+    },
+    {
+      "name": "application-pull-no-agent-injection",
+      "input": {"secret_mode": "application-pull", "ecs_agent_secrets": true},
+      "expected_findings": ["TASK_APPLICATION_PULL_ECS_SECRET_INJECTION"]
+    }
+  ]
+}

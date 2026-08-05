@@ -1,0 +1,13 @@
+{
+  "event_types": {
+    "command.authorized.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:command-authorized",
+    "completion.observed.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:completion-observed",
+    "occurrence.deadline-reached.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:deadline-reached",
+    "occurrence.expected.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-expected",
+    "occurrence.launch.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-launch",
+    "task.launch-result.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-launch-result",
+    "task.state.v1": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state"
+  },
+  "schema_version": "1.0.0",
+  "unknown_event_disposition": "QUARANTINE"
+}

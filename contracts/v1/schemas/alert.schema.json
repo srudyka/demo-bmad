@@ -1,0 +1,97 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:alert",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/account_id"
+    },
+    "alert_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "deduplication_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "deployment_identity_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "detected_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "environment": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/environment"
+    },
+    "failure_plane": {
+      "enum": [
+        "SCHEDULE",
+        "INGRESS",
+        "LAUNCH",
+        "TASK",
+        "COMPLETION",
+        "DEADLINE",
+        "ALERT_DELIVERY",
+        "CELL"
+      ],
+      "type": "string"
+    },
+    "job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "notification_target_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "operator_safe_reason": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "owner": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "region": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/region"
+    },
+    "runbook_uri": {
+      "pattern": "^https://",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "FAILED",
+        "OVERDUE",
+        "MISSED",
+        "AMBIGUOUS"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "alert_id",
+    "deduplication_id",
+    "job_id",
+    "occurrence_id",
+    "state",
+    "failure_plane",
+    "account_id",
+    "region",
+    "environment",
+    "detected_at",
+    "deployment_identity_id",
+    "owner",
+    "notification_target_arn",
+    "runbook_uri",
+    "operator_safe_reason"
+  ],
+  "title": "Occurrence Alert",
+  "type": "object"
+}

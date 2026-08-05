@@ -1,0 +1,47 @@
+{
+  "acknowledgement_bindings": [
+    "job_id",
+    "ownership_generation",
+    "config_version",
+    "schedule_generation",
+    "scheduler_delivery_role_arn",
+    "schedule_arn",
+    "contract_version",
+    "horizon_watermark"
+  ],
+  "acknowledgement_integrity_bindings": [
+    "contract_checksum",
+    "validation_evidence"
+  ],
+  "retirement": {
+    "artifact_classes": ["config", "task-definition", "schema", "runtime", "contract", "deployment"],
+    "eligibility": ["inventory_complete", "no_active_reference", "no_unknown_reference", "horizon_expired", "not_current", "not_previous_supported_major"],
+    "manifest_required_before_delete": true,
+    "mutable_selection_forbidden": true,
+    "preserve": ["audit", "recovery", "tombstone"],
+    "lifecycle_principal": "lifecycle-garbage-collection",
+    "stable_denials": ["LIFECYCLE_INVENTORY_INCOMPLETE", "LIFECYCLE_REFERENCE_UNKNOWN", "LIFECYCLE_REFERENCED", "LIFECYCLE_HORIZON_ACTIVE", "LIFECYCLE_MANIFEST_CHECKSUM", "LIFECYCLE_LATE_REFERENCE"]
+  },
+  "legal_transitions": {
+    "MATERIALIZED": ["ENABLED", "REJECTED"],
+    "PUBLISHED": ["VALIDATED", "REJECTED"],
+    "RESERVED": ["PUBLISHED", "REJECTED"],
+    "VALIDATED": ["MATERIALIZED", "REJECTED"]
+  },
+  "rejection_reasons": [
+    "ACKNOWLEDGEMENT_MISMATCH",
+    "AUTHORITY_STALE",
+    "CONFIG_INVALID",
+    "CONTRACT_UNSUPPORTED",
+    "ENABLEMENT_TIMEOUT",
+    "HORIZON_NOT_PROVEN"
+  ],
+  "schema_version": "1.0.0",
+  "states": ["RESERVED", "PUBLISHED", "VALIDATED", "MATERIALIZED", "ENABLED", "REJECTED"],
+  "timeout_disposition": "REJECTED",
+  "two_phase_enablement": [
+    "materializer acknowledgement binds all acknowledgement fields",
+    "registrar compares acknowledgement with current registration",
+    "registrar enables only an exact current acknowledgement"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "suite": "pilot-launch",
+  "cases": [
+    {"name": "unassigned-candidate", "input": {"jobs": []}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "complete-ready-candidate", "input": {"measurement": "post-launch"}, "expected_status": "APPROVED_TO_START", "expected_decision": "ACCEPTED"},
+    {"name": "stale-release", "input": {"change_class": "release"}, "expected_status": "BLOCKED", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "missing-owner", "input": {"owner": null}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "missing-required-control", "input": {"control": null}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "expired-approval", "input": {"approval": "expired"}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "self-approval", "input": {"approval": "self"}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "missing-notification-path", "input": {"operations": null}, "expected_status": "BLOCKED", "expected_decision": null},
+    {"name": "changed-input", "input": {"current_bindings": "different"}, "expected_status": "BLOCKED", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "stop-condition", "input": {"status": "PAUSED"}, "expected_status": "PAUSED", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "failed-pilot", "input": {"measurement": "failed"}, "expected_status": "EVIDENCE_PENDING", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "inconclusive-measurement", "input": {"measurement": "inconclusive"}, "expected_status": "BLOCKED", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "governed-exception", "input": {"exception": "approved"}, "expected_status": "APPROVED_TO_START", "expected_decision": "ACCEPTED"},
+    {"name": "accepted", "input": {"decision": "ACCEPTED"}, "expected_status": "APPROVED_TO_START", "expected_decision": "ACCEPTED"},
+    {"name": "remediate-and-repeat", "input": {"decision": "REMEDIATE_AND_REPEAT"}, "expected_status": "BLOCKED", "expected_decision": "REMEDIATE_AND_REPEAT"},
+    {"name": "rejected", "input": {"decision": "REJECTED"}, "expected_status": "BLOCKED", "expected_decision": "REJECTED"},
+    {"name": "synthetic-only-not-executed", "input": {"pilot_id": "synthetic-fixture"}, "expected_status": "BLOCKED", "expected_decision": null}
+  ]
+}

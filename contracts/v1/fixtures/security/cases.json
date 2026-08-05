@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "categories": [
+    "identity",
+    "namespace",
+    "least-privilege-iam",
+    "confused-deputy",
+    "oidc",
+    "state",
+    "networking",
+    "secrets",
+    "operator-controls"
+  ],
+  "required_negative_boundaries": [
+    "forged-producer",
+    "cross-job-evidence",
+    "namespace-squatting",
+    "direct-ledger-write",
+    "run-task-wildcard",
+    "pass-role-alternate",
+    "oidc-fork",
+    "oidc-mutable-workflow",
+    "state-reuse",
+    "public-network",
+    "plaintext-secret",
+    "operator-wrong-scope"
+  ],
+  "required_positive_boundaries": [
+    "registered-producer",
+    "registered-owner",
+    "exact-deployment-identity",
+    "approved-oidc",
+    "private-dependency-path",
+    "approved-secret-reference",
+    "authorized-operator",
+    "trusted-evidence-source",
+    "approved-state-recovery"
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "roles": {
+    "alert-router": {
+      "actions": ["cloudwatch:PutMetricData", "dynamodb:DescribeStream", "dynamodb:GetItem", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "sns:Publish"],
+      "conditions": {"cloudwatch:namespace": "<metric-namespace>", "sns:ResourceTag/PlatformCell": "<cell-id>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/stream/<timestamp>", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/index/alert-outbox", "arn:aws:dynamodb:<region>:<account>:table/<cell>-configuration-registry", "arn:aws:dynamodb:<region>:<account>:table/<cell>-notification-ledger", "arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/alert-router:*", "arn:aws:sns:<region>:<account>:<approved-topic>"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "apply": {
+      "actions": ["cloudformation:GetTemplateSummary", "iam:GetRole", "s3:GetObjectVersion"],
+      "conditions": {"aws:PrincipalTag/Environment": "<environment>"},
+      "resources": ["arn:aws:iam::<account>:role/<platform-managed-role>", "arn:aws:s3:::<approved-artifact-bucket>/<immutable-key>"],
+      "trust": ["arn:aws:iam::<account>:role/github-production-deployer"]
+    },
+    "break-glass": {
+      "actions": ["ecs:DescribeTasks", "ecs:StopTask"],
+      "conditions": {"aws:MultiFactorAuthPresent": "true", "aws:PrincipalTag/BreakGlassApproved": "true"},
+      "resources": ["arn:aws:ecs:<region>:<account>:task/<cluster>/<task-id>"],
+      "trust": ["arn:aws:iam::<account>:role/<approved-incident-role>"]
+    },
+    "command-handler": {
+      "actions": ["dynamodb:GetItem", "dynamodb:PutItem", "sqs:SendMessage"],
+      "conditions": {"dynamodb:LeadingKeys": "JOB#<job-id>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:sqs:<region>:<account>:<cell>-commands"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "deadline-scanner": {
+      "actions": ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "logs:CreateLogStream", "logs:PutLogEvents", "sqs:SendMessage"],
+      "conditions": {"dynamodb:LeadingKeys": ["DEADLINE#<shard>", "CELL#<cell-id>"]},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger/index/deadlines", "arn:aws:dynamodb:<region>:<account>:table/<cell>-deadline-checkpoint", "arn:aws:sqs:<region>:<account>:<cell>-deadline-events", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/deadline-scanner:*"] ,
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "execution": {
+      "actions": ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue", "ssm:GetParameters"],
+      "conditions": {"aws:ResourceTag/JobId": "<job-id>"},
+      "resources": ["arn:aws:ecr:<region>:<account>:repository/<approved-repository>", "arn:aws:logs:<region>:<account>:log-group:/platform/jobs/<job-id>:*", "arn:aws:secretsmanager:<region>:<account>:secret:<approved-secret-reference>", "arn:aws:ssm:<region>:<account>:parameter/<approved-parameter-reference>"],
+      "trust": ["ecs-tasks.amazonaws.com"]
+    },
+    "job-launch": {
+      "actions": ["ecs:RunTask", "iam:PassRole"],
+      "conditions": {"ecs:cluster": "arn:aws:ecs:<region>:<account>:cluster/<approved-cluster>", "iam:PassedToService": "ecs-tasks.amazonaws.com"},
+      "resources": ["arn:aws:ecs:<region>:<account>:task-definition/<job-family>:<revision>", "arn:aws:iam::<account>:role/<job-id>-execution", "arn:aws:iam::<account>:role/<job-id>-task"],
+      "trust": ["arn:aws:iam::<account>:role/<cell>-process-manager"],
+      "permissions_boundary": "arn:aws:iam::<account>:policy/<cell>-job-launch-boundary"
+    },
+    "lifecycle-garbage-collection": {
+      "actions": ["dynamodb:DeleteItem", "s3:DeleteObjectVersion"],
+      "conditions": {"aws:ResourceTag/PlatformCell": "<cell-id>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-registry", "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/<unreferenced-version>.json"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "log-ingestor": {
+      "actions": ["dynamodb:GetItem", "sqs:SendMessage"],
+      "conditions": {"dynamodb:LeadingKeys": "TASK#<task-arn-hash>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:sqs:<region>:<account>:<cell>-evidence"],
+      "trust": ["logs.<region>.amazonaws.com"]
+    },
+    "materializer": {
+      "actions": ["cloudwatch:PutMetricData", "dynamodb:GetItem", "dynamodb:PutItem", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "s3:GetObjectVersion", "sqs:SendMessage"],
+      "conditions": {"dynamodb:LeadingKeys": "JOB#<job-id>"},
+      "resources": ["arn:aws:cloudwatch:<region>:<account>:metric/<metric-namespace>", "arn:aws:dynamodb:<region>:<account>:table/<cell>-config-registry", "arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/occurrence-materializer:*", "arn:aws:s3:::<cell-config-bucket>/jobs/<job-id>/config/<config-version>.json", "arn:aws:sqs:<region>:<account>:<cell>-materializer-ingress"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "normalizer": {
+      "actions": ["cloudwatch:PutMetricData", "kms:Decrypt", "kms:GenerateDataKey", "logs:CreateLogStream", "logs:PutLogEvents", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage", "sqs:SendMessage"],
+      "conditions": {"cloudwatch:namespace": "<metric-namespace>", "kms:EncryptionContext:aws:sqs:arn": ["arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress", "arn:aws:sqs:<region>:<account>:<cell>-evidence-quarantine", "arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress"]},
+      "resources": ["arn:aws:kms:<region>:<account>:key/<cell-key>", "arn:aws:logs:<region>:<account>:log-group:/platform/ecs-scheduled-jobs/<cell>/evidence-normalizer:*", "arn:aws:sqs:<region>:<account>:<cell>-evidence-ingress", "arn:aws:sqs:<region>:<account>:<cell>-evidence-quarantine", "arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "operator": {
+      "actions": ["dynamodb:GetItem", "ecs:DescribeTasks", "logs:FilterLogEvents"],
+      "conditions": {"aws:PrincipalTag/PlatformCell": "<cell-id>"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:ecs:<region>:<account>:task/<cluster>/<task-id>", "arn:aws:logs:<region>:<account>:log-group:/platform/jobs/<job-id>:*"],
+      "trust": ["arn:aws:iam::<account>:role/<approved-operator-role>"]
+    },
+    "plan": {
+      "actions": ["cloudformation:GetTemplateSummary", "iam:GetRole", "s3:GetObjectVersion"],
+      "conditions": {"aws:PrincipalTag/RepositoryId": "<immutable-repository-id>"},
+      "resources": ["arn:aws:iam::<account>:role/<platform-managed-role>", "arn:aws:s3:::<approved-config-bucket>/<immutable-key>"],
+      "trust": ["arn:aws:iam::<account>:role/github-plan"]
+    },
+    "process-manager": {
+      "actions": ["dynamodb:GetItem", "dynamodb:TransactWriteItems", "sts:AssumeRole"],
+      "conditions": {"iam:PermissionsBoundary": "arn:aws:iam::<account>:policy/<cell>-job-launch-boundary"},
+      "resources": ["arn:aws:dynamodb:<region>:<account>:table/<cell>-ledger", "arn:aws:iam::<account>:role/<approved-job-id>-launch"],
+      "trust": ["lambda.amazonaws.com"]
+    },
+    "scheduler-delivery": {
+      "actions": ["sqs:SendMessage"],
+      "conditions": {"aws:SourceAccount": "<account>", "aws:SourceArn": "arn:aws:scheduler:<region>:<account>:schedule-group/<cell-group>"},
+      "resources": ["arn:aws:sqs:<region>:<account>:<cell>-scheduler-ingress"],
+      "trust": ["scheduler.amazonaws.com"]
+    },
+    "task": {
+      "actions": ["s3:GetObject", "sqs:SendMessage"],
+      "conditions": {"aws:PrincipalTag/JobId": "<job-id>"},
+      "resources": ["arn:aws:s3:::<job-data-bucket>/<job-prefix>/*", "arn:aws:sqs:<region>:<account>:<approved-job-output>"],
+      "trust": ["ecs-tasks.amazonaws.com"]
+    }
+  },
+  "schema_version": "1.0.0"
+}

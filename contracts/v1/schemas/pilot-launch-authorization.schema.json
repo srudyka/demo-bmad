@@ -1,0 +1,22 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-launch-authorization",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pilot Launch Authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "checklist_id", "bindings", "job_ids", "deployment_identity_sha256", "observation_window", "rollback_plan_sha256", "approvals", "preflight_evidence_sha256", "execution_proven", "evidence_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"enum": ["BLOCKED", "APPROVED_TO_START", "PAUSED"]},
+    "checklist_id": {"type": "string", "minLength": 1},
+    "bindings": {"$ref": "pilot-launch-checklist.schema.json#/$defs/bindings"},
+    "job_ids": {"type": "array", "maxItems": 2, "items": {"type": "string", "minLength": 1}},
+    "deployment_identity_sha256": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"$ref": "pilot-launch-checklist.schema.json#/$defs/hash"}},
+    "observation_window": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"$ref": "pilot-launch-checklist.schema.json#/$defs/timestamp"}, "end": {"$ref": "pilot-launch-checklist.schema.json#/$defs/timestamp"}}},
+    "rollback_plan_sha256": {"$ref": "pilot-launch-checklist.schema.json#/$defs/hash"},
+    "approvals": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["role", "actor", "approved_at", "expires_at", "source_commit", "workflow_sha", "workflow_run_id", "deployment_identity_sha256", "status"], "properties": {"role": {"type": "string", "minLength": 1}, "actor": {"type": "string", "minLength": 1}, "approved_at": {"$ref": "pilot-launch-checklist.schema.json#/$defs/timestamp"}, "expires_at": {"$ref": "pilot-launch-checklist.schema.json#/$defs/timestamp"}, "source_commit": {"$ref": "pilot-launch-checklist.schema.json#/$defs/sha1"}, "workflow_sha": {"$ref": "pilot-launch-checklist.schema.json#/$defs/sha1"}, "workflow_run_id": {"type": "string", "minLength": 1}, "deployment_identity_sha256": {"$ref": "pilot-launch-checklist.schema.json#/$defs/hash"}, "status": {"const": "approved"}}}},
+    "preflight_evidence_sha256": {"$ref": "pilot-launch-checklist.schema.json#/$defs/hash"},
+    "execution_proven": {"const": false},
+    "evidence_sha256": {"$ref": "pilot-launch-checklist.schema.json#/$defs/hash"}
+  }
+}

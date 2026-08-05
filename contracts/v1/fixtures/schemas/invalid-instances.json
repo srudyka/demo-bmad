@@ -1,0 +1,143 @@
+{
+  "cases": [
+    {
+      "expected_pointer": "/schema_version",
+      "instance": {
+        "cell": {},
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "contract_version": "1.0.0",
+        "discovery_path": "/platform/ecs-scheduled-jobs/prod/us-east-1/contract",
+        "encryption": {},
+        "integrations": {},
+        "metric_namespace": "Platform/EcsScheduledJobs",
+        "schema_version": "2.0.0",
+        "supported_ranges": {}
+      },
+      "name": "unsupported schema major",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:cell-contract"
+    },
+    {
+      "expected_pointer": "/config_version",
+      "instance": {
+        "config": {},
+        "config_version": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "schema_version": "1.0.0"
+      },
+      "name": "uppercase config hash",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config"
+    },
+    {
+      "expected_pointer": "/job_id",
+      "instance": {
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitted_at": "2026-07-15T09:55:00.000Z",
+        "event_type": "occurrence.expected.v1",
+        "job_id": "Prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "payload": {
+          "config_validated": true,
+          "expectation_horizon": "2026-07-16T10:00:00.000Z",
+          "materialized_at": "2026-07-15T09:55:00.000Z",
+          "repair": false
+        },
+        "producer_event_id": "materializer-0001",
+        "producer_id": "occurrence-materializer",
+        "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "1.0.0"
+      },
+      "name": "uppercase job identifier",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+    },
+    {
+      "expected_pointer": "/scheduled_time",
+      "instance": {
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitted_at": "2026-07-15T09:55:00.000Z",
+        "event_type": "occurrence.expected.v1",
+        "job_id": "prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "payload": {
+          "config_validated": true,
+          "expectation_horizon": "2026-07-16T10:00:00.000Z",
+          "materialized_at": "2026-07-15T09:55:00.000Z",
+          "repair": false
+        },
+        "producer_event_id": "materializer-0001",
+        "producer_id": "occurrence-materializer",
+        "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scheduled_time": "2026-07-15T10:00:00Z",
+        "schema_version": "1.0.0"
+      },
+      "name": "timestamp without milliseconds",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+    },
+    {
+      "expected_pointer": "/scheduled_time",
+      "instance": {
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitted_at": "2026-07-15T09:55:00.000Z",
+        "event_type": "occurrence.expected.v1",
+        "job_id": "prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "payload": {
+          "config_validated": true,
+          "expectation_horizon": "2026-07-16T10:00:00.000Z",
+          "materialized_at": "2026-07-15T09:55:00.000Z",
+          "repair": false
+        },
+        "producer_event_id": "materializer-0001",
+        "producer_id": "occurrence-materializer",
+        "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scheduled_time": "2026-02-31T10:00:00.000Z",
+        "schema_version": "1.0.0"
+      },
+      "name": "impossible calendar timestamp",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+    },
+    {
+      "expected_pointer": "/",
+      "instance": {
+        "config_validated": true,
+        "expectation_horizon": "2026-07-16T10:00:00.000Z",
+        "materialized_at": "2026-07-15T09:55:00.000Z",
+        "repair": false,
+        "unexpected": "not allowed"
+      },
+      "name": "closed payload rejects unknown field",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-expected"
+    },
+    {
+      "expected_pointer": "/",
+      "instance": {
+        "actor": "operator@example.invalid",
+        "approval_reference": "approval-0001",
+        "form": "operator_request",
+        "job_id": "prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "reason": "Caller attempted to stamp identity",
+        "request_id": "01890f47-8f17-7abc-8def-0123456789ab",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "1.0.0"
+      },
+      "name": "operator request cannot supply occurrence identity",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command"
+    },
+    {
+      "expected_pointer": "/schema_version",
+      "instance": {
+        "actor": "operator@example.invalid",
+        "approval_reference": "approval-0001",
+        "form": "operator_request",
+        "job_id": "prod/reporting/daily-summary",
+        "reason": "Invalid version",
+        "request_id": "01890f47-8f17-7abc-8def-0123456789ab",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "v1.0.0"
+      },
+      "name": "leading v schema version",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,367 @@
+{
+  "cases": [
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000001",
+          "kind": "EXPECTED",
+          "producer_event_id": "expected-1",
+          "producer_id": "occurrence-materializer"
+        }
+      ],
+      "expected_state": "EXPECTED",
+      "name": "expected"
+    },
+    {
+      "evidence": [
+        {
+          "config_proven": true,
+          "digest": "0000000000000000000000000000000000000000000000000000000000000002",
+          "kind": "REPAIR",
+          "producer_event_id": "repair-1",
+          "producer_id": "process-manager"
+        }
+      ],
+      "expected_state": "EXPECTED",
+      "name": "missing-expectation-repaired-from-config"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000003",
+          "kind": "EXPECTED",
+          "producer_event_id": "expected-2",
+          "producer_id": "occurrence-materializer"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000004",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "running-1",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "expected_state": "STARTED",
+      "name": "started"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000005",
+          "exit_code": 0,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-1",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000006",
+          "fact_time": "2026-07-15T10:05:00.000Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-1",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "expected_state": "SUCCEEDED",
+      "name": "success-requires-exit-and-marker"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000007",
+          "exit_code": 0,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-2",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/cccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "expected_state": "STARTED",
+      "name": "zero-exit-alone-is-not-success"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000008",
+          "exit_code": 17,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-3",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/dddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "expected_state": "FAILED",
+      "name": "nonzero-exit-fails"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000009",
+          "kind": "LAUNCH_FAILED",
+          "producer_event_id": "launch-1",
+          "producer_id": "process-manager"
+        }
+      ],
+      "expected_state": "FAILED",
+      "name": "run-task-failure-fails"
+    },
+    {
+      "evidence": [
+        {
+          "deadline_at": "2026-07-15T10:10:00.000Z",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000010",
+          "kind": "DEADLINE",
+          "producer_event_id": "deadline-1",
+          "producer_id": "deadline-scanner"
+        }
+      ],
+      "expected_state": "MISSED",
+      "name": "deadline-without-start-is-missed"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000011",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "running-2",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        },
+        {
+          "deadline_at": "2026-07-15T10:10:00.000Z",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000012",
+          "kind": "DEADLINE",
+          "producer_event_id": "deadline-2",
+          "producer_id": "deadline-scanner"
+        }
+      ],
+      "expected_state": "OVERDUE",
+      "name": "deadline-after-start-is-overdue"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000013",
+          "exit_code": 0,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-4",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/ffffffffffffffffffffffffffffffff"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000014",
+          "fact_time": "2026-07-15T10:09:59.999Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-2",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/ffffffffffffffffffffffffffffffff"
+        },
+        {
+          "deadline_at": "2026-07-15T10:10:00.000Z",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000015",
+          "kind": "DEADLINE",
+          "producer_event_id": "deadline-3",
+          "producer_id": "deadline-scanner"
+        }
+      ],
+      "expected_state": "SUCCEEDED",
+      "name": "timely-fact-delivered-after-deadline-stays-success"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000016",
+          "exit_code": 0,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-5",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/11111111111111111111111111111111"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000017",
+          "fact_time": "2026-07-15T10:10:00.001Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-3",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/11111111111111111111111111111111"
+        },
+        {
+          "deadline_at": "2026-07-15T10:10:00.000Z",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000018",
+          "kind": "DEADLINE",
+          "producer_event_id": "deadline-4",
+          "producer_id": "deadline-scanner"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "completion-after-deadline-conflicts"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000019",
+          "kind": "EXPECTED",
+          "producer_event_id": "same-key",
+          "producer_id": "occurrence-materializer"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000020",
+          "kind": "EXPECTED",
+          "producer_event_id": "same-key",
+          "producer_id": "occurrence-materializer"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "same-dedup-key-conflicting-body"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000021",
+          "kind": "EXPECTED",
+          "producer_event_id": "identical-key",
+          "producer_id": "occurrence-materializer"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000021",
+          "kind": "EXPECTED",
+          "producer_event_id": "identical-key",
+          "producer_id": "occurrence-materializer"
+        }
+      ],
+      "expected_state": "EXPECTED",
+      "name": "identical-duplicate-is-ignored"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000022",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "running-3",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/22222222222222222222222222222222"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000023",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "running-4",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/33333333333333333333333333333333"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "conflicting-task-arns"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000024",
+          "exit_code": 0,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-6",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/44444444444444444444444444444444"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000025",
+          "fact_time": "2026-07-15T10:05:00.000Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-4",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/44444444444444444444444444444444"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000026",
+          "fact_time": "2026-07-15T10:05:00.000Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-5",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/44444444444444444444444444444444"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "duplicate-completion-events-are-ambiguous"
+    },
+    {
+      "evidence": [
+        {
+          "accepted": false,
+          "digest": "0000000000000000000000000000000000000000000000000000000000000027",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "wrong-occurrence",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/55555555555555555555555555555555"
+        },
+        {
+          "accepted": false,
+          "digest": "0000000000000000000000000000000000000000000000000000000000000032",
+          "kind": "TASK_RUNNING",
+          "producer_event_id": "wrong-config",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/88888888888888888888888888888888"
+        },
+        {
+          "accepted": false,
+          "digest": "0000000000000000000000000000000000000000000000000000000000000033",
+          "kind": "COMPLETION",
+          "producer_event_id": "wrong-task",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/99999999999999999999999999999999"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000028",
+          "kind": "EXPECTED",
+          "producer_event_id": "expected-3",
+          "producer_id": "occurrence-materializer"
+        }
+      ],
+      "expected_state": "EXPECTED",
+      "name": "wrong-occurrence-config-and-task-evidence-is-rejected-before-reduction"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000029",
+          "fact_time": "2026-07-15T10:05:00.000Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "orphan-log",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/66666666666666666666666666666666"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "orphan-log-evidence-is-ambiguous"
+    },
+    {
+      "evidence": [
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000030",
+          "exit_code": 17,
+          "kind": "TASK_STOPPED",
+          "producer_event_id": "stopped-7",
+          "producer_id": "ecs",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/77777777777777777777777777777777"
+        },
+        {
+          "digest": "0000000000000000000000000000000000000000000000000000000000000031",
+          "fact_time": "2026-07-15T10:05:00.000Z",
+          "kind": "COMPLETION",
+          "marker_status": "SUCCESS",
+          "producer_event_id": "completion-6",
+          "producer_id": "log-ingestor",
+          "task_arn": "arn:aws:ecs:us-east-1:111122223333:task/fake-cluster/77777777777777777777777777777777"
+        }
+      ],
+      "expected_state": "AMBIGUOUS",
+      "name": "nonzero-exit-conflicts-with-success-marker"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "approval_id", "status", "source_commit", "workflow_sha", "workflow_run_id", "manifest_sha256", "account_id", "region", "environment", "root", "state_key", "cell_contract_sha256", "policy_version", "plan_sha256", "readiness_sha256", "phase", "generation", "author", "approvers", "approved_at", "expires_at", "security_required"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"}, "approval_id": {"type": "string", "minLength": 1}, "status": {"const": "approved"}, "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_run_id": {"type": "string", "pattern": "^[1-9][0-9]*$"}, "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "account_id": {"type": "string", "pattern": "^[0-9]{12}$"}, "region": {"type": "string", "minLength": 1}, "environment": {"const": "production"}, "root": {"type": "string", "minLength": 1}, "state_key": {"type": "string", "minLength": 1}, "cell_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "policy_version": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "readiness_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "phase": {"enum": ["phase-one", "phase-two"]}, "generation": {"type": "string", "minLength": 1}, "author": {"type": "string", "minLength": 1}, "approvers": {"type": "array", "minItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["role", "actor", "approved_at"], "properties": {"role": {"enum": ["platform", "job-owner", "security"]}, "actor": {"type": "string", "minLength": 1}, "approved_at": {"type": "string", "format": "date-time"}}}}, "approved_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "security_required": {"type": "boolean"}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "valid": [
+    {
+      "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_sha256": "40c91763bda324ed543de54a1fd313590dbd0b08b63f29dc2107e6525134bd95",
+      "expected_utf8_hex": "6d6174657269616c697a65722f76310a6465762d706c6174666f726d2f6465762f6465762d706c6174666f726d2d63616e6172790a626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262620a323032372d30312d30315430303a30303a30302e3030305a0a616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610a31",
+      "job_id": "dev-platform/dev/dev-platform-canary",
+      "name": "canary-materializer-expected",
+      "owner_generation": 1,
+      "schedule_generation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "scheduled_time": "2027-01-01T00:00:00.000Z"
+    }
+  ],
+  "invalid": [
+    {
+      "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "error_code": "MATERIALIZER_IDENTITY_OWNER_GENERATION_INVALID",
+      "job_id": "dev-platform/dev/dev-platform-canary",
+      "owner_generation": 0,
+      "schedule_generation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "scheduled_time": "2027-01-01T00:00:00.000Z"
+    },
+    {
+      "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "error_code": "MATERIALIZER_IDENTITY_GENERATION_NONCANONICAL",
+      "job_id": "dev-platform/dev/dev-platform-canary",
+      "owner_generation": 1,
+      "schedule_generation": "not-a-generation",
+      "scheduled_time": "2027-01-01T00:00:00.000Z"
+    }
+  ]
+}

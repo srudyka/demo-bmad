@@ -1,0 +1,67 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-launch-result",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "failures": {
+          "maxItems": 0
+        },
+        "task_arn": {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+        }
+      }
+    },
+    {
+      "properties": {
+        "failures": {
+          "minItems": 1
+        },
+        "task_arn": {
+          "type": "null"
+        }
+      }
+    }
+  ],
+  "properties": {
+    "attempt_no": {
+      "const": 0
+    },
+    "client_token_digest": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "cluster_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "failures": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "arn": {
+            "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+          },
+          "reason": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "task_arn": {}
+  },
+  "required": [
+    "attempt_no",
+    "cluster_arn",
+    "client_token_digest",
+    "task_arn",
+    "failures"
+  ],
+  "title": "Task Launch Result Evidence Payload",
+  "type": "object"
+}

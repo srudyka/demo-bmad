@@ -1,0 +1,101 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deprecation-record",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Additive platform version deprecation record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "version", "replacement_version", "warning_behavior", "affected_consumers", "migration_guide", "support_status", "earliest_removal_major", "owner", "review_at", "notice", "notice_tracking"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "version": {"type": "string", "minLength": 1},
+    "replacement_version": {"type": "string", "minLength": 1},
+    "warning_behavior": {"const": "warn-only"},
+    "affected_consumers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "migration_guide": {"type": "string", "minLength": 1},
+    "support_status": {"enum": ["deprecated-supported", "security-emergency"]},
+    "earliest_removal_major": {"type": "integer", "minimum": 1},
+    "owner": {"type": "string", "minLength": 1},
+    "review_at": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"},
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["github_release", "internal_channel", "deadline", "support_contact", "rollback_guidance"],
+      "properties": {
+        "github_release": {"type": "string", "minLength": 1},
+        "internal_channel": {"type": "string", "minLength": 1},
+        "deadline": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"},
+        "support_contact": {"type": "string", "minLength": 1},
+        "rollback_guidance": {"type": "string", "minLength": 1}
+      }
+    },
+    "notice_tracking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publication", "acknowledgements", "unresolved_exceptions"],
+      "properties": {
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_commit", "github_release_artifact", "github_release_sha256", "internal_notice_artifact", "internal_notice_sha256", "published_at"],
+          "properties": {
+            "source_commit": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+            "github_release_artifact": {"pattern": "^contracts/retirement-evidence/.+", "type": "string"},
+            "github_release_sha256": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"},
+            "internal_notice_artifact": {"pattern": "^contracts/retirement-evidence/.+", "type": "string"},
+            "internal_notice_sha256": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"},
+            "published_at": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"}
+          }
+        },
+        "acknowledgements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["actor", "acknowledged_at", "evidence_artifact", "evidence_sha256"],
+            "properties": {
+              "actor": {"type": "string", "minLength": 1},
+              "acknowledged_at": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"},
+              "evidence_artifact": {"pattern": "^contracts/retirement-evidence/.+", "type": "string"},
+              "evidence_sha256": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"}
+            }
+          }
+        },
+        "unresolved_exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exception_id", "owner", "status", "recorded_at", "evidence_artifact", "evidence_sha256"],
+            "properties": {
+              "exception_id": {"type": "string", "minLength": 1},
+              "owner": {"type": "string", "minLength": 1},
+              "status": {"const": "open"},
+              "recorded_at": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"},
+              "evidence_artifact": {"pattern": "^contracts/retirement-evidence/.+", "type": "string"},
+              "evidence_sha256": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"}
+            }
+          }
+        }
+      }
+    },
+    "emergency_exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["risk", "compensating_control", "migration_path", "approvers", "ends_at"],
+      "properties": {
+        "risk": {"type": "string", "minLength": 1},
+        "compensating_control": {"type": "string", "minLength": 1},
+        "migration_path": {"type": "string", "minLength": 1},
+        "approvers": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}},
+        "ends_at": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"support_status": {"const": "security-emergency"}}},
+      "then": {"required": ["emergency_exception"]},
+      "else": {"not": {"required": ["emergency_exception"]}}
+    }
+  ]
+}

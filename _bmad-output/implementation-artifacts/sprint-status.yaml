@@ -1,0 +1,160 @@
+# generated: 2026-07-14T17:04:01-0500
+# last_updated: 2026-08-03T00:00:00-0500
+# project: demo-bmad
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/srudyka/slower/demo-bmad/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-14T17:04:01-0500
+last_updated: 2026-08-04T00:00:00-0500
+project: demo-bmad
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/srudyka/slower/demo-bmad/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: done
+  1-1-bootstrap-the-greenfield-platform-repository: done
+  1-2-publish-canonical-compatibility-contracts: done
+  1-3-deploy-cell-registration-and-discovery-foundations: done
+  1-4-register-a-platform-owned-canary-job: done
+  1-5-authenticate-and-normalize-platform-evidence: done
+  1-6-materialize-future-expected-occurrences: done
+  1-7-record-deterministic-occurrence-state: done
+  1-8-launch-exactly-one-canary-task-per-occurrence: done
+  1-9-correlate-ecs-state-and-completion-evidence: done
+  1-10-detect-missed-and-overdue-occurrences: done
+  1-11-deliver-occurrence-alerts-reliably: done
+  1-12-monitor-cell-health-with-the-canary: done
+  1-13-authorize-operator-access-and-commands: done
+  1-14-recover-cell-state-safely: done
+  1-15-garbage-collect-unreferenced-platform-versions: done
+  epic-1-retrospective: done
+
+  epic-2: done
+  2-1-declare-and-reserve-a-scheduled-job: done
+  2-2-create-least-privilege-job-iam-roles: done
+  2-3-enforce-private-task-networking: done
+  2-4-provision-the-fargate-task-and-structured-logs: done
+  2-5-publish-phase-one-job-resources-and-config: done
+  2-5a-cell-owned-conditional-config-publisher: done
+  2-6-validate-and-acknowledge-job-configuration: done
+  2-7-activate-the-non-production-schedule-safely: done
+  2-8-connect-completion-evidence-and-alert-metadata: done
+  2-9-expose-job-operations-and-optional-views: done
+  2-10-perform-a-controlled-non-production-rerun: done
+  epic-2-retrospective: done
+
+  epic-3: in-progress
+  3-1-expand-credential-free-pull-request-validation: done
+  3-2-bind-trusted-deployment-targets-and-oidc-roles: done
+  3-3-generate-a-trusted-and-reviewable-terraform-plan: done
+  3-4-enforce-production-policies-and-govern-exceptions: done
+  3-5-approve-and-apply-the-exact-production-plan: done
+  3-6-record-deployment-and-rollback-evidence: done
+  3-7-publish-immutable-platform-releases: done
+  3-8-migrate-compatible-platform-versions: done
+  3-9-deprecate-and-retire-platform-versions: done
+  epic-3-retrospective: optional
+
+  epic-4: in-progress
+  4-1-publish-the-scheduled-job-adoption-guide: done
+  4-2-complete-an-actionable-job-runbook: done
+  4-3-automate-the-production-readiness-gate: done
+  4-4-qualify-schedule-delivery-and-expectations: done
+  4-5-qualify-ecs-launch-and-runtime-failures: done
+  4-6-qualify-completion-deadlines-and-alert-durability: done
+  4-7-prove-security-and-delivery-boundaries: done
+  4-8-rehearse-job-and-cell-recovery: done
+  4-9-automate-pilot-measurement-and-evidence-packaging: done
+  4-10-publish-pilot-launch-checklist-and-decision-record: done
+  epic-4-retrospective: done
+
+action_items:
+  - epic: 1
+    action: "Add an authority-and-boundary checklist to every Epic 2 story, covering authoritative state, writer, IAM, metrics, rollback, and negative scenarios."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 1
+    action: "Run adversarial review, edge-case review, acceptance audit, and full validation before closing each Epic 2 story."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 1
+    action: "Keep credential-free validation evidence separate from live AWS qualification in every story record."
+    owner: "Dana (QA Engineer)"
+    status: done
+  - epic: 1
+    action: "Add executable IAM-negative, retry, pagination, duplicate-request, and partial-failure fixtures starting with Story 2.1."
+    owner: "Winston (Architect)"
+    status: done
+  - epic: 2
+    action: "Extend credential-free validation to identify and validate every affected Epic 3 target."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 2
+    action: "Add executable negative fixtures for OIDC trust, target binding, exact-plan approval, and untrusted pull-request outputs."
+    owner: "Winston (Architect)"
+    status: done
+  - epic: 2
+    action: "Preserve acceptance, adversarial, edge-case, and full validation review evidence for every Epic 3 story."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 2
+    action: "Track migration from deprecated Terraform AWS provider arguments to region and key_schema."
+    owner: "Paige (Technical Writer)"
+    status: done
+  - epic: 4
+    action: "Add a standard authority/provenance/adversarial preflight checklist to the story template before implementation begins."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 4
+    action: "Run acceptance, adversarial, and edge-case review as part of story completion and retain one indexed evidence record per story."
+    owner: "Amelia (Developer), Dana (QA Engineer), Winston (Architect)"
+    status: done
+  - epic: 4
+    action: "Create a separately reviewed Terraform provider modernization change preserving resource addresses and documenting rollback."
+    owner: "Winston (Architect), Paige (Technical Writer)"
+    status: done
+  - epic: 4
+    action: "Add sprint/story metadata consistency validation so frontmatter, story records, and sprint-status cannot diverge silently."
+    owner: "Amelia (Developer)"
+    status: done
+  - epic: 4
+    action: "Define the next epic and its success criteria before creating additional stories."
+    owner: "Srudyka (Project Lead), John (Product Manager)"
+    status: open

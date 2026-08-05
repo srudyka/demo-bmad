@@ -1,0 +1,64 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:processed-event",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accepted_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "disposition": {
+      "enum": [
+        "ACCEPTED",
+        "DUPLICATE",
+        "CONFLICT",
+        "REJECTED"
+      ],
+      "type": "string"
+    },
+    "event_digest": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "event_type": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/event_type"
+    },
+    "job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "processor_deployment_identity_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "producer_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/producer_id"
+    },
+    "record_type": {
+      "const": "PROCESSED_EVENT"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "record_type",
+    "producer_id",
+    "producer_event_id",
+    "event_digest",
+    "event_type",
+    "job_id",
+    "occurrence_id",
+    "accepted_at",
+    "disposition",
+    "processor_deployment_identity_id"
+  ],
+  "title": "Processed Event Ledger Record",
+  "type": "object"
+}

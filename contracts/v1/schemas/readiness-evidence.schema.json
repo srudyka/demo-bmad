@@ -1,0 +1,123 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:readiness-evidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production Readiness Evidence Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "evidence_source",
+    "bindings",
+    "items",
+    "attestations",
+    "findings",
+    "exceptions",
+    "artifact_manifest",
+    "approvals",
+    "reviewer_summary",
+    "evaluated_at",
+    "expires_at",
+    "evidence_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"enum": ["passed", "blocked", "exception", "limitation"]},
+    "evidence_source": {"enum": ["epic4", "disposable-fixture"]},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "source_commit", "workflow_sha", "workflow_run_id",
+        "plan_sha256", "deployment_identity_sha256", "account_id", "region",
+        "environment", "job_id", "config_sha256", "schedule_generation",
+        "cell_contract_sha256", "cell_version", "policy_id", "policy_version",
+        "target_manifest_sha256", "terraform_root", "state_key",
+        "provider_lock_path", "backend_lock_path"
+      ],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "workflow_run_id": {"type": "string", "minLength": 1},
+        "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "region": {"type": "string", "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$"},
+        "environment": {"type": "string", "minLength": 1},
+        "job_id": {"type": "string", "minLength": 1},
+        "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "schedule_generation": {"type": "string", "minLength": 1},
+        "cell_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cell_version": {"type": "string", "minLength": 1},
+        "policy_id": {"const": "production-readiness"},
+        "policy_version": {"type": "string", "minLength": 1},
+        "target_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "terraform_root": {"type": "string", "minLength": 1},
+        "state_key": {"type": "string", "minLength": 1},
+        "provider_lock_path": {"type": "string", "minLength": 1},
+        "backend_lock_path": {"type": "string", "minLength": 1}
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["category", "control_id", "producer", "tool_version", "evaluated_at", "result", "artifact_sha256", "sensitivity", "reference", "bindings_sha256", "claims"],
+        "properties": {
+          "category": {"enum": ["schedule-expectations", "launch-runtime", "completion-alerts", "security", "recovery", "operations", "target-compatibility", "policy-plan", "toolchain-hygiene"]},
+          "control_id": {"enum": ["formatting", "terraform-validation", "module-examples", "contracts-runtime", "provider-locks", "security-scans", "iam-analysis", "policy-results", "plan-impact", "immutable-image", "cell-compatibility", "target-verification", "address-migration", "ownership-tags", "networking-secrets-state", "logs-alarms-notifications", "completion-lifecycle", "runbook-operations", "rollback-compensation"]},
+          "producer": {"type": "string", "minLength": 1},
+          "tool_version": {"type": "string", "minLength": 1},
+          "evaluated_at": {"type": "string", "format": "date-time"},
+          "result": {"enum": ["passed", "failed", "exception", "limitation"]},
+          "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "sensitivity": {"enum": ["public", "internal", "restricted"]},
+          "reference": {"type": "string", "minLength": 1},
+          "bindings_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "claims": {"type": "object", "minProperties": 1, "additionalProperties": true}
+        }
+      }
+    },
+    "attestations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "actor", "deployment_identity_sha256", "attested_at", "result"],
+        "properties": {
+          "role": {"type": "string", "minLength": 1},
+          "actor": {"type": "string", "minLength": 1},
+          "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "attested_at": {"type": "string", "format": "date-time"},
+          "result": {"const": "passed"}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "remediation", "owner", "resolution_point", "blocking"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "remediation": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 1},
+          "resolution_point": {"type": "string", "minLength": 1},
+          "blocking": {"type": "boolean"}
+        }
+      }
+    },
+    "exceptions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["policy_id", "policy_version", "resource", "environment", "source_commit", "plan_sha256", "owner", "justification", "approver", "compensating_control", "expires_at", "review_at", "signature"], "properties": {"policy_id": {"type": "string", "minLength": 1}, "policy_version": {"type": "string", "minLength": 1}, "resource": {"type": "string", "minLength": 1}, "environment": {"type": "string", "minLength": 1}, "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "owner": {"type": "string", "minLength": 1}, "justification": {"type": "string", "minLength": 1}, "approver": {"type": "string", "minLength": 1}, "compensating_control": {"type": "string", "minLength": 1}, "expires_at": {"type": "string", "format": "date-time"}, "review_at": {"type": "string", "format": "date-time"}, "signature": {"type": "string", "minLength": 1}}}},
+    "artifact_manifest": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["sha256", "access"], "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "access": {"enum": ["protected", "restricted"]}}}},
+    "approvals": {"type": "array", "minItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["role", "actor", "source_commit", "workflow_sha", "workflow_run_id", "deployment_identity_sha256", "approved_at", "expires_at", "status"], "properties": {"role": {"enum": ["platform", "job-owner", "security"]}, "actor": {"type": "string", "minLength": 1}, "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_run_id": {"type": "string", "minLength": 1}, "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "approved_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "status": {"const": "approved"}}}},
+    "reviewer_summary": {"type": "object", "additionalProperties": false, "required": ["status", "reviewer_roles", "evidence_links", "generated_at", "access_control"], "properties": {"status": {"enum": ["passed", "blocked", "exception", "limitation"]}, "reviewer_roles": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "evidence_links": {"type": "array", "items": {"type": "string", "minLength": 1}}, "generated_at": {"type": "string", "format": "date-time"}, "access_control": {"enum": ["protected", "restricted"]}}},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

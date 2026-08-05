@@ -1,0 +1,19 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:command-authorized",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command"
+    },
+    "authorization_record_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
+    }
+  },
+  "required": [
+    "command",
+    "authorization_record_id"
+  ],
+  "title": "Authorized Command Evidence Payload",
+  "type": "object"
+}

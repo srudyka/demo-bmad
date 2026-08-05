@@ -1,0 +1,23 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deployment-evidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sanitized deployment evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "bindings", "deployment_identity", "deployment_identity_sha256", "changed_addresses", "expected_plan_impact", "cost_note", "evidence_sha256"],
+  "allOf": [{"if": {"properties": {"status": {"const": "awaiting-approval"}}}, "then": {}, "else": {"required": ["apply_actor", "started_at", "ended_at", "state_result", "lock_condition", "lifecycle_state", "workflow_conclusion", "errors", "output_checksums", "resource_identities", "verification"]}}, {"if": {"properties": {"status": {"const": "succeeded"}}}, "then": {"required": ["approvals", "policy_result"], "properties": {"state_result": {"const": "succeeded"}, "workflow_conclusion": {"const": "success"}, "verification": {"properties": {"status": {"const": "passed"}}}}}}],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"enum": ["awaiting-approval", "succeeded", "failed", "partial", "cancelled", "runner-lost", "lock-conflict"]},
+    "bindings": {"type": "object", "additionalProperties": false, "required": ["source_commit", "workflow_sha", "workflow_run_id", "manifest_sha256", "account_id", "region", "environment", "root", "state_key", "plan_sha256", "policy_sha256", "readiness_sha256", "provider_lock_sha256", "backend_lock_sha256", "cell_contract_sha256", "config_sha256", "schedule_generation", "deployment_identity_sha256", "phase"], "properties": {
+      "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_run_id": {"type": "string", "minLength": 1}, "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "account_id": {"type": "string", "pattern": "^[0-9]{12}$"}, "region": {"type": "string", "minLength": 1}, "environment": {"type": "string", "minLength": 1}, "root": {"type": "string", "minLength": 1}, "state_key": {"type": "string", "minLength": 1}, "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "policy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "readiness_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "provider_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "backend_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "cell_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "schedule_generation": {"type": "string", "minLength": 1}, "deployment_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "phase": {"type": "string", "minLength": 1}
+    }},
+    "deployment_identity": {"$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deployment-identity"},
+    "deployment_identity_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "changed_addresses": {"type": "array", "maxItems": 200, "items": {"type": "string", "maxLength": 200}},
+    "expected_plan_impact": {"type": "string", "maxLength": 240},
+    "cost_note": {"type": "string", "maxLength": 240},
+    "evidence_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+    ,"apply_actor": {"type": "string", "minLength": 1}, "started_at": {"type": "string", "format": "date-time"}, "ended_at": {"type": "string", "format": "date-time"}, "state_result": {"type": "string", "minLength": 1}, "lock_condition": {"type": "string", "minLength": 1}, "lifecycle_state": {"type": "string", "minLength": 1}, "workflow_conclusion": {"type": "string", "enum": ["success", "failure"]}, "errors": {"type": "array", "maxItems": 20, "items": {"type": "string", "maxLength": 240}}, "output_checksums": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "resource_identities": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 240}}, "verification": {"type": "object", "required": ["status"], "properties": {"status": {"enum": ["passed", "blocked", "not-run"]}, "launch_enabled": {"type": "boolean"}}}, "references": {"type": "object", "additionalProperties": false, "properties": {"occurrence_id": {"type": "string", "minLength": 1}, "task_arn": {"type": "string", "minLength": 1}}}, "approvals": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["role", "actor", "approved_at"], "properties": {"role": {"type": "string", "minLength": 1}, "actor": {"type": "string", "minLength": 1}, "approved_at": {"type": "string", "format": "date-time"}}}}, "policy_result": {"type": "object"}
+  }
+}

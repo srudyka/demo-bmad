@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:production-apply-authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "apply_role_arn", "caller_account_id", "caller_role_arn", "caller_role_id", "source_commit", "workflow_sha", "workflow_run_id", "manifest_sha256", "target_environment", "target_root", "state_key", "plan_sha256", "policy_status", "readiness_sha256", "approval_id", "artifact_audience", "artifact_expires_at", "lock_id", "authorized_at"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"}, "status": {"const": "authorized"}, "apply_role_arn": {"type": "string", "minLength": 1}, "caller_account_id": {"type": "string", "pattern": "^[0-9]{12}$"}, "caller_role_arn": {"type": "string", "minLength": 1}, "caller_role_id": {"type": "string", "minLength": 1}, "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "workflow_run_id": {"type": "string", "pattern": "^[1-9][0-9]*$"}, "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "target_environment": {"type": "string", "minLength": 1}, "target_root": {"type": "string", "minLength": 1}, "state_key": {"type": "string", "minLength": 1}, "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "policy_status": {"const": "passed"}, "readiness_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "approval_id": {"type": "string", "minLength": 1}, "artifact_audience": {"const": "trusted-reviewer"}, "artifact_expires_at": {"type": "string", "format": "date-time"}, "lock_id": {"type": "string", "minLength": 1}, "authorized_at": {"type": "string", "format": "date-time"}
+  }
+}

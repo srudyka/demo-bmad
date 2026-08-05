@@ -1,0 +1,32 @@
+{
+  "ecs_run_task": {
+    "attempt_no": 0,
+    "client_token_maximum_bytes": 64,
+    "client_token_profile": "printable ASCII",
+    "http_success_failures_disposition": "FAILED",
+    "idempotency_scope": "identical parameters within one cluster",
+    "maximum_safe_retry_seconds": 3600,
+    "retry_after_deadline": "only after authoritative original-task recovery"
+  },
+  "lambda_sqs": {
+    "batch_window_seconds": {"maximum": 300, "minimum": 0},
+    "event_source_batch_size": {"maximum": 10, "minimum": 1},
+    "function_timeout_seconds": {"maximum": 900, "minimum": 1},
+    "maximum_concurrency": {"maximum": 1000, "minimum": 2},
+    "partial_batch_response": "ReportBatchItemFailures",
+    "provisioned_poller_mode": false,
+    "synchronous_payload_maximum_bytes": 6291456,
+    "visibility_formula": "6 * function_timeout_seconds + batch_window_seconds"
+  },
+  "schema_version": "1.0.0",
+  "sqs": {
+    "dlq_required": true,
+    "encryption_required": true,
+    "max_receive_count": {"maximum": 1000, "minimum": 5},
+    "platform_message_maximum_bytes": 262144,
+    "queue_type": "standard",
+    "retention_seconds": 1209600,
+    "service_message_maximum_bytes": 1048576,
+    "visibility_maximum_seconds": 43200
+  }
+}

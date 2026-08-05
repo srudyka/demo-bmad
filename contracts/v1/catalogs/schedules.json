@@ -1,0 +1,31 @@
+{
+  "activation_window": {
+    "end": "exclusive",
+    "start": "inclusive"
+  },
+  "contract": "schedule/v1",
+  "cron_subset": [
+    "cron(M H * * ? *)",
+    "cron(M H ? * DOW *)",
+    "cron(M H DOM * ? *)"
+  ],
+  "dst": {
+    "fall_back": "emit repeated local cron time once using fold zero",
+    "rate_days": "fixed 24 hour intervals",
+    "spring_forward": "skip nonexistent local cron time"
+  },
+  "evaluator_version": "schedule-evaluator/1.0.0",
+  "flexible_time_window": "OFF",
+  "generation": "sha256(lowercase, utf8('schedule/v1\\n') + RFC8785(schedule_body))",
+  "iana_release": "2026b",
+  "rate_units": [
+    "minute",
+    "minutes",
+    "hour",
+    "hours",
+    "day",
+    "days"
+  ],
+  "schema_version": "1.0.0",
+  "tzdata_package_version": "2026.2"
+}

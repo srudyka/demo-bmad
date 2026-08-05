@@ -1,0 +1,71 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:lifecycle-retirement",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/semver" },
+    "manifest_id": { "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", "type": "string" },
+    "manifest_checksum": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+    "inventory_digest": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+    "owner": { "minLength": 1, "type": "string" },
+    "lifecycle_principal": { "minLength": 1, "type": "string" },
+    "approval_reference": { "minLength": 1, "type": "string" },
+    "approval_result": { "const": "APPROVED" },
+    "account_id": { "pattern": "^[0-9]{12}$", "type": "string" },
+    "region": { "minLength": 1, "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+$", "type": "string" },
+    "environment": { "minLength": 1, "pattern": "^[a-z0-9][a-z0-9-]{0,62}$", "type": "string" },
+    "support_status": { "const": "unsupported-candidate" },
+    "expected_effects": { "items": { "minLength": 1, "type": "string" }, "type": "array" },
+    "inventory_at": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp" },
+    "expires_at": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp" },
+    "maximum_horizon": {
+      "anyOf": [
+        { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp" },
+        { "type": "null" }
+      ]
+    },
+    "reference_count": { "minimum": 0, "type": "integer" },
+    "retirement_evidence_sha256": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+    "reference_proof": {
+      "additionalProperties": false,
+      "properties": {
+        "active_references": { "items": { "type": "string" }, "type": "array" },
+        "unresolved_references": { "items": { "type": "string" }, "type": "array" },
+        "inventory_complete": { "type": "boolean" },
+        "current": { "type": "boolean" },
+        "previous_supported_major": { "type": "boolean" },
+        "surface_digests": {
+          "additionalProperties": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+          "properties": {
+            "aliases": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "cell_contract_ranges": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+            "workflow_manifests": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" }
+          },
+          "required": ["aliases", "cell_contract_ranges", "workflow_manifests"],
+          "type": "object"
+        }
+      },
+      "required": ["active_references", "unresolved_references", "inventory_complete", "current", "previous_supported_major", "surface_digests"],
+      "type": "object"
+    },
+    "dry_run": { "type": "boolean" },
+    "rollback_limitation": { "minLength": 1, "type": "string" },
+    "preserve": { "items": { "enum": ["audit", "recovery", "tombstone"] }, "minItems": 1, "type": "array", "uniqueItems": true },
+    "artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_class": { "enum": ["config", "task-definition", "schema", "runtime", "contract", "deployment"] },
+        "resource": { "minLength": 1, "pattern": "^[^*\\s]+$", "type": "string" },
+        "version": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", "not": { "enum": ["current", "latest"] }, "type": "string" },
+        "checksum": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256" },
+        "cell_id": { "minLength": 1, "pattern": "^[a-z0-9][a-z0-9-]{0,127}$", "type": "string" },
+        "job_id": { "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id" }
+      },
+      "required": ["artifact_class", "resource", "version", "checksum", "cell_id"],
+      "type": "object"
+    }
+  },
+  "required": ["schema_version", "manifest_id", "manifest_checksum", "inventory_digest", "owner", "lifecycle_principal", "approval_reference", "approval_result", "account_id", "region", "environment", "support_status", "expected_effects", "inventory_at", "expires_at", "maximum_horizon", "reference_count", "retirement_evidence_sha256", "reference_proof", "dry_run", "rollback_limitation", "preserve", "artifact"],
+  "title": "Exact Platform Lifecycle Retirement Manifest",
+  "type": "object"
+}

@@ -1,0 +1,88 @@
+{
+  "attempt_no": 0,
+  "deduplication_key": [
+    "producer_id",
+    "producer_event_id"
+  ],
+  "ledger_keys": {
+    "attempt": "PK=JOB#<job_id>;SK=ATTEMPT#<occurrence_id>#0",
+    "occurrence": "PK=JOB#<job_id>;SK=OCCURRENCE#<occurrence_id>",
+    "processed_event": "PK=EVENT#<producer_id>;SK=<producer_event_id>"
+  },
+  "task_arn_index": {
+    "name": "task-arn",
+    "partition_key": "task_arn",
+    "projection": "ALL",
+    "lookup_is_authoritative": false,
+    "lookup_record_type": "TASK_ATTEMPT"
+  },
+  "deadline_index": {
+    "name": "deadlines",
+    "partition_key": "deadline_key",
+    "sort_key": "deadline_sort",
+    "partition_key_pattern": "DEADLINE#<shard>#<bucket_start_utc>",
+    "sort_key_pattern": "<deadline_at>#<occurrence_id>#<deadline_kind>",
+    "bucket_seconds": 60,
+    "lookup_is_authoritative": false,
+    "base_table_read": "strongly_consistent_get_item",
+    "reconciliation_lookback_seconds": 900,
+    "maximum_lateness_seconds": 900,
+    "nonterminal_reconciliation_required": true
+  },
+  "alert_outbox": {
+    "record_type": "ALERT_OUTBOX",
+    "partition_key_pattern": "ALERT_OUTBOX#<occurrence_id>#<policy>",
+    "sort_key_pattern": "ALERT#<state>#<failure_plane>",
+    "identity": ["job_id", "occurrence_id", "state", "failure_plane", "policy"],
+    "terminal_states": ["FAILED", "MISSED", "OVERDUE", "AMBIGUOUS"],
+    "reconciliation_index": "alert-outbox",
+    "retry_horizon_seconds": 1209600
+  },
+  "notification_ledger": {
+    "record_type": "NOTIFICATION_DELIVERY",
+    "partition_key_pattern": "NOTIFICATION#<deduplication_id>",
+    "sort_key": "DELIVERY",
+    "identity": ["alert_id", "notification_target_arn"],
+    "statuses": ["PENDING", "DELIVERED", "AMBIGUOUS"],
+    "retry_horizon_seconds": 1209600,
+    "encryption": "server_side_kms"
+  },
+  "scanner_checkpoint": {
+    "record_key": "PK=CELL#<cell_id>;SK=CHECKPOINT#deadline",
+    "fields": ["watermark", "position"],
+    "update": "conditional_monotonic_after_successful_emission",
+    "encryption": "server_side_kms"
+  },
+  "metrics_forbidden_dimensions": [
+    "occurrence_id"
+  ],
+  "schema_version": "1.0.0",
+  "task_correlation": {
+    "authoritative": [
+      "ecs_event_task_arn",
+      "ecs_event_cluster_arn",
+      "registered_log_group",
+      "registered_log_stream",
+      "ledger_task_arn_index"
+    ],
+    "assertions": [
+      "job_id",
+      "occurrence_id",
+      "config_version",
+      "attempt_no"
+    ],
+    "task_environment": [
+      "PLATFORM_JOB_ID",
+      "PLATFORM_OCCURRENCE_ID",
+      "PLATFORM_CONFIG_VERSION",
+      "PLATFORM_ATTEMPT_NO"
+    ],
+    "task_tags": [
+      "PlatformCell",
+      "JobId",
+      "OccurrenceId",
+      "ConfigVersion",
+      "AttemptNo"
+    ]
+  }
+}

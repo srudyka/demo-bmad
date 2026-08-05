@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "scenarios": [
+    "job-generation-rollback",
+    "cell-restore-replay",
+    "unknown-task-reconciliation",
+    "failed-cutover-backout",
+    "alert-reconciliation",
+    "rpo-rto-failure"
+  ],
+  "required_controls": [
+    "rollback-containment",
+    "rollback-plan",
+    "generation-activation",
+    "application-compensation",
+    "cell-containment",
+    "fresh-resource-restore",
+    "single-generation-cutover",
+    "durable-replay",
+    "task-reconciliation",
+    "service-verification",
+    "rpo-rto-objectives",
+    "failed-recovery-backout",
+    "recovery-evidence"
+  ],
+  "required_negative_cases": [
+    "launch-enabled",
+    "stale-plan",
+    "mutable-image",
+    "direct-state-edit",
+    "mixed-generation-cutover",
+    "duplicate-task",
+    "unknown-task-not-ambiguous",
+    "lost-alert",
+    "unreconciled-side-effect",
+    "exceeded-rpo",
+    "exceeded-rto",
+    "cleanup-forbidden-artifact"
+  ]
+}

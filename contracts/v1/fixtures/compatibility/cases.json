@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {"accepted": true, "component": "cell", "context": "deploy", "migration_present": true, "name": "current-major", "version": "1.0.0"},
+    {"accepted": true, "component": "terraform", "context": "deploy", "migration_present": true, "name": "terraform-lower-bound", "version": "1.10.0"},
+    {"accepted": false, "component": "terraform", "context": "deploy", "error_code": "COMPATIBILITY_UNSUPPORTED_VERSION", "migration_present": true, "name": "terraform-below-bound", "version": "1.9.9"},
+    {"accepted": false, "component": "python", "context": "deploy", "error_code": "COMPATIBILITY_UNSUPPORTED_VERSION", "migration_present": true, "name": "python-exclusive-upper-bound", "version": "3.15.0"},
+    {"accepted": false, "component": "evidence", "context": "deploy", "error_code": "COMPATIBILITY_UNSUPPORTED_VERSION", "migration_present": true, "name": "unsupported-major", "version": "2.0.0"},
+    {"accepted": false, "component": "unknown-runtime", "context": "deploy", "error_code": "COMPATIBILITY_UNKNOWN_COMPONENT", "migration_present": true, "name": "unknown-component", "version": "1.0.0"},
+    {"accepted": false, "component": "cell", "context": "deploy", "error_code": "COMPATIBILITY_PRERELEASE_FORBIDDEN", "migration_present": true, "name": "prerelease-default-rejected", "version": "1.1.0-rc.1"},
+    {"accepted": true, "allow_prerelease": true, "component": "cell", "context": "qualification", "migration_present": true, "name": "prerelease-explicit-fixture-opt-in", "version": "1.1.0-rc.1"},
+    {"accepted": false, "component": "cell", "context": "deploy", "error_code": "COMPATIBILITY_BUILD_FORBIDDEN", "migration_present": true, "name": "build-default-rejected", "version": "1.0.0+local"},
+    {"accepted": true, "allow_build": true, "component": "cell", "context": "qualification", "migration_present": true, "name": "build-explicit-fixture-opt-in", "version": "1.0.0+local"},
+    {"accepted": true, "component": "config", "context": "rollback", "migration_present": true, "name": "rollback-current-major", "version": "1.0.0"},
+    {"accepted": true, "component": "evidence", "context": "replay", "migration_present": true, "name": "replay-current-major", "version": "1.0.0"},
+    {"accepted": false, "component": "cell", "context": "deploy", "error_code": "COMPATIBILITY_MIGRATION_MISSING", "migration_present": false, "name": "missing-migration-reference", "version": "1.0.0"}
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,413 @@
+{
+  "cases": [
+    {
+      "instance": {},
+      "kind": "auxiliary",
+      "name": "common definitions",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common"
+    },
+    {
+      "instance": {
+        "cell": {
+          "account_id": "111111111111",
+          "cell_id": "prod-platform-cell",
+          "environment": "prod",
+          "region": "us-east-1"
+        },
+        "checksum": "e499457b02b25d743088bf5d551ff57068984b1576831e6e3d1fd6cba52922ba",
+        "contract_version": "1.0.0",
+        "discovery_path": "/platform/ecs-scheduled-jobs/prod/us-east-1/contract",
+        "encryption": {
+          "kms_key_arn": "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000001"
+        },
+        "integrations": {
+          "ingress": {
+            "arn": "arn:aws:sqs:us-east-1:111111111111:prod-platform-ingress",
+            "owner": "cell-root",
+            "schema_range": ">=1.0.0,<2.0.0"
+          }
+        },
+        "metric_namespace": "Platform/EcsScheduledJobs",
+        "schema_version": "1.0.0",
+        "supported_ranges": {
+          "config": ">=1.0.0,<2.0.0"
+        }
+      },
+      "kind": "required-boundary",
+      "name": "cell contract",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:cell-contract"
+    },
+    {
+      "instance": {
+        "config": {
+          "cluster_arn": "arn:aws:ecs:us-east-1:111111111111:cluster/prod-platform",
+          "completion_window_seconds": 3600,
+          "deployment_identity_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "job_id": "prod/reporting/daily-summary",
+          "logs": {
+            "log_group_arn": "arn:aws:logs:us-east-1:111111111111:log-group:/ecs/prod-reporting",
+            "retention_days": 30
+          },
+          "network": {
+            "assign_public_ip": "DISABLED",
+            "security_group_ids": [
+              "sg-00000001"
+            ],
+            "subnet_ids": [
+              "subnet-00000001"
+            ]
+          },
+          "notification_target_arn": "arn:aws:sns:us-east-1:111111111111:prod-alerts",
+          "overlap_policy": "APPLICATION_IDEMPOTENT",
+          "owner_generation": 1,
+          "role_arns": {
+            "execution": "arn:aws:iam::111111111111:role/prod-job-execution",
+            "launch": "arn:aws:iam::111111111111:role/prod-job-launch",
+            "task": "arn:aws:iam::111111111111:role/prod-job-task"
+          },
+          "schedule": {
+            "activation_end": null,
+            "activation_start": "2026-07-15T10:00:00.000Z",
+            "evaluator_version": "schedule-evaluator/1.0.0",
+            "expression": "cron(0 10 * * ? *)",
+            "flexible_time_window": "OFF",
+            "start_anchor": "2026-07-15T10:00:00.000Z",
+            "time_zone": "America/Chicago",
+            "tzdb_version": "2026b"
+          },
+          "schedule_arn": "arn:aws:scheduler:us-east-1:111111111111:schedule/prod-platform/daily-summary",
+          "schedule_generation": "2f01977b5be7c62678324998464a4c6971d51fe6497ce70abaf42c0f11d9f852",
+          "scheduler_delivery_role_id": "AROASCHEDULEREXAMPLE",
+          "secret_references": [
+            {
+              "arn": "arn:aws:secretsmanager:us-east-1:111111111111:secret:prod-reporting-db",
+              "provider": "secrets_manager",
+              "version_id": "00000000-0000-0000-0000-000000000001"
+            }
+          ],
+          "task_definition_arn": "arn:aws:ecs:us-east-1:111111111111:task-definition/prod-reporting:42"
+        },
+        "config_version": "a8ca5faf3df03e61afd382357c13ed7e4a2218cc8f6b38b5540544f1b2fb1ba9",
+        "schema_version": "1.0.0"
+      },
+      "kind": "required-boundary",
+      "name": "config",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:config"
+    },
+    {
+      "instance": {
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitted_at": "2026-07-15T09:55:00.000Z",
+        "event_type": "occurrence.expected.v1",
+        "job_id": "prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "payload": {
+          "config_validated": true,
+          "expectation_horizon": "2026-07-16T10:00:00.000Z",
+          "materialized_at": "2026-07-15T09:55:00.000Z",
+          "repair": false
+        },
+        "producer_event_id": "materializer-0001",
+        "producer_id": "occurrence-materializer",
+        "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "1.0.0",
+        "x-trace": "ignored-extension"
+      },
+      "kind": "required-boundary",
+      "name": "evidence envelope",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:evidence-envelope"
+    },
+    {
+      "instance": {
+        "completed_at": null,
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "deadline_at": "2026-07-15T11:00:00.000Z",
+        "deadline_kind": "COMPLETION",
+        "deadline_key": "DEADLINE#0#2026-07-15T11:00:00.000Z",
+        "deadline_sort": "2026-07-15T11:00:00.000Z#dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd#COMPLETION",
+        "error_code": null,
+        "evidence_ids": [],
+        "exit_code": null,
+        "job_id": "prod/reporting/daily-summary",
+        "keys": {
+          "pk": "JOB#prod/reporting/daily-summary",
+          "sk": "OCCURRENCE#dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "operator_safe_error_reason": null,
+        "record_type": "OCCURRENCE",
+        "schedule_generation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "1.0.0",
+        "started_at": null,
+        "state": "EXPECTED"
+      },
+      "kind": "required-boundary",
+      "name": "occurrence record",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:occurrence-record"
+    },
+    {
+      "instance": {
+        "attempt_no": 0,
+        "client_token": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "correlation": {
+          "cluster_arn": "arn:aws:ecs:us-east-1:111122223333:cluster/fake-platform-cluster",
+          "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "conflict_evidence_ids": [],
+        "first_request_at": "2026-07-15T10:00:01.000Z",
+        "job_id": "prod/reporting/daily-summary",
+        "launch_state": "PENDING",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "record_type": "TASK_ATTEMPT",
+        "recovery": {
+          "authoritatively_recovered": false,
+          "recovered_at": null,
+          "recovered_task_arn": null
+        },
+        "safe_retry_deadline": "2026-07-15T11:00:01.000Z",
+        "schema_version": "1.0.0",
+        "schedule_generation": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "task_definition_arn": "arn:aws:ecs:us-east-1:111122223333:task-definition/prod-worker:1",
+        "launch_role_arn": "arn:aws:iam::111122223333:role/prod-launch",
+        "deployment_identity_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "platform_cell": "prod-cell",
+        "subnet_ids": ["subnet-1234abcd"],
+        "security_group_ids": ["sg-1234abcd"],
+        "task_arn": null
+      },
+      "kind": "required-boundary",
+      "name": "task attempt",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:task-attempt-record"
+    },
+    {
+      "instance": {
+        "asserted_attempt_no": 0,
+        "asserted_config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "asserted_job_id": "prod/reporting/daily-summary",
+        "asserted_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "asserted_task_arn": "arn:aws:ecs:us-east-1:111111111111:task/prod-platform/00000000000000000000000000000001",
+        "completed_at": "2026-07-15T10:10:00.000Z",
+        "error_code": null,
+        "exit_code_assertion": 0,
+        "marker_id": "01890f47-8f17-7abc-8def-0123456789ab",
+        "marker_status": "SUCCESS",
+        "schema_version": "1.0.0"
+      },
+      "kind": "required-boundary",
+      "name": "completion signal",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:completion-signal"
+    },
+    {
+      "instance": {
+        "actor": "operator@example.invalid",
+        "approval_reference": "approval-0001",
+        "form": "operator_request",
+        "job_id": "prod/reporting/daily-summary",
+        "reason": "Approved replay test",
+        "request_id": "01890f47-8f17-7abc-8def-0123456789ab",
+        "scheduled_time": "2026-07-15T10:00:00.000Z",
+        "schema_version": "1.0.0"
+      },
+      "kind": "required-boundary",
+      "name": "operator command request",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:command"
+    },
+    {
+      "instance": {
+        "account_id": "111111111111",
+        "alert_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "deduplication_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "deployment_identity_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "detected_at": "2026-07-15T11:00:00.000Z",
+        "environment": "prod",
+        "failure_plane": "DEADLINE",
+        "job_id": "prod/reporting/daily-summary",
+        "notification_target_arn": "arn:aws:sns:us-east-1:111111111111:prod-alerts",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "operator_safe_reason": "Completion deadline passed",
+        "owner": "platform@example.invalid",
+        "region": "us-east-1",
+        "runbook_uri": "https://docs.example.invalid/runbooks/reporting",
+        "schema_version": "1.0.0",
+        "state": "OVERDUE"
+      },
+      "kind": "required-boundary",
+      "name": "alert",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:alert"
+    },
+    {
+      "instance": {
+        "deployment_identity_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "identity": {
+          "account_id": "111111111111",
+          "artifact_checksums": {
+            "image": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "contract_version": "1.0.0",
+          "environment": "prod",
+          "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "module_versions": {
+            "job": "1.0.0"
+          },
+          "region": "us-east-1",
+          "resolved_platform": {
+            "fargate": "1.4.0",
+            "lambda_runtime": "python3.14"
+          },
+          "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "task_definition_arn": "arn:aws:ecs:us-east-1:111111111111:task-definition/prod-reporting:42",
+          "tool_versions": {
+            "terraform": "1.15.8"
+          },
+          "workflow": {
+            "job_workflow_ref": "example/platform/.github/workflows/apply.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "run_id": 1,
+            "workflow_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "schema_version": "1.0.0"
+      },
+      "kind": "required-boundary",
+      "name": "deployment identity",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:deployment-identity"
+    },
+    {
+      "instance": {
+        "accepted_at": "2026-07-15T09:55:01.000Z",
+        "disposition": "ACCEPTED",
+        "event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "event_type": "occurrence.expected.v1",
+        "job_id": "prod/reporting/daily-summary",
+        "occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "processor_deployment_identity_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "producer_event_id": "materializer-0001",
+        "producer_id": "occurrence-materializer",
+        "record_type": "PROCESSED_EVENT",
+        "schema_version": "1.0.0"
+      },
+      "kind": "auxiliary",
+      "name": "processed event",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:processed-event"
+    },
+    {
+      "instance": {
+        "config_validated": true,
+        "expectation_horizon": "2026-07-16T10:00:00.000Z",
+        "materialized_at": "2026-07-15T09:55:00.000Z",
+        "repair": false
+      },
+      "kind": "auxiliary",
+      "name": "expected payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-expected"
+    },
+    {
+      "instance": {
+        "owner_generation": 1,
+        "schedule_arn": "arn:aws:scheduler:us-east-1:111111111111:schedule/prod/prod-reporting",
+        "schedule_group_arn": "arn:aws:scheduler:us-east-1:111111111111:schedule-group/prod",
+        "scheduler_scheduled_time": "2026-07-15T10:00:00.000Z"
+      },
+      "kind": "auxiliary",
+      "name": "launch payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:occurrence-launch"
+    },
+    {
+      "instance": {
+        "attempt_no": 0,
+        "client_token_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cluster_arn": "arn:aws:ecs:us-east-1:111111111111:cluster/prod-platform",
+        "failures": [],
+        "task_arn": "arn:aws:ecs:us-east-1:111111111111:task/prod-platform/00000000000000000000000000000001"
+      },
+      "kind": "auxiliary",
+      "name": "task launch payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-launch-result"
+    },
+    {
+      "instance": {
+        "cluster_arn": "arn:aws:ecs:us-east-1:111111111111:cluster/prod-platform",
+        "containers": [
+          {
+            "essential": true,
+            "exit_code": 0,
+            "name": "job"
+          }
+        ],
+        "event_time": "2026-07-15T10:10:00.000Z",
+        "last_status": "STOPPED",
+        "stop_code": null,
+        "stopped_reason": null,
+        "task_arn": "arn:aws:ecs:us-east-1:111111111111:task/prod-platform/00000000000000000000000000000001"
+      },
+      "kind": "auxiliary",
+      "name": "task state payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:task-state"
+    },
+    {
+      "instance": {
+        "completion": {
+          "asserted_attempt_no": 0,
+          "asserted_config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "asserted_job_id": "prod/reporting/daily-summary",
+          "asserted_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "asserted_task_arn": "arn:aws:ecs:us-east-1:111111111111:task/prod-platform/00000000000000000000000000000001",
+          "completed_at": "2026-07-15T10:10:00.000Z",
+          "error_code": null,
+          "exit_code_assertion": 0,
+          "marker_id": "01890f47-8f17-7abc-8def-0123456789ab",
+          "marker_status": "SUCCESS",
+          "schema_version": "1.0.0"
+        },
+        "log_group": "/ecs/prod-reporting",
+        "log_stream": "job/0001"
+      },
+      "kind": "auxiliary",
+      "name": "completion payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:completion-observed"
+    },
+    {
+      "instance": {
+        "deadline_at": "2026-07-15T11:00:00.000Z",
+        "deadline_kind": "COMPLETION",
+        "scanner_watermark": "2026-07-15T11:00:01.000Z"
+      },
+      "kind": "auxiliary",
+      "name": "deadline payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:deadline-reached"
+    },
+    {
+      "instance": {
+        "authorization_record_id": "01890f47-8f17-7abc-8def-0123456789ab",
+        "command": {
+          "actor": "operator@example.invalid",
+          "approval_reference": "approval-0001",
+          "approval_expires_at": "2026-07-29T00:00:00.000Z",
+          "command_id": "01890f47-8f17-7abc-8def-0123456789ab",
+          "command_type": "RERUN",
+          "compensation_acknowledged": true,
+          "config_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "deployment_identity_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "form": "canonical",
+          "job_id": "prod/reporting/daily-summary",
+          "original_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "replay_of_occurrence_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "reason": "Approved rerun",
+          "expected_duplicate_effects": "May repeat one non-production notification",
+          "verification_plan": "Verify one success marker and zero essential exit",
+          "schema_version": "1.0.0",
+          "schedule_generation": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "synthetic_occurrence_id": "748ec79612ac270074263a46931e9e12afcbe9cff27e65b9c2d1433df384e155",
+          "verification_reference": "verification-0001"
+        }
+      },
+      "kind": "auxiliary",
+      "name": "command payload",
+      "schema_id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:payload:command-authorized"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

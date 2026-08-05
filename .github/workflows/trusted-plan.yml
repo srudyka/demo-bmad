@@ -1,0 +1,229 @@
+name: Trusted Terraform plan
+
+on:
+  workflow_call:
+    inputs:
+      source_commit:
+        required: true
+        type: string
+      manifest_sha256:
+        required: true
+        type: string
+      plan_role_arn:
+        required: true
+        type: string
+      target_manifest:
+        required: true
+        type: string
+      target_root:
+        required: true
+        type: string
+      region:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+      repository_owner_id:
+        required: true
+        type: string
+      repository_id:
+        required: true
+        type: string
+      workflow_sha:
+        required: true
+        type: string
+      cell_contract_sha256:
+        required: true
+        type: string
+      policy_version:
+        required: true
+        type: string
+      provider_lock_sha256:
+        required: true
+        type: string
+      backend_lock_sha256:
+        required: true
+        type: string
+      baseline_commit:
+        required: true
+        type: string
+      exceptions_file:
+        required: false
+        default: ""
+        type: string
+    secrets:
+      AWS_ROLE_SESSION_NAME:
+        required: true
+      TRUSTED_EXCEPTION_SIGNING_KEY:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  pull-requests: none
+  deployments: none
+  packages: none
+  security-events: none
+
+concurrency:
+  group: trusted-plan-${{ inputs.source_commit }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && inputs.source_commit == github.sha
+    runs-on: ubuntu-24.04
+    environment: production-plan
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+
+      - name: Complete credential-free validation
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/venv
+        run: ./scripts/validate.sh
+
+      - name: Validate target before initialization
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          PLAN_ROLE_ARN: ${{ inputs.plan_role_arn }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          TARGET_ROOT: ${{ inputs.target_root }}
+          ACCOUNT_ID: ${{ inputs.account_id }}
+          PROVIDER_LOCK_SHA256: ${{ inputs.provider_lock_sha256 }}
+          BACKEND_LOCK_SHA256: ${{ inputs.backend_lock_sha256 }}
+          AWS_REGION: ${{ inputs.region }}
+          REPOSITORY_OWNER_ID: ${{ inputs.repository_owner_id }}
+          REPOSITORY_ID: ${{ inputs.repository_id }}
+          WORKFLOW_SHA: ${{ inputs.workflow_sha }}
+          CELL_CONTRACT_SHA256: ${{ inputs.cell_contract_sha256 }}
+          POLICY_VERSION: ${{ inputs.policy_version }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          AWS_ROLE_SESSION_NAME: ${{ secrets.AWS_ROLE_SESSION_NAME }}
+        run: python scripts/trusted_plan.py preflight
+
+      - name: Assume manifest-selected plan role
+        id: assume
+        env:
+          AWS_ROLE_ARN: ${{ inputs.plan_role_arn }}
+          AWS_REGION: ${{ inputs.region }}
+          AWS_ROLE_SESSION_NAME: ${{ secrets.AWS_ROLE_SESSION_NAME }}
+        run: |
+          token="$(curl --fail --silent --show-error -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          read -r access_key secret_key session_token <<< "$(aws sts assume-role-with-web-identity --role-arn "$AWS_ROLE_ARN" --role-session-name "$AWS_ROLE_SESSION_NAME" --web-identity-token "$token" --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)"
+          {
+            printf 'access_key_id=%s\n' "$access_key"
+            printf 'secret_access_key=%s\n' "$secret_key"
+            printf 'session_token=%s\n' "$session_token"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Initialize with committed locks
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+          AWS_DEFAULT_REGION: ${{ inputs.region }}
+        run: terraform -chdir="${{ inputs.target_root }}" init -lockfile=readonly
+
+      - name: Create restricted binary plan
+        id: plan
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+          AWS_DEFAULT_REGION: ${{ inputs.region }}
+        run: |
+          printf 'started_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          terraform -chdir="${{ inputs.target_root }}" plan -out="$RUNNER_TEMP/trusted.tfplan"
+
+      - name: Render sanitized plan JSON
+        env:
+          AWS_ACCESS_KEY_ID: ${{ steps.assume.outputs.access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.assume.outputs.secret_access_key }}
+          AWS_SESSION_TOKEN: ${{ steps.assume.outputs.session_token }}
+          AWS_DEFAULT_REGION: ${{ inputs.region }}
+        run: terraform -chdir="${{ inputs.target_root }}" show -json "$RUNNER_TEMP/trusted.tfplan" > "$RUNNER_TEMP/trusted-plan.json"
+
+      - name: Evaluate plan policy and readiness
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          EXCEPTION_LEDGER_PATH: ${{ runner.temp }}/exception-ledger
+          BASELINE_COMMIT: ${{ inputs.baseline_commit }}
+          EXCEPTIONS_FILE: ${{ inputs.exceptions_file }}
+          TRUSTED_EXCEPTION_SIGNING_KEY: ${{ secrets.TRUSTED_EXCEPTION_SIGNING_KEY }}
+        run: |
+          exception_args=()
+          if [ -n "$EXCEPTIONS_FILE" ]; then
+            case "$EXCEPTIONS_FILE" in
+              *[!A-Za-z0-9_./-]*) echo "invalid exceptions_file" >&2; exit 1 ;;
+            esac
+            exception_args+=(--exceptions "$EXCEPTIONS_FILE")
+          fi
+          python scripts/trusted_plan.py policy --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --output "$RUNNER_TEMP/trusted-policy.json" "${exception_args[@]}"
+
+      - name: Publish bounded review metadata
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          TARGET_MANIFEST: ${{ inputs.target_manifest }}
+          TARGET_ROOT: ${{ inputs.target_root }}
+          AWS_REGION: ${{ inputs.region }}
+          ACCOUNT_ID: ${{ inputs.account_id }}
+          PROVIDER_LOCK_SHA256: ${{ inputs.provider_lock_sha256 }}
+          BACKEND_LOCK_SHA256: ${{ inputs.backend_lock_sha256 }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          AWS_ROLE_SESSION_NAME: ${{ secrets.AWS_ROLE_SESSION_NAME }}
+          PLAN_STARTED_AT: ${{ steps.plan.outputs.started_at }}
+        run: |
+          python scripts/trusted_plan.py report --plan "$RUNNER_TEMP/trusted.tfplan" --plan-json "$RUNNER_TEMP/trusted-plan.json" --policy "$RUNNER_TEMP/trusted-policy.json" --output "$RUNNER_TEMP/trusted-report.json"
+          plan_sha256="$(sha256sum "$RUNNER_TEMP/trusted.tfplan" | cut -d' ' -f1)"
+          policy_sha256="$(sha256sum "$RUNNER_TEMP/trusted-policy.json" | cut -d' ' -f1)"
+          report_sha256="$(sha256sum "$RUNNER_TEMP/trusted-report.json" | cut -d' ' -f1)"
+          python - "$RUNNER_TEMP/trusted-artifact-manifest.json" "$plan_sha256" "$policy_sha256" "$report_sha256" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          manifest_path = Path(os.environ["TARGET_MANIFEST"])
+          Path(sys.argv[1]).write_text(json.dumps({
+              "audience": "trusted-reviewer",
+              "source_commit": os.environ["SOURCE_COMMIT"],
+              "workflow_run_id": os.environ["WORKFLOW_RUN_ID"],
+              "target_manifest_path": str(manifest_path),
+              "target_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+              "plan_sha256": sys.argv[2],
+              "policy_sha256": sys.argv[3],
+              "report_sha256": sys.argv[4],
+              "retention_seconds": 86400,
+          }, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Publish restricted plan artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-apply-bundle-${{ inputs.source_commit }}
+          path: |
+            ${{ runner.temp }}/trusted.tfplan
+            ${{ runner.temp }}/trusted-plan.json
+            ${{ runner.temp }}/trusted-policy.json
+            ${{ runner.temp }}/trusted-report.json
+            ${{ runner.temp }}/trusted-artifact-manifest.json
+          retention-days: 1
+          if-no-files-found: error

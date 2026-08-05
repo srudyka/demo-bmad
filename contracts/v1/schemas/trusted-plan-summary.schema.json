@@ -1,0 +1,16 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:trusted-plan-summary",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["counts", "addresses", "categories", "no_op", "policy_status", "lifecycle_handshake", "cost_notes"],
+  "properties": {
+    "counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "addresses": {"type": "array", "maxItems": 200, "items": {"type": "string"}},
+    "categories": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "no_op": {"type": "boolean"},
+    "policy_status": {"enum": ["passed", "failed", "not_run"]},
+    "lifecycle_handshake": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "cost_notes": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:completion-signal",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "asserted_attempt_no": {
+      "const": 0
+    },
+    "asserted_config_version": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "asserted_job_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/job_id"
+    },
+    "asserted_occurrence_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/sha256"
+    },
+    "asserted_task_arn": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/arn"
+    },
+    "completed_at": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/timestamp"
+    },
+    "error_code": {
+      "oneOf": [
+        {
+          "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/machine_code"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "exit_code_assertion": {
+      "oneOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "marker_id": {
+      "$ref": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:common#/$defs/uuid_v7"
+    },
+    "marker_status": {
+      "enum": [
+        "SUCCESS",
+        "FAILURE"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "marker_id",
+    "asserted_job_id",
+    "asserted_occurrence_id",
+    "asserted_config_version",
+    "asserted_attempt_no",
+    "asserted_task_arn",
+    "completed_at",
+    "marker_status",
+    "exit_code_assertion",
+    "error_code"
+  ],
+  "title": "Structured Completion Signal",
+  "type": "object"
+}

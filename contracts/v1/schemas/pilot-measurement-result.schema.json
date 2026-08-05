@@ -1,0 +1,57 @@
+{
+  "$id": "urn:demo-bmad:ecs-scheduled-jobs:contract:1.0.0:schema:pilot-measurement-result",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pilot Measurement Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "calculation_version", "status", "bindings", "definition_id", "definition_sha256", "baseline_package_sha256", "pilot_package_sha256", "source_reference_manifest", "baseline_sample_ids", "pilot_sample_ids", "metrics", "limitations", "generated_at", "evidence_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "calculation_version": {"type": "string", "minLength": 1},
+    "status": {"enum": ["MEASURED", "UNKNOWN", "INCOMPLETE", "INCONCLUSIVE", "NOT_COMPARABLE", "BLOCKED"]},
+    "bindings": {"$ref": "#/$defs/bindings"},
+    "definition_id": {"type": "string", "minLength": 1},
+    "definition_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "baseline_package_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pilot_package_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_reference_manifest": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["source_id", "sha256"], "properties": {"source_id": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+    "baseline_sample_ids": {"type": "array", "items": {"type": "string"}},
+    "pilot_sample_ids": {"type": "array", "items": {"type": "string"}},
+    "metrics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/metric_result"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "bindings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["release_version", "compatibility_package_sha256", "source_commit", "workflow_sha", "workflow_run_id", "account_id", "region", "environment", "pilot_id"],
+      "properties": {
+        "release_version": {"type": "string", "minLength": 1},
+        "compatibility_package_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "workflow_run_id": {"type": "string", "minLength": 1},
+        "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "region": {"type": "string", "minLength": 1},
+        "environment": {"type": "string", "minLength": 1},
+        "pilot_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "metric_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric_id", "calculation", "unit", "status", "value", "baseline_value", "comparison", "sample_size", "included_sample_ids", "excluded_sample_ids", "reason"],
+      "properties": {
+        "metric_id": {"type": "string", "minLength": 1},
+        "calculation": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "status": {"enum": ["MEASURED", "UNKNOWN", "INCOMPLETE", "INCONCLUSIVE", "NOT_COMPARABLE", "BLOCKED"]},
+        "value": {}, "baseline_value": {}, "comparison": {"type": "string"},
+        "sample_size": {"type": "integer", "minimum": 0},
+        "included_sample_ids": {"type": "array", "items": {"type": "string"}},
+        "excluded_sample_ids": {"type": "array", "items": {"type": "string"}},
+        "reason": {"type": "string"}
+      }
+    }
+  }
+}

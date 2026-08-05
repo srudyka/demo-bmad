@@ -1,0 +1,106 @@
+{
+  "cell": {
+    "account_id": "111111111111",
+    "cell_id": "dev-platform-cell",
+    "environment": "dev",
+    "region": "us-east-1"
+  },
+  "checksum": "42ed9d18a3d0e7d09873c5f14eabc00a28625deaf19904251f12d85f3ea5c857",
+  "contract_version": "1.0.0",
+  "discovery_path": "/platform/ecs-scheduled-jobs/dev/us-east-1/contract",
+  "encryption": {
+    "kms_key_arn": "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000001"
+  },
+  "integrations": {
+    "canary_config_publisher": {
+      "arn": "arn:aws:iam::111111111111:role/dev-platform-canary-config-publisher",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "config_publisher": {
+      "arn": "arn:aws:lambda:us-east-1:111111111111:function:dev-platform-config-publisher",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0",
+      "protocol_version": "config-publisher/1.0.0",
+    "auth_mode": "AWS_IAM_PRIVATE_API",
+    "endpoint_url": "https://example.execute-api.us-east-1.amazonaws.com/v1/publish"
+    },
+    "config_inbox": {
+      "arn": "arn:aws:s3:::dev-platform-cfg-111111111111-us-east-1",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "configuration_registry": {
+      "arn": "arn:aws:dynamodb:us-east-1:111111111111:table/dev-platform-configuration-registry",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "evidence_normalizer": {
+      "arn": "arn:aws:lambda:us-east-1:111111111111:function:dev-platform-evidence-normalizer",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "materializer_dlq": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-materializer-dlq",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "materializer_ingress": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-materializer-ingress",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "materializer_tick": {
+      "arn": "arn:aws:events:us-east-1:111111111111:rule/dev-platform-materializer-tick",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "namespace_registry": {
+      "arn": "arn:aws:dynamodb:us-east-1:111111111111:table/dev-platform-namespace-registry",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "normalizer_ingress": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-evidence-ingress",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "normalizer_quarantine": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-evidence-quarantine",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "occurrence_materializer": {
+      "arn": "arn:aws:lambda:us-east-1:111111111111:function:dev-platform-occurrence-materializer",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "process_manager": {
+      "arn": "arn:aws:iam::111111111111:role/dev-platform-process-manager-v1",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_dlq": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-scheduler-dlq",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_ingress": {
+      "arn": "arn:aws:sqs:us-east-1:111111111111:dev-platform-scheduler-ingress",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    },
+    "scheduler_schedule_group": {
+      "arn": "arn:aws:scheduler:us-east-1:111111111111:schedule-group/dev-platform-scheduler",
+      "owner": "cell-root",
+      "schema_range": ">=1.0.0,<2.0.0"
+    }
+  },
+  "metric_namespace": "Platform/EcsScheduledJobs",
+  "schema_version": "1.0.0",
+  "supported_ranges": {
+    "cell": ">=1.0.0,<2.0.0",
+    "config": ">=1.0.0,<2.0.0",
+    "ecs_scheduled_job_platform_module": ">=1.0.0,<2.0.0"
+  }
+}
