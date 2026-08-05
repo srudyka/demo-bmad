@@ -2,7 +2,7 @@
 title: ECS Scheduled Jobs Platform Service
 status: final
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-08-05
 ---
 
 # PRD: ECS Scheduled Jobs Platform Service
@@ -15,7 +15,7 @@ This PRD defines an internal platform capability that standardizes ECS Scheduled
 
 Engineering teams should be able to deploy a production-ready ECS Scheduled Job by declaring job-specific behavior, not by reconstructing the surrounding AWS and delivery controls. The Platform Service provides one supported path for scheduling, task execution, identity, logging, failure detection, deployment governance, and operations across AWS Accounts and Environments.
 
-The product bet is that a transparent, opinionated module and delivery standard will reduce setup time and infrastructure drift while improving security and incident response. The Platform Service is more than a Terraform Module: documentation, review gates, release management, alarms, operational ownership, and rollback are part of the product. The Platform Service should hide repetitive wiring without hiding permissions, failure semantics, or operational responsibilities.
+The product bet is that a transparent, opinionated module and delivery standard will reduce setup time and infrastructure drift while improving security and incident response. The Platform Service is more than a Terraform Module: documentation, review gates, release management, alarms, operational ownership, and rollback are part of the product. The Platform Service should hide repetitive wiring without hiding permissions, failure semantics, or operational responsibilities. A supported non-production deployment path must make the complete Cell-to-ECS flow observable in a real AWS environment before production adoption is considered.
 
 ## 2. Problem and Goals
 
@@ -62,6 +62,7 @@ Teams currently copy or independently design Terraform for ECS task definitions,
 4. An approved workflow deploys an exact reviewed revision to the target Environment and records Deployment Identity.
 5. The Platform Service invokes the ECS Task, captures logs and lifecycle outcomes, and routes actionable production failures.
 6. An On-call Engineer follows the Runbook to identify the failed plane, rerun safely, or roll back.
+7. A Platform Engineer deploys the Platform Cell and one scheduled-job consumer into a disposable non-production Environment, verifies a real occurrence end to end, and destroys only that disposable Environment through a separate protected workflow when the demonstration is complete.
 
 ## 4. Glossary
 
@@ -358,6 +359,47 @@ The Platform Service provides a Production Readiness Checklist that is completed
 - Failure-injection tests detect every required failure scenario across schedule delivery, `RunTask` response handling, launch, runtime, and completion within five minutes of the observable failure or declared deadline, with zero false alerts across at least 20 accelerated successful schedule windows.
 - Incomplete mandatory items block production deployment or require a recorded exception.
 
+#### FR-29: Deploy a Real Non-Production Environment
+
+Platform Engineering can deploy the Platform Cell and one configured ECS Scheduled Job consumer into a real, disposable non-production AWS Environment using the supported Terraform modules and an immutable workload image. [ASSUMPTION A12: The first real deployment is disposable non-production only.]
+
+**Consequences (testable):**
+- The deployment path creates or configures all resources owned by the Platform Cell and scheduled-job consumer, while clearly identifying prerequisites and externally owned resources.
+- The deployment uses the existing Cell ownership boundary and does not use `terraform_remote_state` or mutate shared Cell state from the consumer root.
+- The initial deployment keeps the schedule disabled until the required Cell Contract acknowledgement and non-production readiness evidence are available.
+- The deployment records the target Account, Region, source revision, module versions, image digest, Terraform root, workflow run, and resulting resource identifiers as bounded evidence.
+
+#### FR-30: Source Configuration and Secrets Safely
+
+The deployment path sources non-secret configuration from GitHub Actions workflow inputs, variables, and protected GitHub Environment configuration, and sources sensitive values from an approved Infisical integration. [ASSUMPTION A13: Infisical is the approved sensitive-configuration source for this demonstration.]
+
+**Consequences (testable):**
+- The PRD and implementation define which values belong in GitHub configuration versus Infisical, including precedence and missing-value behavior.
+- GitHub-to-Infisical authentication uses short-lived or otherwise approved machine identity; long-lived credentials are not committed or exposed in logs.
+- Secret values never appear in Terraform plans, artifacts, workflow summaries, state, repository files, or unmasked output.
+- Secret rotation and revocation can occur without changing committed Terraform or workflow source, subject to the task's documented rollout behavior.
+
+#### FR-31: Provide a Protected Non-Production Deploy Workflow
+
+An authorized operator can manually start a non-production deployment workflow that validates the target, creates a Terraform plan, requires protected approval, applies only the approved plan, and publishes verification evidence. [ASSUMPTION A14: The workflow is manually triggered and protected by GitHub Environment approval.]
+
+**Consequences (testable):**
+- The workflow uses GitHub OIDC and account/Environment-scoped AWS roles with least privilege; no long-lived AWS access key is required.
+- Formatting, dependency locks, Terraform validation, policy checks, target identity, and immutable image checks run before protected AWS mutation.
+- Plan and apply are separate stages with controlled concurrency, explicit timeout, and no automatic mutation retry.
+- Verification covers Cell Contract publication, Scheduler configuration, ECS task launch, task completion, logs, retry behavior, alarms, and DLQ behavior.
+- The workflow cannot target production through operator-supplied account, Region, role, root, or Environment values.
+
+#### FR-32: Provide a Protected Non-Production Destroy Workflow
+
+An authorized operator can manually destroy a disposable non-production deployment through a separate workflow without destroying production or shared protected Cell resources. [ASSUMPTION A15: Destroy is limited to explicitly labeled disposable non-production targets.]
+
+**Consequences (testable):**
+- Destruction requires explicit confirmation, target identity validation, and protected Environment approval.
+- The workflow rejects production targets, shared Cell resources, protected state, retained evidence, and resources governed by `prevent_destroy` unless a separate approved lifecycle process exists.
+- Required deployment, verification, and failure evidence is preserved before destruction.
+- Partial failure produces recovery guidance and never triggers an automatic retry or broad cleanup.
+
 ## 6. Cross-Cutting Non-Functional Requirements
 
 ### 6.1 Security
@@ -379,7 +421,7 @@ The Platform Service provides a Production Readiness Checklist that is completed
 
 - **NFR-10:** Terraform interfaces are explicit, documented, validated, and backward-compatible within a major version.
 - **NFR-11:** The Terraform Module follows the repository's standard module structure and includes executable examples and focused automated tests.
-- **NFR-12:** [ASSUMPTION A4: Initial compatibility is Terraform 1.5 or newer, AWS provider 5.x or newer, and ECS Fargate platform `LATEST`, subject to implementation validation and documented pinning guidance.]
+- **NFR-12:** [ASSUMPTION A4: The repository's current tested compatibility seed is Terraform 1.15.8 with Terraform `>= 1.10, < 2.0`, AWS provider 6.54.0 with provider `>= 6.0, < 7.0`, Python 3.14.6, and the repository-approved Fargate platform/runtime values; architecture and implementation must confirm the final matrix.]
 - **NFR-13:** The Platform Service avoids account-, Region-, repository-, and Environment-specific hardcoding.
 - **NFR-14:** [ASSUMPTION A10: MVP validation covers one to five Scheduled Jobs across one non-production and one production AWS Account in the organization's primary Region; architecture must not prevent later expansion to dozens of jobs.]
 - **NFR-15:** The repository never commits Terraform state, saved plans, `.terraform/`, credentials, or generated secret material; normal infrastructure workflows do not use provisioners or `null_resource`.
@@ -388,6 +430,8 @@ The Platform Service provides a Production Readiness Checklist that is completed
 
 - **NFR-16:** Production plans, approvals, exceptions, apply operations, Deployment Identity, and rollback evidence are attributable to an actor and retained according to organizational policy.
 - **NFR-17:** Optional views and retention defaults must not create unbounded cost; cost-impacting defaults are documented and configurable within platform guardrails.
+- **NFR-18:** Non-production deployment and destruction are auditable, repeatable, target-scoped, and fail closed when identity, approval, secret, state, or readiness evidence is missing.
+- **NFR-19:** Infisical integration and GitHub Environment configuration use least-privilege access, explicit ownership, rotation guidance, masking, and bounded diagnostic output; secret retrieval failure prevents mutation rather than substituting an unsafe default.
 
 ## 7. Scope
 
@@ -400,6 +444,9 @@ The Platform Service provides a Production Readiness Checklist that is completed
 - Occurrence-aware production tracking that correlates Expected Occurrences, ECS Task starts, Completion Results, retries, deadlines, and ambiguity states without prescribing the storage or reporting mechanism.
 - Optional standard CloudWatch dashboard support.
 - Reusable or example GitHub Actions workflows for validation, policy scanning, plan, approval, and apply.
+- A protected non-production deployment workflow that provisions the Platform Cell and one scheduled-job consumer, plus a separate protected destroy workflow for disposable environments.
+- GitHub Environment and Infisical configuration boundaries, authentication, rotation, masking, and audit guidance.
+- A real non-production end-to-end demonstration proving Cell publication, scheduled delivery, ECS launch, structured completion, logs, alarms, retries, and DLQ behavior.
 - Standard tags, outputs, Deployment Identity, semantic versioning, and compatibility guidance.
 - README, examples, security guidance, Runbook template, rollback guidance, and Production Readiness Checklist.
 - Multi-account and multi-Environment consumption without centralized cross-account orchestration.
@@ -416,6 +463,8 @@ The Platform Service provides a Production Readiness Checklist that is completed
 - Migration of every existing Scheduled Job during the first release.
 - Mandatory centralized dashboards, cost reporting, or external incident integrations.
 - SQS dead-letter queue behavior; it remains a future enhancement unless implementation proves trivial and does not complicate the module interface.
+- Production activation, production destruction, and a general-purpose multi-Environment destroy capability are excluded from this deployment demonstration.
+- Infisical project administration, secret creation, enterprise policy administration, and organization-wide secret migration are excluded; the capability consumes approved secret paths and identities.
 - Guaranteed prevention of overlapping runs; the Job Owner retains application-level idempotency or locking responsibility.
 
 ## 8. Stakeholders and Approvals
@@ -428,6 +477,9 @@ The Platform Service provides a Production Readiness Checklist that is completed
 | Qualifying production IAM or networking change | Platform Owner | Security, Platform Engineering, Application Team |
 | Policy exception | Platform Owner | Security or designated control owner, plus Job Owner |
 | Breaking Platform Service release | Platform Owner | Platform Engineering and representative consumers |
+| Non-production AWS target and state | Cloud Infrastructure Owner | Platform Owner, Security, Job Owner |
+| GitHub Environment and OIDC controls | Platform Owner | Security, Cloud Infrastructure Owner |
+| Infisical project, identity, and secret paths | Secret Owner | Security, Platform Owner, Job Owner |
 
 ## 9. Success Metrics
 
@@ -444,6 +496,8 @@ The Platform Service provides a Production Readiness Checklist that is completed
 - **SM-6: Operability coverage** — Every production failure alarm maps to a Runbook response, and every pilot failure test produces enough context to identify its failure plane and Deployment Identity. Validates FR-15 through FR-18, FR-24, FR-27.
 - **SM-7: Drift reduction** — New jobs do not copy unmanaged task, schedule, IAM, logging, or alarm Terraform outside the Platform Service without an approved exception. Validates FR-1 through FR-4, FR-25.
 - **SM-8: Observability escape rate** — Track incidents or failed runs in which missing logs, alarms, completion signals, or ownership delayed detection or diagnosis; the target is zero for pilot and post-pilot jobs. Validates FR-14 through FR-18, FR-27, FR-28.
+- **SM-9: Real-environment demonstration** — One disposable non-production Environment provisions the Platform Cell and one scheduled-job consumer, completes at least one successful occurrence, demonstrates one controlled failure/retry path, and produces bounded evidence for every required verification plane. Validates FR-29 through FR-31.
+- **SM-10: Safe teardown** — 100% of demonstration destroy attempts either remove only the approved disposable target or fail before mutation; no production, shared Cell, protected state, or retained evidence is destroyed. Validates FR-32 and NFR-18.
 
 ### 9.3 Counter-Metrics
 
@@ -454,13 +508,14 @@ The Platform Service provides a Production Readiness Checklist that is completed
 
 ## 10. Rollout and Change Management
 
-1. **MVP verification:** Validate the module, examples, policy fixtures, failure simulations, documentation, versioning, and rollback path in a non-production AWS Account.
-2. **Pilot:** [ASSUMPTION A7] Select one or two low-risk, non-customer-facing cleanup, maintenance, reporting, data-sync, or internal batch jobs. Platform Engineering / DevOps owns candidates until a named Job Owner is assigned before execution.
-3. **Production acceptance:** Complete the Production Readiness Checklist, execute failure tests, validate alert routing, perform a rollback rehearsal or tabletop, and obtain required approvals.
-4. **New-job standardization:** [ASSUMPTION A6] Require the Platform Service for all new ECS Scheduled Jobs, with documented time-bound exceptions.
-5. **Non-production enforcement:** Terraform formatting and validation failures and obvious secret exposure are blocking from MVP start. [ASSUMPTION A11: Other dev and staging policy findings are advisory during MVP; after pilot acceptance, missing tags become blocking in non-production, and within one or two adoption sprints, staging also blocks IAM wildcards, missing retention or alarms, and mutable images.]
-6. **Gradual migration:** Migrate existing jobs when they are materially changed, when a risk is identified, or when the owning team schedules improvement work; do not force wholesale migration in MVP.
-7. **Feedback and release:** Measure setup time, review findings, alarm quality, exceptions, and upgrade issues; feed results into minor releases and a documented roadmap.
+1. **MVP verification:** Validate the module, examples, policy fixtures, failure simulations, documentation, versioning, and rollback path without credentials, then deploy the Platform Cell and one scheduled-job consumer to a disposable non-production AWS Environment.
+2. **Real-environment demonstration:** Use the protected deploy workflow to verify Cell publication, disabled-then-qualified scheduling, ECS launch, structured completion, logs, alarms, retries, and DLQ behavior. Use the separate destroy workflow only after evidence is retained.
+3. **Pilot:** [ASSUMPTION A7] Select one or two low-risk, non-customer-facing cleanup, maintenance, reporting, data-sync, or internal batch jobs. Platform Engineering / DevOps owns candidates until a named Job Owner is assigned before execution.
+4. **Production acceptance:** Complete the Production Readiness Checklist, execute failure tests, validate alert routing, perform a rollback rehearsal or tabletop, and obtain required approvals. The demonstration workflow does not authorize production activation.
+5. **New-job standardization:** [ASSUMPTION A6] Require the Platform Service for all new ECS Scheduled Jobs, with documented time-bound exceptions.
+6. **Non-production enforcement:** Terraform formatting and validation failures and obvious secret exposure are blocking from MVP start. [ASSUMPTION A11: Other dev and staging policy findings are advisory during MVP; after pilot acceptance, missing tags become blocking in non-production, and within one or two adoption sprints, staging also blocks IAM wildcards, missing retention or alarms, and mutable images.]
+7. **Gradual migration:** Migrate existing jobs when they are materially changed, when a risk is identified, or when the owning team schedules improvement work; do not force wholesale migration in MVP.
+8. **Feedback and release:** Measure setup time, review findings, alarm quality, exceptions, and upgrade issues; feed results into minor releases and a documented roadmap.
 
 ### Rollback Principles
 
@@ -487,6 +542,9 @@ The Platform Service provides a Production Readiness Checklist that is completed
 | Module abstraction hides important behavior | Unsafe adoption and difficult diagnosis | Keep permissions, retries, runtime, overlap, success contract, outputs, and Runbook explicit |
 | Alerting becomes noisy | On-call ignores real failures | Test alarms, require actionable context, measure SM-C2 |
 | Compatibility or upgrades break consumers | Adoption stalls or jobs drift | Semantic versioning, pinned consumption, deprecation, migration notes, and rollback; FR-25 |
+| Infisical or GitHub configuration is missing, stale, or over-scoped | Deployment leaks secrets or applies the wrong target | Separate non-secret and secret inputs, short-lived identity, masking, rotation, preflight validation, and fail-closed retrieval; FR-30, NFR-19 |
+| Destroy workflow removes shared or protected resources | Loss of platform state, evidence, or other environments | Separate workflow, explicit non-production target binding, confirmation, approval, deny-by-default resource classes, and pre-destroy evidence; FR-32 |
+| Real AWS prerequisites are incomplete | Demonstration fails for reasons unrelated to the module | Make Account, Region, state, network, cluster, ECR, Cell, notification, Infisical, and OIDC prerequisites explicit before implementation; FR-29, OQ-8 through OQ-13 |
 
 ## 12. Open Questions
 
@@ -497,13 +555,19 @@ The Platform Service provides a Production Readiness Checklist that is completed
 5. **OQ-5 — owner: Platform Owner; resolve before production delivery:** Does the organization's GitHub plan and configuration support the assumed approval controls, or must the equivalent fallback controls be used?
 6. **OQ-6 — owner: Cloud Infrastructure Owner; resolve before MVP testing:** What primary AWS Region and account pair will host validation, and do they satisfy the assumed MVP scale?
 7. **OQ-7 — owner: Platform Owner; resolve before pilot evaluation:** What measured setup-time and review-finding baseline from two or three recent jobs replaces the initial estimates?
+8. **OQ-8 — owner: Cloud Infrastructure Owner; resolve before architecture:** Which non-production AWS Account, Region, Terraform root, backend bucket/key/lock boundary, and state-retention policy will host the demonstration?
+9. **OQ-9 — owner: Platform Owner; resolve before implementation:** Will the demonstration deploy the Platform Cell and scheduled-job consumer from one coordinated root or from separate roots with an explicit dependency and promotion order?
+10. **OQ-10 — owner: Security and Secret Owner; resolve before implementation:** Which Infisical project/environment, machine identity, authentication method, secret paths, rotation policy, and audit boundary are approved? No values are required in the PRD.
+11. **OQ-11 — owner: Platform Owner; resolve before implementation:** Which GitHub Environments, required reviewers, OIDC subjects, workflow repositories, and deployment role manifests are approved for the demonstration?
+12. **OQ-12 — owner: Job Owner; resolve before implementation:** What container image digest, command, schedule, test data, expected completion record, controlled failure mode, and idempotency behavior will prove the real task works?
+13. **OQ-13 — owner: Platform Owner; resolve before implementation:** Which Cell resources must survive demonstration teardown, and what retained evidence and logs must be preserved before destroy?
 
 ## 13. Assumptions Index
 
 - **A1 (§5.2):** EventBridge Scheduler is the version-one baseline; legacy scheduled rules are excluded. **Owner:** Platform Owner. **Revisit:** architecture kickoff.
 - **A2 (FR-18):** Consumers supply an organization-standard notification target; Platform Engineering / DevOps on-call receives pilot alerts when no application policy exists. **Owner:** Platform Owner. **Resolve:** before production pilot.
 - **A3 (FR-25):** The current major module version and one previous major version receive support. **Owner:** Platform Owner. **Resolve:** before first consumer release.
-- **A4 (§6.3):** Initial compatibility is Terraform 1.5+, AWS provider 5.x+, and Fargate platform `LATEST`, pending validation. **Owner:** Platform Owner. **Resolve:** before pilot.
+- **A4 (§6.3):** The repository's current tested compatibility seed is Terraform 1.15.8 with Terraform `>= 1.10, < 2.0`, AWS provider 6.54.0 with provider `>= 6.0, < 7.0`, Python 3.14.6, and repository-approved Fargate platform/runtime values. **Owner:** Platform Owner. **Resolve:** before pilot.
 - **A5 (SM-1):** Current setup time is one to three engineering days. **Owner:** Platform Owner. **Replace:** with measured data before pilot evaluation.
 - **A6 (SM-2, rollout):** All new ECS Scheduled Jobs must use the Platform Service after pilot acceptance. **Owner:** Platform Owner. **Confirm:** at pilot acceptance.
 - **A7 (SM-4, rollout):** One or two low-risk internal jobs enter the pilot within one sprint; Platform Engineering / DevOps owns the pilot candidates until named Job Owners are assigned. **Owner:** Platform Owner. **Resolve:** before pilot execution.
@@ -511,3 +575,7 @@ The Platform Service provides a Production Readiness Checklist that is completed
 - **A9 (§11):** GitHub protected-Environment controls are available; equivalent auditable controls apply otherwise. **Owner:** Platform Owner. **Resolve:** before production delivery.
 - **A10 (§6.3):** MVP validates one to five jobs in one non-production and one production AWS Account in the primary Region. **Owner:** Cloud Infrastructure Owner. **Resolve:** before MVP environment testing.
 - **A11 (§10):** Non-production policy gates beyond always-blocking Terraform validity and obvious secret exposure phase in after pilot acceptance. **Owner:** Platform Owner. **Revisit:** at pilot acceptance and again after one to two adoption sprints.
+- **A12 (FR-29):** The first real deployment is disposable non-production only; production activation remains blocked until the existing readiness and protected delivery controls are complete. **Owner:** Platform Owner. **Resolve:** before implementation.
+- **A13 (FR-30):** Infisical is the approved sensitive-configuration source for the demonstration, while GitHub Environments provide non-secret configuration and deployment controls. **Owner:** Security and Secret Owner. **Resolve:** before implementation.
+- **A14 (FR-31):** The deploy workflow is manually triggered and protected by GitHub Environment approval; it does not grant production access. **Owner:** Platform Owner. **Resolve:** before implementation.
+- **A15 (FR-32):** Destroy is limited to explicitly labeled disposable non-production targets and never removes shared Cell foundations or retained evidence by default. **Owner:** Cloud Infrastructure Owner. **Resolve:** before implementation.

@@ -10,6 +10,8 @@ This addendum preserves implementation constraints supplied during product disco
 - GitHub Actions is the preferred CI/CD platform.
 - CloudWatch is the default platform for logs, metrics, alarms, and dashboards.
 - GitHub OIDC is preferred for AWS authentication; long-lived CI credentials are prohibited.
+- GitHub Environments provide protected non-production deployment controls and non-secret configuration; the exact Environment names, reviewers, OIDC subjects, and target manifest remain architecture inputs.
+- Infisical is the proposed approved source for sensitive deployment and workload configuration; the exact project, environment, machine identity, authentication method, paths, and rotation policy remain open until Security and the Secret Owner approve them.
 
 ## Infrastructure Constraints
 
@@ -28,6 +30,24 @@ This addendum preserves implementation constraints supplied during product disco
 - Plan and apply are separated, and production apply requires approval.
 - Production-impacting changes document expected impact and rollback steps.
 - Documentation includes example usage, security guidance, a runbook template, and operational troubleshooting.
+- The demonstration has separate manually triggered deploy and destroy workflows. Deploy requires plan review and protected approval; destroy requires explicit non-production confirmation, pre-destroy evidence preservation, and protected approval.
+- The deployment path must fail closed on missing secrets, invalid target identity, wrong Environment, missing Cell acknowledgement, incomplete readiness, stale locks, or partial prior mutation. It must not perform automatic mutation retries.
+
+## Real Non-Production Demonstration Boundary
+
+The first real environment is disposable and non-production. It provisions the
+Platform Cell and one scheduled-job consumer using an immutable image digest,
+private networking, approved state, GitHub OIDC roles, protected GitHub
+Environment controls, and approved Infisical access. The schedule remains
+disabled until Cell publication and readiness checks pass. The demonstration
+must prove at least one successful occurrence and one controlled failure or
+retry path, including logs, alarms, retries, dead-letter behavior, and bounded
+verification evidence.
+
+The destroy workflow is not a generic cleanup command. It must bind to the
+same approved target identity, reject production and shared Cell resources,
+preserve required evidence, and leave protected state, retained logs, and
+resources governed by `prevent_destroy` under their owning lifecycle process.
 
 ## Initial Distribution Pattern
 

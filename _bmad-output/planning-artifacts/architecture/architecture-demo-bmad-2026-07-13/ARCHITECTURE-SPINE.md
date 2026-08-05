@@ -7,11 +7,15 @@ paradigm: account-local cell-based architecture with an event-driven process man
 scope: ECS scheduled jobs platform MVP
 status: final
 created: 2026-07-13
-updated: 2026-07-13
-binds: [FR-1..FR-28, NFR-1..NFR-17]
+updated: 2026-08-05
+binds: [FR-1..FR-32, NFR-1..NFR-19]
 sources:
   - ../../prds/prd-demo-bmad-2026-07-13/prd.md
   - ../../prds/prd-demo-bmad-2026-07-13/addendum.md
+  - https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws
+  - https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+  - https://infisical.com/docs/integrations/cicd/githubactions
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tasks-scheduled-eventbridge-scheduler.html
 companions:
   - solution-design-review.md
 ---
@@ -50,6 +54,29 @@ flowchart LR
   Alarm --> AlertRouter[Alert router]
   Ledger -->|DynamoDB Stream alert outbox| AlertRouter
   AlertRouter --> Notify[Consumer notification target]
+```
+
+```mermaid
+flowchart LR
+  Operator[Authorized operator] --> Deploy[Manual deploy workflow]
+  Deploy --> GHEnv[Protected GitHub Environment]
+  GHEnv --> Target[Immutable target manifest]
+  Deploy -->|GitHub OIDC| PlanRole[Scoped plan role]
+  Deploy -->|GitHub OIDC after approval| ApplyRole[Scoped apply role]
+  Deploy -->|GitHub OIDC at runtime| Infisical[Infisical machine identity]
+  Infisical -->|short-lived values only| SecretSteps[Approved secret-consuming steps]
+  PlanRole --> Plan[Fresh Terraform plan]
+  ApplyRole --> Apply[Exact saved-plan apply]
+  Plan --> Approval[Protected approval]
+  Approval --> Apply
+  Apply --> CellRoot[Platform Cell root]
+  Apply --> JobRoot[Scheduled-job consumer root]
+  CellRoot --> JobRoot
+  Apply --> Evidence[Sanitized deployment evidence]
+  Operator --> Destroy[Separate destroy workflow]
+  Destroy --> Disposable[Disposable target guard]
+  Disposable --> DestroyApproval[Protected destroy approval]
+  DestroyApproval --> Teardown[Target-scoped teardown]
 ```
 
 ## Invariants & Rules
@@ -243,6 +270,36 @@ stateDiagram-v2
 - **Prevents:** Scheduler launching before ownership, CONFIG, contract compatibility, and future expectations are ready
 - **Rule:** Production job creation and launch-relevant changes use machine states `RESERVED`, `PUBLISHED`, `VALIDATED`, `MATERIALIZED`, `ENABLED`, or `REJECTED`. Reservation precedes planning. Phase one publishes CONFIG and creates the role plus launch schedule disabled at a future anchor. The Cell acknowledgement binds actual role/schedule identities and records owner generation, config hash, contract/schema versions, validation, and horizon watermark. Only a separately reviewed phase-two plan may enable that exact acknowledgement; timeout/rejection leaves launch disabled and rollback retains the previous active generation.
 
+### AD-30 — Immutable Non-Production Target and Deployment Order
+
+- **Binds:** FR-29, FR-31–FR-32, NFR-13, NFR-18
+- **Prevents:** an operator selecting an arbitrary account, role, state, root, or production target and deploying the two Terraform ownership domains in an unsafe order
+- **Rule:** The demonstration workflow accepts only an immutable target manifest whose repository, Environment, AWS Account, Region, Terraform roots, backend paths, plan/apply role identities, Cell identity, and `disposable_nonproduction=true` assertion are independently validated before Terraform initialization. The Cell root is planned/applied before the job root; the job root consumes the published Cell Contract and cannot enable launch until AD-29 acknowledgement. Production, shared Cell, and non-disposable targets are rejected by the demonstration workflow.
+
+### AD-31 — Split GitHub Configuration and Infisical Secrets
+
+- **Binds:** FR-12, FR-30–FR-31, NFR-2, NFR-4, NFR-19
+- **Prevents:** secret values entering Terraform state, plans, artifacts, deployment identity, or GitHub logs, and non-secret target controls being hidden inside a secret store
+- **Rule:** GitHub Environment configuration carries non-secret target selectors, approval controls, and bounded deployment metadata. Infisical supplies only approved sensitive values to explicitly authorized workflow steps through a GitHub OIDC-authenticated machine identity with project/environment/path scope. Secret values are never passed as ordinary Terraform variables, rendered into CONFIG, uploaded as evidence, printed in summaries, or persisted in state. If an AWS resource requires durable secret delivery, the workflow stores a reference in the approved AWS secret provider and Terraform consumes the locator, not the value.
+
+### AD-32 — Exact Deploy Pipeline Stages
+
+- **Binds:** FR-20, FR-22–FR-24, FR-31, NFR-4, NFR-7, NFR-16, NFR-18
+- **Prevents:** credentials reaching untrusted code, approval being detached from the plan, or a changed target/plan being applied after review
+- **Rule:** Deployment stages are ordered: credential-free validation; target and lock preflight; read-only plan; protected Environment approval; exact saved-plan apply using the distinct apply role; post-apply verification; and sanitized evidence publication. The apply job receives no alternate variables, target overrides, replan, refresh-only operation, or automatic mutation retry. Every stage binds source commit, workflow SHA, target manifest digest, provider/backend locks, plan checksum, Cell acknowledgement, and Deployment Identity.
+
+### AD-33 — Separate Target-Scoped Destroy Authority
+
+- **Binds:** FR-32, NFR-7, NFR-16, NFR-18
+- **Prevents:** destroy becoming an implicit failure cleanup path or removing production, shared Cell foundations, protected state, retained logs, or audit evidence
+- **Rule:** Destroy is a separate manually triggered workflow with a distinct target guard, explicit disposable-target confirmation, protected Environment approval, and a pre-destroy evidence checkpoint. Its role can act only on the approved disposable job/environment namespace and owned resources; shared Cell resources, production targets, backend controls, retained evidence, and `prevent_destroy` resources are deny-by-default. Partial destroy fails closed and requires a fresh reviewed plan or owning lifecycle procedure; no broad cleanup or mutation retry is automatic.
+
+### AD-34 — Bounded Runtime Verification Evidence
+
+- **Binds:** FR-29, FR-31–FR-32, NFR-6, NFR-8, NFR-16–NFR-19
+- **Prevents:** a successful Terraform apply being mistaken for a working scheduled workload or a destroy being considered safe without proving target ownership
+- **Rule:** The demonstration produces sanitized evidence for Cell Contract publication, schedule state/generation, ECS task-definition identity, launch, completion, logs, retries, alarms, DLQ behavior, target identity, and teardown outcome. Evidence contains hashes and resource identifiers but no secret values, raw state, unrestricted plan content, or credentials. A missing Cell acknowledgement, failed verification, or incomplete evidence leaves launch disabled and blocks the next lifecycle action.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -260,6 +317,10 @@ stateDiagram-v2
 | Logs | Structured JSON with job ID, occurrence ID, config version, task ARN, state, and error code; never secret values |
 | Metrics | Bounded job/environment/state dimensions; no occurrence ID dimension |
 | Configuration | Secret values never enter CONFIG, messages, state, or plans; only approved secret references are stored |
+| Deployment target | Immutable manifest binds repository, Environment, Account, Region, roots, backend paths, role identities, Cell identity, and disposable non-production status |
+| Workflow stages | Validate → preflight → plan → protected approval → exact apply → verify → sanitize evidence; deploy and destroy are separate workflows |
+| Configuration sources | GitHub Environment contains non-secret selectors/controls; Infisical OIDC machine identity supplies scoped secrets only to authorized runtime steps |
+| Destroy safety | Explicit disposable-target confirmation, protected approval, pre-destroy evidence, deny-by-default shared/protected resources, and no automatic broad cleanup |
 | CONFIG publication | S3 key `jobs/<job_id>/config/<config_version>.json`; bucket policy derives the job apply role/prefix from the Cell ownership record |
 | Errors | Stable machine code plus operator-safe message; unexpected or unauthenticated input is quarantined, not dropped |
 | Required tags | Nonempty `Environment`, `Application`, `Service`, `Owner`, `ManagedBy`, plus applicable `CostCenter` and `Repository`; module-required values override consumer collisions |
@@ -278,6 +339,7 @@ stateDiagram-v2
 | AWS Lambda Python runtime | 3.14 |
 | ECS Fargate platform | `LATEST` |
 | GitHub Actions OIDC | immutable repository-subject format |
+| Infisical GitHub Actions integration | OIDC-authenticated machine identity with project/environment/path scope |
 
 All roots and modules require Terraform `>= 1.10, < 2.0` because AD-15 requires native S3 lock files. The code, workflows, Compatibility Package, and lock files own the dated tested matrix and patch-level versions after cold-start.
 
@@ -326,10 +388,13 @@ erDiagram
 | Multi-account/environment deployment | Account-local Cells and root states | AD-1, AD-2, AD-15 |
 | CI/CD, policy, provenance | Reusable GitHub workflows and operator role | AD-15–AD-17, AD-20 |
 | Runbooks, readiness, rollback | Job docs and production gates | AD-14, AD-18, AD-21–AD-22 |
+| Non-production deployment | Target manifest, Cell root, job root, deploy workflow | AD-1, AD-2, AD-15, AD-29–AD-32 |
+| GitHub/Infisical configuration | Protected Environment, OIDC machine identity, scoped secret steps | AD-12, AD-16, AD-31 |
+| Non-production teardown | Separate destroy workflow and target-scoped lifecycle role | AD-25, AD-26, AD-33–AD-34 |
 
 ## Deferred
 
-- **Exact pilot jobs, AWS Accounts, Region, notification target, and GitHub plan controls:** resolve at the PRD-owned gates before pilot or production delivery.
+- **Exact pilot jobs, AWS Accounts, Region, notification target, GitHub plan controls, target manifest schema, and Infisical project/path bindings:** resolve at the PRD-owned gates before implementation or pilot delivery.
 - **Enforced task cancellation:** deadline detection and alerting only in MVP.
 - **Step Functions, job dependencies, application completion API, centralized dashboard, cost allocation, and automated remediation:** future capabilities, not Cell contracts.
 - **Multi-Region active/active or automatic failover:** redeploy and restore are runbook operations for MVP.
@@ -342,3 +407,6 @@ erDiagram
 - **A-1:** The schedule evaluator passes the supported EventBridge Scheduler cron/rate, time-zone, DST, start-anchor, and consecutive-window conformance suite before pilot.
 - **A-2:** The organization can configure GitHub immutable subjects, custom `sub` templates, protected Environments, and no-admin-bypass controls.
 - **A-3:** The proposed retention defaults meet internal security and operations policy.
+- **A-4:** The first demonstration target is disposable non-production and its target manifest is provisioned and reviewed outside the workflow that consumes it.
+- **A-5:** GitHub Environment protection supports required reviewers, self-review prevention, and deployment-branch restrictions for the repository visibility and plan in use.
+- **A-6:** Infisical supports GitHub OIDC machine-identity authentication for the selected project/environment and can scope access to the required paths without static workflow credentials.

@@ -10,6 +10,10 @@ inputDocuments:
   - _bmad-output/planning-artifacts/architecture/architecture-demo-bmad-2026-07-13/ARCHITECTURE-SPINE.md
   - _bmad-output/planning-artifacts/architecture/architecture-demo-bmad-2026-07-13/solution-design-review.md
   - _bmad-output/planning-artifacts/implementation-readiness-report-2026-07-13.md
+  - _bmad-output/specs/spec-ecs-scheduled-jobs-platform-deployment/SPEC.md
+  - _bmad-output/specs/spec-ecs-scheduled-jobs-platform-deployment/deployment-contract.md
+  - _bmad-output/project-context.md
+  - _bmad/custom/standards/aws-terraform-implementation.md
 ---
 
 # demo-bmad - Epic Breakdown
@@ -78,6 +82,14 @@ FR27: The service ships a job Runbook template covering ownership, schedule, run
 
 FR28: A blocking Production Readiness Checklist covers IAM, secrets, networking, immutable images, logs and retention, all failure planes, ownership, approvals, rollback, Runbook, validation evidence, representative plan impact, limitations, and failure-injection acceptance within five minutes with zero false alerts across at least 20 accelerated successful windows.
 
+FR29: A Platform Operator can deploy one disposable non-production Platform Cell and one ECS scheduled-job consumer to a real AWS environment, with the Cell deployed first and the job consuming the published Cell Contract.
+
+FR30: A Platform Operator can source non-secret deployment selectors and controls from GitHub Environment configuration and approved sensitive values from Infisical through a GitHub OIDC-authenticated machine identity without exposing secret values to Terraform inputs, plans, artifacts, logs, CONFIG, state, or evidence.
+
+FR31: A Platform Operator can run a manually triggered, protected non-production deployment workflow that validates the target, uses short-lived credentials, generates a plan, obtains approval, applies only the approved plan, verifies the runtime path, and publishes bounded evidence without enabling production access.
+
+FR32: A Platform Operator can run a separate, manually triggered, protected destroy workflow for an explicitly disposable non-production target that confirms ownership, preserves evidence, refuses production/shared/protected resources, and fails closed on partial or unsafe teardown.
+
 ### NonFunctional Requirements
 
 NFR1: Production resources use least-privilege IAM, separate roles, restricted trust policies, mandatory permissions boundaries, and no unjustified wildcard actions or resources.
@@ -113,6 +125,10 @@ NFR15: The repository never commits Terraform state, saved plans, `.terraform/`,
 NFR16: Production plans, approvals, exceptions, applies, Deployment Identity, operator actions, and rollback evidence are attributable and retained under organizational policy.
 
 NFR17: Optional views, telemetry dimensions, queues, and retention defaults have documented, configurable cost bounds within platform guardrails.
+
+NFR18: Non-production deployment and destruction are auditable, repeatable, target-scoped, and fail closed when identity, approval, secret, state, or readiness evidence is missing.
+
+NFR19: Infisical integration and GitHub Environment configuration use least-privilege access, explicit ownership, rotation guidance, masking, and bounded diagnostic output; secret retrieval failure prevents mutation rather than substituting an unsafe default.
 
 ### Additional Requirements
 
@@ -200,6 +216,16 @@ AR41: Private-subnet classification, qualifying IAM/networking change, pilot obs
 
 AR42: The backlog includes concise FR, NFR, architecture, and AWS-standard traceability for load-bearing security, reliability, compatibility, recovery, and Terraform controls; FR18 includes both alert routing and consumer notification-input ownership.
 
+AR43: The non-production demonstration is decomposed into independently implementable Cell deployment, job deployment, configuration/secret sourcing, protected deploy, protected destroy, and runtime verification work, with no automatic destroy after deployment failure.
+
+AR44: The deploy workflow validates the target manifest and prerequisites before Terraform mutation, keeps Cell and job state ownership separate, and applies the exact approved plan for each root.
+
+AR45: The destroy workflow has separate target-scoped authority and explicit protections for production, shared Cell resources, protected state, retained logs/evidence, and `prevent_destroy` resources.
+
+AR46: Runtime verification proves Cell Contract publication, schedule readiness, ECS launch, structured completion, log delivery, retry/DLQ behavior, alarm behavior, and sanitized evidence; Terraform apply success alone is insufficient.
+
+AR47: Implementation preserves the AWS Terraform standard: explicit validated interfaces, immutable image references, encrypted resources, least-privilege roles, private networking, bounded retries and retention, operational outputs, validation for every changed root/example, and rollback notes.
+
 ### UX Design Requirements
 
 No UX design contract was provided or required for MVP. This is an infrastructure module, runtime service, reusable workflow, and documentation product; consumer experience requirements are captured by explicit module inputs and outputs, actionable validation, executable examples, operational commands, and Runbooks.
@@ -262,6 +288,18 @@ FR27: Epic 4 - Provide and complete an actionable production Job Runbook tied to
 
 FR28: Epic 4 - Enforce production readiness, failure qualification, recovery evidence, and controlled pilot launch gates.
 
+FR29: Epic 5 - Deploy the Platform Cell and one scheduled-job consumer to a disposable real AWS non-production environment in the required order.
+
+FR30: Epic 5 - Source GitHub non-secret configuration and scoped Infisical sensitive values without leaking secrets into infrastructure inputs or evidence.
+
+FR31: Epic 5 - Execute a protected exact-plan non-production deployment and bounded end-to-end verification.
+
+FR32: Epic 5 - Execute a separate protected, target-scoped non-production destroy with evidence preservation and fail-closed safeguards.
+
+NFR18: Epic 5 - Keep demonstration lifecycle actions attributable, repeatable, target-scoped, and fail closed.
+
+NFR19: Epic 5 - Enforce least-privilege configuration/secret sourcing, rotation, masking, audit, and no-mutation-on-secret-failure behavior.
+
 ### Story Traceability Matrix
 
 This matrix identifies each story's primary functional coverage and its load-bearing non-functional, architecture, and AWS/Terraform controls. Acceptance criteria remain the authoritative implementation contract.
@@ -312,6 +350,13 @@ This matrix identifies each story's primary functional coverage and its load-bea
 | 4.8 | FR9, FR17, FR24, FR28 | NFR7, NFR9, NFR16 | AR23, AR25, AR26, AR29, AR31, AR38, AR39 |
 | 4.9 | FR28 | NFR6, NFR7, NFR14, NFR16, NFR17 | AR29, AR39, AR41, AR42 |
 | 4.10 | FR28 | NFR6, NFR7, NFR14, NFR16 | AR16, AR29, AR31, AR39, AR41, AR42 |
+| 5.1 | FR30, FR31 | NFR2, NFR4, NFR18, NFR19 | AD-31, AD-32, AR43, AR47 |
+| 5.2 | FR30, FR31 | NFR2, NFR4, NFR18, NFR19 | AD-31, AD-32, AR43, AR47 |
+| 5.3 | FR29, FR31 | NFR1, NFR6, NFR7, NFR17, NFR18 | AD-30, AD-32, AD-34, AR1, AR2, AR11, AR12, AR15, AR21, AR27, AR47 |
+| 5.4 | FR29, FR31 | NFR1, NFR2, NFR3, NFR5, NFR6, NFR8, NFR18 | AD-29, AD-30, AD-34, AR6, AR12, AR13, AR15, AR17, AR19, AR21, AR27, AR34, AR47 |
+| 5.5 | FR31 | NFR4, NFR7, NFR16, NFR18 | AD-30, AD-31, AD-32, AR28, AR40, AR43, AR44, AR47 |
+| 5.6 | FR29, FR31 | NFR2, NFR6, NFR8, NFR9, NFR17, NFR18, NFR19 | AD-29, AD-34, AR5, AR9, AR11, AR14, AR15, AR27, AR29, AR46, AR47 |
+| 5.7 | FR32 | NFR7, NFR16, NFR18 | AD-33, AD-34, AR25, AR28, AR31, AR43, AR45, AR46, AR47 |
 
 ## Epic List
 
@@ -346,6 +391,14 @@ Job Owners, Platform Engineering, Security, and operations can document, qualify
 **FRs covered:** FR26, FR27, FR28
 
 **Implementation notes:** This epic completes adoption documentation, module-local examples, Runbooks, machine-verifiable readiness, split failure-domain qualification, recovery evidence, and pilot measurement automation. Named jobs and owners, account and Region, notification target, GitHub controls, recovery objectives, baseline, observation window, and stakeholder approvals remain explicit launch-checklist gates with owners and resolution points rather than hidden development acceptance criteria.
+
+### Epic 5: Deploy and Observe a Real Non-Production Environment
+
+A Platform Operator can deploy the Platform Cell and one ECS scheduled-job consumer into a disposable AWS environment, source configuration securely, verify the complete runtime path, and safely destroy only the approved target.
+
+**FRs covered:** FR29, FR30, FR31, FR32
+
+**Implementation notes:** This epic owns the immutable non-production target manifest, GitHub Environment and Infisical boundary, real Cell and job deployment orchestration, protected exact-plan deployment, bounded runtime verification, and separate target-scoped destroy. It consumes the module and Cell contracts from Epics 1–2 and the trusted delivery controls from Epic 3, but does not activate production, destroy shared Cell foundations, or use automatic cleanup after deployment failure. It must remain independently testable with explicit AWS prerequisites and unknown values represented as operator inputs.
 
 ## Epic 1: Prove a Trusted Regional Job Platform
 
@@ -3024,3 +3077,287 @@ So that external pilot execution and broader adoption proceed only when named ow
 **When** automated tests run
 **Then** complete, blocked, stale, changed-release, failed-pilot, inconclusive, exception, and accepted fixtures produce deterministic statuses
 **And** no default, placeholder, free-form comment, administrator bypass, or missing approver can yield launch authorization or acceptance.
+
+## Epic 5: Deploy and Observe a Real Non-Production Environment
+
+A Platform Operator can deploy the Platform Cell and one ECS scheduled-job consumer into a disposable AWS environment, source configuration securely, verify the complete runtime path, and safely destroy only the approved target.
+
+### Story 5.1: Provide Infisical Deployment Configuration
+
+As a Platform Operator,
+I want to provide an Infisical path to the deployment workflow,
+So that the pipeline can load the configuration required to deploy the demonstration environment.
+
+**Acceptance Criteria:**
+
+**Given** the deploy workflow is manually started
+**When** the operator provides the approved Infisical project, environment, and path reference
+**Then** the workflow authenticates to Infisical using the configured GitHub OIDC integration
+**And** the path reference is passed to the deployment steps without exposing secret values.
+
+**Given** the GitHub Environment contains the AWS deployment role configuration
+**When** the workflow authenticates to AWS
+**Then** it uses short-lived GitHub OIDC credentials and the configured role
+**And** AWS account, Region, network, and resource configuration are consumed from the approved deployment configuration rather than entered as separate workflow inputs.
+
+**Given** Infisical configuration retrieval succeeds
+**When** Terraform deployment begins
+**Then** the required configuration is available to the deployment process
+**And** secret values are not printed, uploaded as artifacts, written to summaries, or included in ordinary Terraform variables.
+
+**Given** the Infisical path is missing, inaccessible, or incomplete
+**When** the workflow starts deployment
+**Then** deployment stops before Terraform apply
+**And** no unsafe defaults or automatic mutation retry is used.
+
+**Given** the workflow completes
+**When** deployment evidence is published
+**Then** it contains only sanitized status, identifiers, hashes, and verification results
+**And** it does not contain secret values or unrestricted configuration.
+
+### Story 5.2: Consume Infisical Configuration in Deployment
+
+As a Platform Operator,
+I want the deployment pipeline to consume configuration from the supplied Infisical path,
+So that Terraform receives the values needed to deploy the Platform Cell and scheduled-job consumer without manual environment setup.
+
+**Acceptance Criteria:**
+
+**Given** Story 5.1 provides a valid Infisical path
+**When** the deployment workflow retrieves configuration
+**Then** it maps the required values to the Cell and scheduled-job deployment inputs
+**And** the mapping is documented and version-controlled without containing secret values.
+
+**Given** a value is sensitive
+**When** it is consumed by the workflow
+**Then** it is passed only to the authorized deployment step or stored as an approved AWS secret reference
+**And** it is not written to Terraform state, plans, CONFIG, logs, artifacts, summaries, or deployment evidence.
+
+**Given** a value is non-sensitive
+**When** it is consumed by the workflow
+**Then** it may be used as a Terraform input or deployment selector
+**And** its source and precedence relative to GitHub Environment values are documented.
+
+**Given** a required configuration value is missing or malformed
+**When** input preparation runs
+**Then** the workflow fails before Terraform apply
+**And** it identifies the configuration key or category without printing secret contents.
+
+**Given** configuration retrieval and input preparation succeed
+**When** the deployment inputs are handed to Terraform
+**Then** the Cell and scheduled-job roots receive consistent values for the same deployment
+**And** the workflow records only a sanitized configuration fingerprint for audit correlation.
+
+**Given** an Infisical value is rotated
+**When** the workflow runs again
+**Then** it retrieves the current approved value without requiring repository changes
+**And** the workflow does not expose the previous or current value in output.
+
+### Story 5.3: Deploy the Platform Cell
+
+As a Platform Operator,
+I want the deployment pipeline to provision the Platform Cell,
+So that the scheduled-job consumer has a complete, observable, and recoverable launch platform.
+
+**Acceptance Criteria:**
+
+**Given** deployment configuration has been loaded successfully
+**When** the Cell Terraform root is applied
+**Then** it provisions the resources required by the Platform Cell, including encrypted storage, queues, dead-letter queues, IAM roles, logging, alarms, and recovery resources
+**And** resources use the required ownership tags and documented naming conventions.
+
+**Given** the Cell contains asynchronous processing paths
+**When** queues and DLQs are created
+**Then** encryption, retention, visibility timeout, retry limits, redrive behavior, and partial-batch handling are configured according to the platform contract
+**And** failed messages can be identified and quarantined for investigation.
+
+**Given** the Cell contains runtime components
+**When** IAM roles and policies are created
+**Then** scheduler delivery, materialization, processing, launch, logging, alerting, and recovery responsibilities remain separated
+**And** policies use least privilege with no undocumented wildcard access.
+
+**Given** Cell resources are provisioned
+**When** the Cell Contract is published
+**Then** it contains the Cell identity, AWS integration identifiers, supported contract versions, encryption references, metric namespace, and checksum
+**And** the contract is published through the approved discovery mechanism without exposing secrets.
+
+**Given** Cell deployment completes
+**When** the deployment workflow reports the result
+**Then** it publishes sanitized resource identifiers, contract version, contract checksum, alarm identifiers, and deployment identity
+**And** it does not publish Terraform state, credentials, secret values, or unrestricted plan content.
+
+**Given** Cell deployment or contract publication fails
+**When** the workflow exits
+**Then** the scheduled-job deployment is not started and launch remains disabled
+**And** the failure is recorded with an operator-safe diagnostic and no automatic mutation retry.
+
+### Story 5.4: Deploy the Scheduled-Job Consumer Safely
+
+As a Platform Operator,
+I want to deploy one ECS/Fargate scheduled-job consumer against the published Cell Contract,
+So that the job is ready for verification without launching before the Cell is ready.
+
+**Acceptance Criteria:**
+
+**Given** the Platform Cell Contract is available
+**When** the scheduled-job Terraform root is applied
+**Then** it consumes the published contract rather than Terraform remote state
+**And** it creates the ECS task definition, execution role, task role, launch role, scheduler delivery configuration, logging, alarms, retry settings, DLQ handling, notifications, and operational metadata.
+
+**Given** the consumer image is configured
+**When** the task definition is rendered
+**Then** it references an immutable ECR image digest
+**And** mutable tags, `latest`, credentials, and secret values are rejected.
+
+**Given** the task runs in AWS
+**When** networking is configured
+**Then** it uses the supplied private subnets with public IP assignment disabled
+**And** security-group egress is explicit and the required image, log, secret, and dependency reachability is documented.
+
+**Given** the job has a completion contract
+**When** the task definition and runtime configuration are created
+**Then** the job is configured to emit structured start, success, and failure records containing the platform occurrence context
+**And** completion records do not contain secret values.
+
+**Given** the Cell has not acknowledged and validated the consumer configuration
+**When** the consumer resources are created
+**Then** the schedule remains disabled
+**And** the workflow reports the missing acknowledgement or readiness evidence.
+
+**Given** the Cell acknowledgement and readiness evidence are available
+**When** the enablement step runs
+**Then** the schedule can be enabled only for the acknowledged configuration and schedule generation
+**And** the deployment records the corresponding configuration hash, schedule identity, and Deployment Identity.
+
+**Given** consumer deployment fails or readiness evidence is incomplete
+**When** the workflow exits
+**Then** the schedule remains disabled
+**And** no automatic launch or mutation retry occurs.
+
+### Story 5.5: Run the Protected Non-Production Deployment
+
+As a Platform Operator,
+I want a protected GitHub Actions deployment workflow,
+So that the Cell and scheduled-job consumer are deployed through an approved and reproducible process.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is manually triggered with an Infisical path
+**When** the workflow starts
+**Then** it runs credential-free formatting, dependency, Terraform, and policy validation before AWS authentication
+**And** invalid configuration stops the workflow before mutation.
+
+**Given** validation succeeds
+**When** the plan stage runs
+**Then** the workflow authenticates to AWS with short-lived GitHub OIDC credentials
+**And** it creates plans for the Cell and scheduled-job Terraform roots in their required order.
+
+**Given** the Cell and job plans are generated
+**When** the plan artifacts are prepared
+**Then** each plan is bound to the source revision, workflow revision, Infisical configuration fingerprint, Terraform/provider locks, and deployment target
+**And** plan artifacts are access-controlled and do not expose secret values.
+
+**Given** a protected GitHub Environment requires approval
+**When** the apply stage is reached
+**Then** the workflow pauses for the required approval before mutation
+**And** the approval is attributable to the deployment target and plan artifacts.
+
+**Given** the approved plan is available
+**When** the apply stage runs
+**Then** it applies only the exact approved saved plan
+**And** it does not re-plan, override inputs, run refresh-only changes, or retry failed mutations automatically.
+
+**Given** the Cell apply succeeds but the job apply fails
+**When** the workflow exits
+**Then** it preserves the Cell state and evidence
+**And** it leaves the schedule disabled and reports recovery or fresh-plan requirements.
+
+**Given** deployment completes
+**When** the workflow publishes its result
+**Then** it records sanitized Deployment Identity, Terraform outcomes, resource identifiers, contract checksum, and workflow run information
+**And** it does not grant or use production credentials.
+
+### Story 5.6: Verify the End-to-End Scheduled-Job Flow
+
+As a Platform Operator,
+I want the deployment workflow to verify the real scheduled-job path,
+So that a successful Terraform apply is not mistaken for a working workload.
+
+**Acceptance Criteria:**
+
+**Given** the deployment completed and the schedule is enabled
+**When** the verification workflow runs
+**Then** it confirms the Cell Contract is published and readable, the expected schedule configuration exists, and the schedule is enabled only for the acknowledged generation.
+
+**Given** the schedule produces an occurrence
+**When** the platform processes the occurrence
+**Then** verification confirms the scheduler delivery path, launch evidence, ECS task start, task definition digest, and private network configuration
+**And** each result is correlated to the same job and occurrence context.
+
+**Given** the test job runs successfully
+**When** it completes
+**Then** verification confirms structured start and success records, CloudWatch log delivery, zero-exit completion, and the expected terminal occurrence state
+**And** the evidence contains no secret values.
+
+**Given** the controlled failure mode is triggered
+**When** the task fails or delivery is retried
+**Then** verification confirms the configured retry behavior, failure record, alarm context, and DLQ or quarantine behavior
+**And** the failure is distinguishable from a successful invocation.
+
+**Given** an alarm or DLQ signal is generated
+**When** verification queries operational resources
+**Then** it confirms the signal identifies the job, Environment, failure plane, occurrence context when available, Deployment Identity, and Runbook reference
+**And** the test does not leave uncontrolled recurring alarms or unbounded messages.
+
+**Given** verification completes
+**When** evidence is published
+**Then** it includes bounded sanitized results for Cell publication, schedule readiness, ECS launch, completion, logs, retry, alarm, and DLQ checks
+**And** it includes resource identifiers and hashes but not raw state, credentials, secret values, or unrestricted logs.
+
+**Given** any required verification fails
+**When** the workflow exits
+**Then** the result is marked unsuccessful and the next lifecycle action is blocked until an operator reviews the evidence
+**And** no automatic mutation, retry, or destroy is started.
+
+### Story 5.7: Safely Destroy the Disposable Environment
+
+As a Platform Operator,
+I want a separate protected destroy workflow,
+So that the demonstration environment can be removed without deleting production resources, shared Cell foundations, protected state, or required evidence.
+
+**Acceptance Criteria:**
+
+**Given** the destroy workflow is manually triggered
+**When** the operator provides the disposable environment and explicit confirmation
+**Then** the workflow requires protected GitHub Environment approval before mutation
+**And** it does not run automatically after deployment failure.
+
+**Given** the requested target is not explicitly disposable non-production
+**When** destroy preflight runs
+**Then** the workflow stops before Terraform mutation
+**And** production, shared Cell, unknown, and non-owned targets are rejected.
+
+**Given** the target is eligible for destruction
+**When** the pre-destroy checkpoint runs
+**Then** the workflow preserves required deployment, verification, log, alarm, DLQ, and failure evidence
+**And** it records the target identity, workflow run, approval, and evidence location.
+
+**Given** the destroy plan is generated
+**When** it is reviewed
+**Then** the plan is scoped to the approved disposable target and owned resources
+**And** protected state, retained logs, audit evidence, shared Cell resources, and `prevent_destroy` resources are excluded or cause the plan to fail.
+
+**Given** the destroy plan is approved
+**When** destruction runs
+**Then** it applies only the approved destroy plan using the destroy role
+**And** it does not broaden the target, retry failed mutations automatically, or remove protected resources.
+
+**Given** destruction partially fails
+**When** the workflow exits
+**Then** it preserves state and evidence, reports the remaining resources, and fails closed
+**And** recovery requires operator review and a fresh plan or approved lifecycle procedure.
+
+**Given** destruction completes
+**When** the workflow publishes its result
+**Then** it reports the teardown outcome, retained resources, preserved evidence, and any cleanup follow-up
+**And** it does not claim success while protected or failed resources remain.
